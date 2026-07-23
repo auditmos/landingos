@@ -1,0 +1,26 @@
+{
+	"name": "data-service",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy:staging": "wrangler deploy --env staging",
+		"deploy:production": "wrangler deploy --env production",
+		"dev": "wrangler dev --env dev --port 8788",
+		"cf-typegen": "wrangler types --env-interface BaseEnv --env dev",
+		"types": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.16.20",
+		"@types/node": "^22.20.1",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10",
+		"wrangler": "^4.113.0"
+	},
+	"dependencies": {
+		"@hono/zod-validator": "^0.7.6",
+		"@repo/data-ops": "workspace:*",
+		"hono": "^4.12.31"
+	}
+}

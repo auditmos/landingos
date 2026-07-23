@@ -1,0 +1,25 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noUncheckedIndexedAccess": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": false,
+		"declaration": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"outDir": "./dist",
+		// Required by tsc-alias >= 1.9 when baseUrl is implicit. Matches the
+		// rootDir tsc already infers from `include: ["src"]`, so emit is
+		// unchanged — dist/ still mirrors src/ exactly as the exports map expects.
+		"rootDir": "./src",
+		"lib": ["ESNext"],
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"types": ["@cloudflare/workers-types", "vitest/globals"]
+	},
+	"include": ["src"]
+}

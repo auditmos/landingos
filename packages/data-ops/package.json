@@ -1,0 +1,65 @@
+{
+	"name": "@repo/data-ops",
+	"version": "1.0.0",
+	"description": "Manage auth, database, schemas, and queries",
+	"exports": {
+		"./client": {
+			"types": "./dist/client/index.d.ts",
+			"default": "./dist/client/index.js"
+		},
+		"./health": {
+			"types": "./dist/health/index.d.ts",
+			"default": "./dist/health/index.js"
+		},
+		"./auth/*": {
+			"types": "./dist/auth/*.d.ts",
+			"default": "./dist/auth/*.js"
+		},
+		"./database/*": {
+			"types": "./dist/database/*.d.ts",
+			"default": "./dist/database/*.js"
+		},
+		"./drizzle/*": {
+			"types": "./dist/drizzle/*.d.ts",
+			"default": "./dist/drizzle/*.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json --outDir ./dist && tsc-alias",
+		"better-auth:generate": "mkdir -p src/drizzle && npx @better-auth/cli@latest generate --config ./config/auth.ts --output ./src/drizzle/auth-schema.ts",
+		"db:generate:dev": "dotenvx run -f .env.dev -- drizzle-kit generate --config drizzle-dev.config.ts",
+		"db:migrate:dev": "dotenvx run -f .env.dev -- drizzle-kit migrate --config drizzle-dev.config.ts",
+		"db:pull:dev": "dotenvx run -f .env.dev -- drizzle-kit pull --config drizzle-dev.config.ts",
+		"db:generate:staging": "dotenvx run -f .env.staging -- drizzle-kit generate --config drizzle-staging.config.ts",
+		"db:migrate:staging": "dotenvx run -f .env.staging -- drizzle-kit migrate --config drizzle-staging.config.ts",
+		"db:pull:staging": "dotenvx run -f .env.staging -- drizzle-kit pull --config drizzle-staging.config.ts",
+		"db:generate:production": "dotenvx run -f .env.production -- drizzle-kit generate --config drizzle-production.config.ts",
+		"db:migrate:production": "dotenvx run -f .env.production -- drizzle-kit migrate --config drizzle-production.config.ts",
+		"db:pull:production": "dotenvx run -f .env.production -- drizzle-kit pull --config drizzle-production.config.ts",
+		"db:studio": "dotenvx run -f .env.dev -- drizzle-kit studio --config drizzle-dev.config.ts",
+		"db:seed:dev": "dotenvx run -f .env.dev -- tsx src/database/seed/seed.ts",
+		"db:seed:staging": "dotenvx run -f .env.staging -- tsx src/database/seed/seed.ts",
+		"db:seed:production": "dotenvx run -f .env.production -- tsx src/database/seed/seed.ts",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"packageManager": "pnpm@10.34.5",
+	"dependencies": {
+		"@neondatabase/serverless": "^1.1.0",
+		"better-auth": "^1.6.23",
+		"drizzle-orm": "^0.45.2",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20260702.1",
+		"@types/node": "^22.20.1",
+		"drizzle-kit": "^0.31.10",
+		"postgres": "^3.4.9",
+		"tsc-alias": "^1.9.1",
+		"tsx": "^4.23.1",
+		"typescript": "^5.9.3"
+	}
+}
