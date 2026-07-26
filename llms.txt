@@ -1,12 +1,19 @@
-# saas-on-cf
+# LandingOS
 
-> Monorepo: TanStack Start frontend + Hono API backend on Cloudflare Workers.
+> Mobile web/PWA for solo/budget travelers flying Poland → Milan-Bergamo (BGY): plan the airport→Milan transit (up to three variants) and coordinate on one temporary per-flight chat room. No payments, no ticket sales, no boarding-pass checks. Built on a TanStack Start + Hono + Cloudflare Workers monorepo.
+
+## Product & requirements
+
+- [Canonical requirements](docs/landingos-mvp.md): the single source of truth (mirrored in GitHub issue #1)
+- [Root agent constraints](AGENTS.md): cross-cutting rules — fixture-vs-live provider modes, AFK delivery model, privacy invariants, corridor scope, no-payments, Polish UI, the five deep modules
+- [Project README](README.md): status, S0–S10 delivery queue, local setup, deploy
+- Current state: still the `saas-on-cf` starter stack; LandingOS product not yet implemented. Delivery is issues #2–#12 (S0–S10), each a self-contained AFK slice — read the issue before building its slice.
 
 ## Packages
 
 - [data-ops](packages/data-ops/AGENTS.md): Shared DB layer (Drizzle ORM, Zod v4, Better Auth) consumed by both apps
-- [data-service](apps/data-service/AGENTS.md): REST API on Cloudflare Workers using Hono with WorkerEntrypoint pattern
-- [user-application](apps/user-application/AGENTS.md): SSR frontend on Cloudflare Workers using TanStack Start
+- [data-service](apps/data-service/AGENTS.md): REST + WebSocket API on Cloudflare Workers using Hono with WorkerEntrypoint pattern; Durable Objects (per-flight chat) and scheduled handlers
+- [user-application](apps/user-application/AGENTS.md): SSR frontend on Cloudflare Workers using TanStack Start (Polish UI)
 
 ## Rules
 
