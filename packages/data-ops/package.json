@@ -35,6 +35,10 @@
 			"types": "./dist/room/index.d.ts",
 			"default": "./dist/room/index.js"
 		},
+		"./safety": {
+			"types": "./dist/safety/index.d.ts",
+			"default": "./dist/safety/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"

@@ -50,6 +50,13 @@
       "when": 1785157795793,
       "tag": "0006_great_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785160491412,
+      "tag": "0007_uneven_snowbird",
+      "breakpoints": true
     }
   ]
 }

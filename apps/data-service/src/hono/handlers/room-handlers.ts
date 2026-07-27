@@ -6,9 +6,14 @@ import {
 	RoomMessageCreateRequestSchema,
 	RoomSelectionUpdateRequestSchema,
 } from "@repo/data-ops/room";
+import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { ROOM_ID_HEADER, ROOM_USER_ID_HEADER } from "../../durable-objects/flight-room";
+import {
+	ROOM_ID_HEADER,
+	ROOM_RULES_VERSION_HEADER,
+	ROOM_USER_ID_HEADER,
+} from "../../durable-objects/flight-room";
 import { createDatabaseFlightRoomService } from "../../room/repository";
 import { type FlightRoomService, FlightRoomServiceError } from "../../room/service";
 
@@ -19,14 +24,19 @@ interface RoomSession {
 export interface RoomHandlerDependencies {
 	createService(env: Env): FlightRoomService;
 	getSession(request: Request): Promise<RoomSession | null>;
-	openSocket(access: RoomAccessContext, request: Request, env?: Env): Promise<Response>;
+	openSocket(
+		access: RoomAccessContext,
+		request: Request,
+		rulesAccepted: boolean,
+		env?: Env,
+	): Promise<Response>;
 }
 
 const defaultDependencies: RoomHandlerDependencies = {
 	createService: createDatabaseFlightRoomService,
 	getSession: async (request) =>
 		(await getAuth().api.getSession({ headers: request.headers })) as RoomSession | null,
-	openSocket: async (access, _request, env) => {
+	openSocket: async (access, _request, rulesAccepted, env) => {
 		if (!env) {
 			throw new Error("Brak środowiska Workera dla połączenia pokoju.");
 		}
@@ -35,6 +45,9 @@ const defaultDependencies: RoomHandlerDependencies = {
 			[ROOM_ID_HEADER]: access.room.id,
 			[ROOM_USER_ID_HEADER]: access.userId,
 		});
+		if (rulesAccepted) {
+			headers.set(ROOM_RULES_VERSION_HEADER, COMMUNITY_RULES_VERSION);
+		}
 		return env.FLIGHT_ROOM.getByName(access.coordinatorKey).fetch(
 			new Request("https://flight-room.internal/connect", { headers }),
 		);
@@ -181,7 +194,8 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 			access = await service.authenticateUser(roomId.data, userId);
 		}
 		if (!access) return unauthorized(c);
-		return dependencies.openSocket(access, c.req.raw, c.env);
+		const rulesAccepted = await service.hasAcceptedCurrentRules(access.userId);
+		return dependencies.openSocket(access, c.req.raw, rulesAccepted, c.env);
 	});
 
 	return rooms;

@@ -1,6 +1,7 @@
 import { evictDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import type { RoomRealtimeEvent } from "@repo/data-ops/room";
+import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FlightRoomDurableObject } from "./flight-room";
 
@@ -31,6 +32,7 @@ async function connect(
 	stub: DurableObjectStub<FlightRoomDurableObject>,
 	roomId: string,
 	userId: string,
+	rulesAccepted = true,
 ) {
 	const response = await stub.fetch(
 		new Request("https://room.internal/connect", {
@@ -38,6 +40,7 @@ async function connect(
 				Upgrade: "websocket",
 				"X-LandingOS-Room-Id": roomId,
 				"X-LandingOS-User-Id": userId,
+				...(rulesAccepted ? { "X-LandingOS-Rules-Version": COMMUNITY_RULES_VERSION } : undefined),
 			},
 		}),
 	);
@@ -92,9 +95,9 @@ describe("FlightRoomDurableObject hibernating WebSockets", () => {
 		const second = await connect(roomAStub, ROOM_A, "user-b");
 		const outsider = await connect(roomBStub, ROOM_B, "user-c");
 		const outsiderEvents: string[] = [];
-		outsider.addEventListener("message", (event: MessageEvent) =>
-			outsiderEvents.push(String(event.data)),
-		);
+		outsider.addEventListener("message", (event: MessageEvent) => {
+			outsiderEvents.push(String(event.data));
+		});
 
 		const firstPending = receive(first);
 		const secondPending = receive(second);
@@ -103,6 +106,28 @@ describe("FlightRoomDurableObject hibernating WebSockets", () => {
 		expect(JSON.parse(await secondPending)).toEqual(messageEvent);
 		await new Promise((resolve) => setTimeout(resolve, 25));
 		expect(outsiderEvents).toEqual([]);
+	});
+
+	it("filters each realtime send for blocked recipients without affecting B or unrelated C", async () => {
+		const stub = env.FLIGHT_ROOM.getByName("flight-filtered");
+		const blocker = await connect(stub, ROOM_A, "user-a");
+		const source = await connect(stub, ROOM_A, "user-b");
+		const unrelated = await connect(stub, ROOM_A, "user-c");
+		const blockerEvents: string[] = [];
+		blocker.addEventListener("message", (event: MessageEvent) => {
+			blockerEvents.push(String(event.data));
+		});
+		const sourcePending = receive(source);
+		const unrelatedPending = receive(unrelated);
+		await stub.broadcast(ROOM_A, messageEvent, ["user-a"]);
+		expect(JSON.parse(await sourcePending)).toEqual(messageEvent);
+		expect(JSON.parse(await unrelatedPending)).toEqual(messageEvent);
+		await new Promise((resolve) => setTimeout(resolve, 25));
+		expect(blockerEvents).toEqual([]);
+
+		const futurePending = receive(blocker);
+		await stub.broadcast(ROOM_A, selectionEvent);
+		expect(JSON.parse(await futurePending)).toEqual(selectionEvent);
 	});
 
 	it("keeps the socket and authorization attachment across forced hibernation", async () => {
@@ -155,6 +180,18 @@ describe("FlightRoomDurableObject hibernating WebSockets", () => {
 			type: "error",
 			code: "BINARY_MESSAGE_NOT_SUPPORTED",
 			error: "Wiadomość musi być zwykłym tekstem.",
+		});
+	});
+
+	it("returns rules_acceptance_required for unaccepted WebSocket sends", async () => {
+		const stub = env.FLIGHT_ROOM.getByName("flight-rules");
+		const socket = await connect(stub, ROOM_A, "user-a", false);
+		const pending = receive(socket);
+		socket.send("próba wysłania wiadomości");
+		expect(JSON.parse(await pending)).toEqual({
+			type: "error",
+			code: "rules_acceptance_required",
+			error: "Zaakceptuj aktualne zasady społeczności przed wysłaniem wiadomości.",
 		});
 	});
 });

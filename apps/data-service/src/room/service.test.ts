@@ -4,6 +4,7 @@ import type {
 	RoomRealtimeEvent,
 	RoomSnapshot,
 } from "@repo/data-ops/room";
+import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createFlightRoomService,
@@ -31,6 +32,8 @@ function dependencies(
 ): FlightRoomServiceDependencies {
 	return {
 		now: () => new Date("2026-09-14T07:00:00.000Z"),
+		rulesVersion: COMMUNITY_RULES_VERSION,
+		hasCommunityRulesAcceptance: vi.fn(async () => true),
 		getIdentityProfile: vi.fn(async () => ({
 			id: "user-1",
 			emailVerified: true,
@@ -69,6 +72,59 @@ function dependencies(
 }
 
 describe("flight room service ordering and idempotency", () => {
+	it("allows join/read but rejects HTTP message sends until the current rules are accepted", async () => {
+		const deps = dependencies({ hasCommunityRulesAcceptance: vi.fn(async () => false) });
+		const service = createFlightRoomService(deps);
+		expect(await service.join("flight-1", "user-1")).toEqual(snapshot);
+		expect(await service.getSnapshot(room.id, "user-1")).toEqual(snapshot);
+		vi.mocked(deps.broadcast).mockClear();
+		await expect(
+			service.createMessage(room.id, "user-1", {
+				clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e53",
+				content: "Pierwsza wiadomość",
+			}),
+		).rejects.toEqual(
+			expect.objectContaining<Partial<FlightRoomServiceError>>({
+				code: "rules_acceptance_required",
+				status: 409,
+				message: expect.stringMatching(/zasady społeczności/i),
+			}),
+		);
+		expect(deps.createRoomMessage).not.toHaveBeenCalled();
+		expect(deps.broadcast).not.toHaveBeenCalled();
+	});
+
+	it("does not prompt accepted users again until the configured rules version changes", async () => {
+		const hasAcceptance = vi.fn(async (_userId: string, version: string) => {
+			return version === COMMUNITY_RULES_VERSION;
+		});
+		const accepted = createFlightRoomService(
+			dependencies({ hasCommunityRulesAcceptance: hasAcceptance }),
+		);
+		await accepted.createMessage(room.id, "user-1", {
+			clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e53",
+			content: "Pierwsza wiadomość po akceptacji",
+		});
+		await accepted.createMessage(room.id, "user-1", {
+			clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e54",
+			content: "Kolejna wiadomość bez ponownego pytania",
+		});
+
+		const changedVersion = createFlightRoomService(
+			dependencies({
+				rulesVersion: "2026-10-01-v2",
+				hasCommunityRulesAcceptance: hasAcceptance,
+			}),
+		);
+		await expect(
+			changedVersion.createMessage(room.id, "user-1", {
+				clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e55",
+				content: "Wiadomość po zmianie zasad",
+			}),
+		).rejects.toMatchObject({ code: "rules_acceptance_required" });
+		expect(hasAcceptance).toHaveBeenLastCalledWith("user-1", "2026-10-01-v2");
+	});
+
 	it("requires a verified profile and valid pseudonym before joining", async () => {
 		const deps = dependencies({
 			getIdentityProfile: vi.fn(async () => ({
@@ -159,6 +215,12 @@ describe("flight room service ordering and idempotency", () => {
 			"message_created:broadcast",
 		]);
 		expect(events).toHaveLength(2);
+		expect(deps.broadcast).toHaveBeenCalledWith(
+			"flight-1",
+			room.id,
+			expect.objectContaining({ type: "message_created" }),
+			"user-1",
+		);
 	});
 
 	it("returns an existing retry without broadcasting it again", async () => {

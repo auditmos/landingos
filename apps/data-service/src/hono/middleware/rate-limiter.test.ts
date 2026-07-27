@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { rateLimiter } from "./rate-limiter";
 
 function buildApp(binding: RateLimit = env.RATE_LIMITER) {
@@ -71,6 +71,28 @@ describe("rateLimiter middleware", () => {
 		expect(blocked.headers.get("X-RateLimit-Limit")).toBe("10");
 		expect(blocked.headers.get("X-RateLimit-Remaining")).toBe("0");
 		expect(blocked.headers.get("X-RateLimit-Reset")).toBe("60");
+	});
+
+	it("supports a typed Polish domain error for safety operations", async () => {
+		const binding = { limit: vi.fn(async () => ({ success: false })) } as unknown as RateLimit;
+		const app = new Hono<{ Bindings: Env }>();
+		app.use(
+			"/protected",
+			rateLimiter({
+				binding,
+				limit: 10,
+				window: 60,
+				errorCode: "safety_rate_limited",
+				errorMessage: "Zbyt wiele operacji bezpieczeństwa. Spróbuj ponownie później.",
+			}),
+		);
+		app.get("/protected", (c) => c.text("ok"));
+		const response = await app.fetch(ipReq(randIp()), env);
+		expect(response.status).toBe(429);
+		expect(await response.json()).toEqual({
+			code: "safety_rate_limited",
+			error: "Zbyt wiele operacji bezpieczeństwa. Spróbuj ponownie później.",
+		});
 	});
 
 	it("allows requests again once the window has expired", async () => {

@@ -1,6 +1,7 @@
-import { and, asc, count, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNotNull, isNull, lte, notExists, or } from "drizzle-orm";
 import type { getDb } from "@/database/setup";
 import { auth_user } from "@/drizzle/auth-schema";
+import { userBlocks } from "@/safety/table";
 import {
 	type PublicRoom,
 	type PublicRoomMember,
@@ -23,7 +24,7 @@ import {
 	roomSelections,
 } from "./table";
 
-type RoomDatabase = Pick<ReturnType<typeof getDb>, "insert" | "select" | "update">;
+export type RoomDatabase = Pick<ReturnType<typeof getDb>, "insert" | "select" | "update">;
 
 export interface JoinFlightRoomInput {
 	flightInstanceId: string;
@@ -245,7 +246,28 @@ export async function replaceRoomSelection(
 export async function listRoomMessages(
 	db: RoomDatabase,
 	roomId: string,
+	viewerUserId?: string,
 ): Promise<PublicRoomMessage[]> {
+	const hiddenByBlock = viewerUserId
+		? notExists(
+				db
+					.select({ blockerId: userBlocks.blockerId })
+					.from(userBlocks)
+					.where(
+						and(
+							eq(userBlocks.blockerId, viewerUserId),
+							eq(userBlocks.blockedId, roomMemberships.userId),
+							or(
+								eq(userBlocks.active, true),
+								and(
+									isNotNull(userBlocks.hiddenThrough),
+									lte(roomMessages.createdAt, userBlocks.hiddenThrough),
+								),
+							),
+						),
+					),
+			)
+		: undefined;
 	const rows = await db
 		.select({
 			id: roomMessages.id,
@@ -257,7 +279,7 @@ export async function listRoomMessages(
 		.from(roomMessages)
 		.innerJoin(roomMemberships, eq(roomMessages.membershipId, roomMemberships.id))
 		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
-		.where(eq(roomMessages.roomId, roomId))
+		.where(and(eq(roomMessages.roomId, roomId), hiddenByBlock))
 		.orderBy(asc(roomMessages.sequence));
 	return rows.map(messageFromRow);
 }
@@ -288,6 +310,7 @@ export async function createRoomMessage(
 	roomId: string,
 	userId: string,
 	input: RoomMessageCreateRequest,
+	createdAt = new Date(),
 ): Promise<{ message: PublicRoomMessage; created: boolean }> {
 	const messageInput = RoomMessageCreateRequestSchema.parse(input);
 	const membership = await getMembership(db, roomId, userId);
@@ -302,6 +325,7 @@ export async function createRoomMessage(
 			membershipId: membership.id,
 			clientMessageId: messageInput.clientMessageId,
 			content: messageInput.content,
+			createdAt,
 		})
 		.onConflictDoNothing({
 			target: [roomMessages.roomId, roomMessages.clientMessageId],
@@ -328,7 +352,7 @@ export async function getRoomSnapshot(
 		room: access.room,
 		member,
 		members: await listPublicRoomMembers(db, roomId),
-		messages: await listRoomMessages(db, roomId),
+		messages: await listRoomMessages(db, roomId, userId),
 	});
 }
 

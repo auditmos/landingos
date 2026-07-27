@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { RoomSnapshot } from "@repo/data-ops/room";
+import { COMMUNITY_RULES_TOPICS, COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +12,21 @@ const mocks = vi.hoisted(() => ({
 	select: vi.fn(),
 	send: vi.fn(),
 	ticket: vi.fn(),
+	rules: vi.fn(),
+	acceptRules: vi.fn(),
+	blocks: vi.fn(),
+	block: vi.fn(),
+	unblock: vi.fn(),
+	report: vi.fn(),
+}));
+
+vi.mock("@/lib/safety-api", () => ({
+	fetchCommunityRules: mocks.rules,
+	acceptCommunityRules: mocks.acceptRules,
+	fetchBlockedMembers: mocks.blocks,
+	blockRoomMember: mocks.block,
+	unblockRoomMember: mocks.unblock,
+	reportRoomSafety: mocks.report,
 }));
 
 vi.mock("@/lib/room-api", async (importOriginal) => {
@@ -26,11 +42,23 @@ vi.mock("@/lib/room-api", async (importOriginal) => {
 });
 
 const roomId = "018f4c8e-5697-7df4-8f6e-c7644b137e5b";
+const otherMember = {
+	pseudonym: "Bartek BGY",
+	selection: { kind: "shared_taxi" as const },
+};
 const snapshot: RoomSnapshot = {
 	room: { id: roomId, flightInstanceId: "flight-1" },
 	member: { pseudonym: "Alicja BGY", selection: null },
-	members: [{ pseudonym: "Alicja BGY", selection: null }],
-	messages: [],
+	members: [{ pseudonym: "Alicja BGY", selection: null }, otherMember],
+	messages: [
+		{
+			id: "018f4c8e-5697-7df4-8f6e-c7644b137e59",
+			clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e58",
+			pseudonym: "Bartek BGY",
+			content: "Jestem przy autobusie.",
+			createdAt: "2026-09-14T07:00:01.000Z",
+		},
+	],
 };
 
 class FakeWebSocket extends EventTarget {
@@ -104,7 +132,7 @@ describe("Polish flight room UI", () => {
 		mocks.refresh.mockResolvedValue({
 			...snapshot,
 			member: await mocks.select(),
-			members: [await mocks.select()],
+			members: [await mocks.select(), otherMember],
 		});
 		mocks.ticket.mockResolvedValue({
 			ticket: "a".repeat(64),
@@ -119,6 +147,32 @@ describe("Polish flight room UI", () => {
 				content: "Cześć!",
 				createdAt: "2026-09-14T07:00:00.000Z",
 			},
+		});
+		mocks.rules.mockResolvedValue({
+			version: COMMUNITY_RULES_VERSION,
+			accepted: false,
+			topics: COMMUNITY_RULES_TOPICS,
+		});
+		mocks.acceptRules.mockResolvedValue({
+			version: COMMUNITY_RULES_VERSION,
+			acceptedAt: "2026-09-14T07:00:00.000Z",
+			created: true,
+		});
+		mocks.blocks.mockResolvedValue({ blockedPseudonyms: [] });
+		mocks.block.mockResolvedValue({
+			blockedPseudonym: "Bartek BGY",
+			active: true,
+			changed: true,
+		});
+		mocks.unblock.mockResolvedValue({
+			blockedPseudonym: "Bartek BGY",
+			active: false,
+			changed: true,
+		});
+		mocks.report.mockResolvedValue({
+			reportId: "018f4c8e-5697-7df4-8f6e-c7644b137e57",
+			status: "open",
+			created: true,
 		});
 		vi.clearAllMocks();
 		container = document.createElement("div");
@@ -150,9 +204,17 @@ describe("Polish flight room UI", () => {
 		expect(container.textContent).toContain("Pokój lotu");
 		expect(container.textContent).toContain("Alicja BGY");
 		expect(container.textContent).toContain("nie sprawdza karty pokładowej");
+		for (const topic of COMMUNITY_RULES_TOPICS) {
+			expect(container.textContent).toContain(topic);
+		}
 	});
 
 	it("renders realtime messages and sends trimmed text with a client UUID", async () => {
+		const accept = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Akceptuję zasady"),
+		);
+		await act(async () => accept?.click());
+		await settle();
 		FakeWebSocket.instances[0]?.emit({
 			type: "message_created",
 			message: {
@@ -196,5 +258,40 @@ describe("Polish flight room UI", () => {
 		expect(mocks.ticket).toHaveBeenCalledTimes(2);
 		expect(FakeWebSocket.instances).toHaveLength(2);
 		vi.useRealTimers();
+	});
+
+	it("accepts rules, blocks a member, and reports a specific message in Polish UI", async () => {
+		const accept = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Akceptuję zasady"),
+		);
+		await act(async () => accept?.click());
+		await settle();
+		expect(mocks.acceptRules).toHaveBeenCalledWith(COMMUNITY_RULES_VERSION);
+
+		const block = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Zablokuj",
+		);
+		await act(async () => block?.click());
+		await settle();
+		expect(mocks.block).toHaveBeenCalledWith(roomId, "Bartek BGY");
+
+		const report = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Zgłoś wiadomość"),
+		);
+		await act(async () => report?.click());
+		await settle();
+		const submit = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Wyślij zgłoszenie"),
+		);
+		await act(async () => submit?.click());
+		await settle();
+		expect(mocks.report).toHaveBeenCalledWith(
+			roomId,
+			expect.objectContaining({
+				targetType: "message",
+				messageId: "018f4c8e-5697-7df4-8f6e-c7644b137e59",
+			}),
+		);
+		expect(container.textContent).toContain("Zgłoszenie zostało zapisane");
 	});
 });

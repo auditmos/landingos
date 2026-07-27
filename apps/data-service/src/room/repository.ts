@@ -9,12 +9,20 @@ import {
 	joinFlightRoom,
 	replaceRoomSelection,
 } from "@repo/data-ops/room";
+import {
+	COMMUNITY_RULES_VERSION,
+	hasCommunityRulesAcceptance,
+	listBlockedRecipientIds,
+} from "@repo/data-ops/safety";
 import { createFlightRoomService, type FlightRoomService } from "./service";
 
 export function createDatabaseFlightRoomService(env: Env): FlightRoomService {
 	const db = getDb();
 	return createFlightRoomService({
 		now: () => new Date(),
+		rulesVersion: COMMUNITY_RULES_VERSION,
+		hasCommunityRulesAcceptance: (userId, rulesVersion) =>
+			hasCommunityRulesAcceptance(db, userId, rulesVersion),
 		getIdentityProfile: (userId) => getIdentityProfile(db, userId),
 		joinFlightRoom: (input) => joinFlightRoom(db, input),
 		getRoomSnapshot: (roomId, userId) => getRoomSnapshot(db, roomId, userId),
@@ -24,8 +32,9 @@ export function createDatabaseFlightRoomService(env: Env): FlightRoomService {
 		createRoomMessage: (roomId, userId, input) => createRoomMessage(db, roomId, userId, input),
 		createConnectionTicket: (input) => createConnectionTicket(db, input),
 		consumeConnectionTicket: (input) => consumeConnectionTicket(db, input),
-		broadcast: async (coordinatorKey, roomId, event) => {
-			await env.FLIGHT_ROOM.getByName(coordinatorKey).broadcast(roomId, event);
+		broadcast: async (coordinatorKey, roomId, event, sourceUserId) => {
+			const excludedUserIds = await listBlockedRecipientIds(db, roomId, sourceUserId);
+			await env.FLIGHT_ROOM.getByName(coordinatorKey).broadcast(roomId, event, excludedUserIds);
 		},
 	});
 }

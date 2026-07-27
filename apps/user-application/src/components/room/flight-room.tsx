@@ -9,7 +9,7 @@ import {
 	type RoomSelection,
 	type RoomSnapshot,
 } from "@repo/data-ops/room";
-import { MessageCircle, RefreshCw, Send, Users } from "lucide-react";
+import { MessageCircle, RefreshCw, Send } from "lucide-react";
 import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,8 @@ import {
 	updateRoomSelection,
 } from "@/lib/room-api";
 import { loadRoomIntent, type RoomIntent } from "@/lib/room-intent";
+import { RoomSafetyPanel } from "./room-safety-panel";
+import { useRoomSafety } from "./use-room-safety";
 
 function upsertMember(members: PublicRoomMember[], member: PublicRoomMember): PublicRoomMember[] {
 	const index = members.findIndex((candidate) => candidate.pseudonym === member.pseudonym);
@@ -41,14 +43,6 @@ function upsertMessage(
 	return messages.some((candidate) => candidate.id === message.id)
 		? messages
 		: [...messages, message];
-}
-
-function selectionLabel(selection: RoomSelection | null): string {
-	if (!selection) return "Jeszcze bez deklaracji";
-	if (selection.kind === "shared_taxi") return "Dzielona taksówka";
-	return selection.operatorNames.length > 0
-		? selection.operatorNames.join(", ")
-		: selection.modes.join(", ");
 }
 
 type SnapshotSetter = Dispatch<SetStateAction<RoomSnapshot | null>>;
@@ -112,33 +106,6 @@ function handleRealtimePayload(
 	} catch {
 		setError("Odebrano nieprawidłowe zdarzenie pokoju.");
 	}
-}
-
-function RoomMemberList({ members }: { members: PublicRoomMember[] }) {
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="flex items-center gap-2 text-xl">
-					<Users className="size-5" />
-					Osoby w pokoju
-				</CardTitle>
-				<CardDescription>Widoczne są wyłącznie pseudonimy i publiczne deklaracje.</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<ul className="space-y-2">
-					{members.map((member, index) => (
-						<li
-							key={`${member.pseudonym}:${index}`}
-							className="flex flex-col gap-1 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
-						>
-							<span className="font-medium">{member.pseudonym}</span>
-							<Badge variant="secondary">{selectionLabel(member.selection)}</Badge>
-						</li>
-					))}
-				</ul>
-			</CardContent>
-		</Card>
-	);
 }
 
 function PseudonymSetup({ onSaved }: { onSaved: () => void }) {
@@ -207,6 +174,10 @@ export function FlightRoom() {
 	const [needsPseudonym, setNeedsPseudonym] = useState(false);
 	const [retryKey, setRetryKey] = useState(0);
 	const [connection, setConnection] = useState("Łączenie…");
+	const safety = useRoomSafety(snapshot?.room.id, async () => {
+		const roomId = snapshot?.room.id;
+		if (roomId) setSnapshot(await fetchRoomSnapshot(roomId));
+	});
 
 	useEffect(() => {
 		void retryKey;
@@ -366,7 +337,11 @@ export function FlightRoom() {
 			) : (
 				<div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
 					<div className="space-y-5">
-						<RoomMemberList members={snapshot.members} />
+						<RoomSafetyPanel
+							members={snapshot.members}
+							currentPseudonym={snapshot.member.pseudonym}
+							safety={safety}
+						/>
 						<Card>
 							<CardHeader>
 								<CardTitle className="text-xl">Twoja deklaracja</CardTitle>
@@ -416,6 +391,17 @@ export function FlightRoom() {
 										<article key={item.id} className="rounded-md border p-3">
 											<p className="text-sm font-semibold">{item.pseudonym}</p>
 											<p className="whitespace-pre-wrap break-words">{item.content}</p>
+											{item.pseudonym === snapshot.member.pseudonym ? null : (
+												<Button
+													type="button"
+													size="sm"
+													variant="ghost"
+													className="mt-2"
+													onClick={() => safety.startMessageReport(item.id)}
+												>
+													Zgłoś wiadomość
+												</Button>
+											)}
 										</article>
 									))
 								)}
@@ -437,6 +423,7 @@ export function FlightRoom() {
 									<Button
 										type="submit"
 										disabled={
+											!safety.rules?.accepted ||
 											Array.from(message.trim()).length < 1 ||
 											Array.from(message.trim()).length > 1_000
 										}

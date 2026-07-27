@@ -139,7 +139,11 @@ export const RoomRealtimeEventSchema = z.discriminatedUnion("type", [
 
 export const RoomRealtimeErrorSchema = z.strictObject({
 	type: z.literal("error"),
-	code: z.enum(["BINARY_MESSAGE_NOT_SUPPORTED", "MESSAGE_TRANSPORT_NOT_SUPPORTED"]),
+	code: z.enum([
+		"BINARY_MESSAGE_NOT_SUPPORTED",
+		"MESSAGE_TRANSPORT_NOT_SUPPORTED",
+		"rules_acceptance_required",
+	]),
 	error: z.string().min(1),
 });
 

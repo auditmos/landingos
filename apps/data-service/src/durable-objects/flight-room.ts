@@ -6,24 +6,26 @@ import {
 	type RoomRealtimeEvent,
 	RoomRealtimeEventSchema,
 } from "@repo/data-ops/room";
+import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 
 export const ROOM_ID_HEADER = "X-LandingOS-Room-Id";
 export const ROOM_USER_ID_HEADER = "X-LandingOS-User-Id";
+export const ROOM_RULES_VERSION_HEADER = "X-LandingOS-Rules-Version";
+const RULES_TAG = `rules:${COMMUNITY_RULES_VERSION}`;
 
-function errorPayload(code: "BINARY_MESSAGE_NOT_SUPPORTED" | "MESSAGE_TRANSPORT_NOT_SUPPORTED") {
-	return RoomRealtimeErrorSchema.parse(
-		code === "BINARY_MESSAGE_NOT_SUPPORTED"
-			? {
-					type: "error",
-					code,
-					error: "Wiadomość musi być zwykłym tekstem.",
-				}
-			: {
-					type: "error",
-					code,
-					error: "Wiadomości wysyłaj przez bezpieczny formularz pokoju.",
-				},
-	);
+function errorPayload(
+	code:
+		| "BINARY_MESSAGE_NOT_SUPPORTED"
+		| "MESSAGE_TRANSPORT_NOT_SUPPORTED"
+		| "rules_acceptance_required",
+) {
+	const messages = {
+		BINARY_MESSAGE_NOT_SUPPORTED: "Wiadomość musi być zwykłym tekstem.",
+		MESSAGE_TRANSPORT_NOT_SUPPORTED: "Wiadomości wysyłaj przez bezpieczny formularz pokoju.",
+		rules_acceptance_required:
+			"Zaakceptuj aktualne zasady społeczności przed wysłaniem wiadomości.",
+	} as const;
+	return RoomRealtimeErrorSchema.parse({ type: "error", code, error: messages[code] });
 }
 
 export class FlightRoomDurableObject extends DurableObject<Env> {
@@ -42,21 +44,31 @@ export class FlightRoomDurableObject extends DurableObject<Env> {
 		const pair = new WebSocketPair();
 		const client = pair[0];
 		const server = pair[1];
-		this.ctx.acceptWebSocket(server, [attachment.data.roomId]);
+		const tags = [attachment.data.roomId];
+		if (request.headers.get(ROOM_RULES_VERSION_HEADER) === COMMUNITY_RULES_VERSION) {
+			tags.push(RULES_TAG);
+		}
+		this.ctx.acceptWebSocket(server, tags);
 		server.serializeAttachment(attachment.data);
 		return new Response(null, { status: 101, webSocket: client });
 	}
 
-	async broadcast(roomId: string, rawEvent: RoomRealtimeEvent): Promise<void> {
+	async broadcast(
+		roomId: string,
+		rawEvent: RoomRealtimeEvent,
+		excludedUserIds: string[] = [],
+	): Promise<void> {
 		const expectedRoomId = RoomIdSchema.parse(roomId);
 		const event = RoomRealtimeEventSchema.parse(rawEvent);
 		const payload = JSON.stringify(event);
+		const excluded = new Set(excludedUserIds);
 		for (const socket of this.ctx.getWebSockets(expectedRoomId)) {
 			const attachment = ConnectionAttachmentSchema.safeParse(socket.deserializeAttachment());
 			if (!attachment.success || attachment.data.roomId !== expectedRoomId) {
 				socket.close(1008, "Nieprawidłowy kontekst pokoju.");
 				continue;
 			}
+			if (excluded.has(attachment.data.userId)) continue;
 			if (socket.readyState === WebSocket.OPEN) {
 				socket.send(payload);
 			}
@@ -70,9 +82,11 @@ export class FlightRoomDurableObject extends DurableObject<Env> {
 			return;
 		}
 		const error =
-			typeof message === "string"
-				? errorPayload("MESSAGE_TRANSPORT_NOT_SUPPORTED")
-				: errorPayload("BINARY_MESSAGE_NOT_SUPPORTED");
+			typeof message !== "string"
+				? errorPayload("BINARY_MESSAGE_NOT_SUPPORTED")
+				: this.ctx.getTags(socket).includes(RULES_TAG)
+					? errorPayload("MESSAGE_TRANSPORT_NOT_SUPPORTED")
+					: errorPayload("rules_acceptance_required");
 		socket.send(JSON.stringify(error));
 	}
 

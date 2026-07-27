@@ -1,7 +1,7 @@
 import type { PublicRoomMember, RoomAccessContext, RoomSnapshot } from "@repo/data-ops/room";
 import { Hono } from "hono";
 import { vi } from "vitest";
-import type { FlightRoomService } from "../../room/service";
+import { type FlightRoomService, FlightRoomServiceError } from "../../room/service";
 import { createRoomHandlers } from "./room-handlers";
 
 const room = {
@@ -54,6 +54,7 @@ function buildApp(serviceOverrides: Partial<FlightRoomService> = {}) {
 		})),
 		authenticateTicket: vi.fn(async () => access),
 		authenticateUser: vi.fn(async () => access),
+		hasAcceptedCurrentRules: vi.fn(async () => true),
 		...serviceOverrides,
 	};
 	const getSession = vi.fn(async (request: Request) => {
@@ -113,6 +114,24 @@ describe("flight room authenticated HTTP API", () => {
 		expect(service.join).toHaveBeenCalledWith("flight-1", "user-1");
 	});
 
+	it("keeps server-side history filtering user-keyed across cookie and Bearer sessions", async () => {
+		const getSnapshot = vi.fn(async () => snapshot);
+		const { app } = buildApp({ getSnapshot });
+
+		const sessions = [
+			new Headers({ cookie: "better-auth.session_token=browser-session" }),
+			new Headers({ Authorization: "Bearer native-session" }),
+		];
+		for (const headers of sessions) {
+			const response = await app.request(`/rooms/${room.id}`, { headers });
+			expect(response.status).toBe(200);
+			expect((await response.json()) as RoomSnapshot).toEqual(snapshot);
+		}
+
+		expect(getSnapshot).toHaveBeenNthCalledWith(1, room.id, "user-1");
+		expect(getSnapshot).toHaveBeenNthCalledWith(2, room.id, "user-1");
+	});
+
 	it("rejects private selection fields before persistence", async () => {
 		const { app, service } = buildApp();
 		const response = await app.request(`/rooms/${room.id}/selection`, {
@@ -154,6 +173,31 @@ describe("flight room authenticated HTTP API", () => {
 			});
 			expect(service.createMessage).not.toHaveBeenCalled();
 		}
+	});
+
+	it("returns a typed rules_acceptance_required response for an unaccepted HTTP send", async () => {
+		const { app } = buildApp({
+			createMessage: vi.fn(async () => {
+				throw new FlightRoomServiceError(
+					"rules_acceptance_required",
+					409,
+					"Zaakceptuj aktualne zasady społeczności przed wysłaniem wiadomości.",
+				);
+			}),
+		});
+		const response = await app.request(`/rooms/${room.id}/messages`, {
+			method: "POST",
+			headers: browserHeaders,
+			body: JSON.stringify({
+				clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e53",
+				content: "Pierwsza wiadomość",
+			}),
+		});
+		expect(response.status).toBe(409);
+		expect(await response.json()).toEqual({
+			code: "rules_acceptance_required",
+			error: "Zaakceptuj aktualne zasady społeczności przed wysłaniem wiadomości.",
+		});
 	});
 
 	it("issues a short-lived browser connection ticket to a room member", async () => {
@@ -225,7 +269,7 @@ describe("flight room WebSocket authorization matrix", () => {
 		const sessionRequest = getSession.mock.calls[0]?.[0];
 		expect(sessionRequest?.headers.get("cookie")).toBeNull();
 		expect(service.authenticateUser).toHaveBeenCalledWith(room.id, "user-1");
-		expect(openSocket).toHaveBeenCalledWith(access, expect.any(Request), undefined);
+		expect(openSocket).toHaveBeenCalledWith(access, expect.any(Request), true, undefined);
 	});
 
 	it("rejects a cookie-only WebSocket upgrade so browsers must use a ticket", async () => {
@@ -239,5 +283,16 @@ describe("flight room WebSocket authorization matrix", () => {
 		expect(response.status).toBe(401);
 		expect(getSession).not.toHaveBeenCalled();
 		expect(openSocket).not.toHaveBeenCalled();
+	});
+
+	it("allows an unaccepted member to connect for reading but marks the socket unaccepted", async () => {
+		const { app, openSocket } = buildApp({
+			hasAcceptedCurrentRules: vi.fn(async () => false),
+		});
+		const response = await app.request(`/rooms/${room.id}/connect?ticket=${"a".repeat(64)}`, {
+			headers: { Upgrade: "websocket" },
+		});
+		expect(response.status).toBe(204);
+		expect(openSocket).toHaveBeenCalledWith(access, expect.any(Request), false, undefined);
 	});
 });

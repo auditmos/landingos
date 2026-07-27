@@ -8,6 +8,8 @@ interface RateLimitConfig {
 	binding: BindingResolver;
 	limit: number;
 	window: number;
+	errorCode?: string;
+	errorMessage?: string;
 }
 
 function resolve(binding: BindingResolver, env: Env): RateLimit {
@@ -27,7 +29,13 @@ export const rateLimiter = (config: RateLimitConfig): MiddlewareHandler => {
 		if (!success) {
 			c.header("Retry-After", String(config.window));
 			c.header("X-RateLimit-Remaining", "0");
-			return c.json({ error: "Too many requests" }, 429);
+			return c.json(
+				{
+					...(config.errorCode ? { code: config.errorCode } : {}),
+					error: config.errorMessage ?? "Too many requests",
+				},
+				429,
+			);
 		}
 
 		return next();

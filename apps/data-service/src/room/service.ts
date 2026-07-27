@@ -16,6 +16,7 @@ import {
 	RoomMessageCreateRequestSchema,
 	RoomSelectionSchema,
 } from "@repo/data-ops/room";
+import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 
 export const ROOM_CONNECTION_TICKET_TTL_MS = 60_000;
 
@@ -25,7 +26,8 @@ export class FlightRoomServiceError extends Error {
 			| "PSEUDONYM_REQUIRED"
 			| "ROOM_ACCESS_DENIED"
 			| "ROOM_MESSAGE_INVALID"
-			| "ROOM_SELECTION_INVALID",
+			| "ROOM_SELECTION_INVALID"
+			| "rules_acceptance_required",
 		readonly status: 400 | 403 | 409,
 		message: string,
 	) {
@@ -36,6 +38,8 @@ export class FlightRoomServiceError extends Error {
 
 export interface FlightRoomServiceDependencies {
 	now(): Date;
+	rulesVersion?: string;
+	hasCommunityRulesAcceptance(userId: string, rulesVersion: string): Promise<boolean>;
 	getIdentityProfile(userId: string): Promise<IdentityProfile | null>;
 	joinFlightRoom(input: {
 		flightInstanceId: string;
@@ -59,7 +63,12 @@ export interface FlightRoomServiceDependencies {
 		roomId: string;
 		now?: Date;
 	}): Promise<{ userId: string } | null>;
-	broadcast(coordinatorKey: string, roomId: string, event: RoomRealtimeEvent): Promise<void>;
+	broadcast(
+		coordinatorKey: string,
+		roomId: string,
+		event: RoomRealtimeEvent,
+		sourceUserId: string,
+	): Promise<void>;
 }
 
 function randomConnectionTicket(): string {
@@ -86,6 +95,7 @@ async function accessOrThrow(
 }
 
 export function createFlightRoomService(dependencies: FlightRoomServiceDependencies) {
+	const rulesVersion = dependencies.rulesVersion ?? COMMUNITY_RULES_VERSION;
 	return {
 		async join(flightInstanceId: string, userId: string): Promise<RoomSnapshot> {
 			const profile = await dependencies.getIdentityProfile(userId);
@@ -99,10 +109,15 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 			const joined = await dependencies.joinFlightRoom({ flightInstanceId, userId });
 			const snapshot = await dependencies.getRoomSnapshot(joined.room.id, userId);
 			if (joined.membershipCreated) {
-				await dependencies.broadcast(joined.room.flightInstanceId, joined.room.id, {
-					type: "member_joined",
-					member: snapshot.member,
-				});
+				await dependencies.broadcast(
+					joined.room.flightInstanceId,
+					joined.room.id,
+					{
+						type: "member_joined",
+						member: snapshot.member,
+					},
+					userId,
+				);
 			}
 			return snapshot;
 		},
@@ -127,10 +142,15 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 			}
 			const access = await accessOrThrow(dependencies, roomId, userId);
 			const member = await dependencies.replaceRoomSelection(roomId, userId, parsed.data);
-			await dependencies.broadcast(access.coordinatorKey, roomId, {
-				type: "selection_changed",
-				member,
-			});
+			await dependencies.broadcast(
+				access.coordinatorKey,
+				roomId,
+				{
+					type: "selection_changed",
+					member,
+				},
+				userId,
+			);
 			return member;
 		},
 
@@ -148,12 +168,24 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 				);
 			}
 			const access = await accessOrThrow(dependencies, roomId, userId);
+			if (!(await dependencies.hasCommunityRulesAcceptance(userId, rulesVersion))) {
+				throw new FlightRoomServiceError(
+					"rules_acceptance_required",
+					409,
+					"Zaakceptuj aktualne zasady społeczności przed wysłaniem wiadomości.",
+				);
+			}
 			const result = await dependencies.createRoomMessage(roomId, userId, parsed.data);
 			if (result.created) {
-				await dependencies.broadcast(access.coordinatorKey, roomId, {
-					type: "message_created",
-					message: result.message,
-				});
+				await dependencies.broadcast(
+					access.coordinatorKey,
+					roomId,
+					{
+						type: "message_created",
+						message: result.message,
+					},
+					userId,
+				);
 			}
 			return result;
 		},
@@ -189,6 +221,10 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 
 		async authenticateUser(roomId: string, userId: string): Promise<RoomAccessContext | null> {
 			return dependencies.getRoomAccessContext(roomId, userId);
+		},
+
+		async hasAcceptedCurrentRules(userId: string): Promise<boolean> {
+			return dependencies.hasCommunityRulesAcceptance(userId, rulesVersion);
 		},
 	};
 }
