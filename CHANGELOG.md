@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/auditmos/landingos/compare/v1.6.0...v1.7.0) (2026-07-27)
+
+
+### Features
+
+* **safety:** enforce room safety controls ([#9](https://github.com/auditmos/landingos/issues/9)) ([417c814](https://github.com/auditmos/landingos/commit/417c8145585eaecb88afd60ee55f4a21ef9d3589))
+
 # [1.6.0](https://github.com/auditmos/landingos/compare/v1.5.0...v1.6.0) (2026-07-27)
 
 
