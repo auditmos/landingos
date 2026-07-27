@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/auditmos/landingos/compare/v1.5.0...v1.6.0) (2026-07-27)
+
+
+### Features
+
+* **rooms:** add realtime flight room core ([4ccf5e6](https://github.com/auditmos/landingos/commit/4ccf5e64044c323e24f5f9fc7cdb7e678be87eb3))
+
 # [1.5.0](https://github.com/auditmos/landingos/compare/v1.4.0...v1.5.0) (2026-07-27)
 
 
