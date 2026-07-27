@@ -60,6 +60,6 @@ export default {
 				fromFetch: true,
 			},
 		});
-		return applySecurityHeaders(response);
+		return applySecurityHeaders(response, optionalEnv.VITE_DATA_SERVICE_URL);
 	},
 };

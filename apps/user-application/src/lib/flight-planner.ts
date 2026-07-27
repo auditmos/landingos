@@ -15,11 +15,18 @@ async function requestFlight(
 	body: FlightLookupRequest | ManualFlightRequest,
 	fetchImpl: typeof fetch,
 ): Promise<FlightResolveResult> {
-	const response = await fetchImpl(`${API_URL}${path}`, {
-		method: "POST",
-		headers: { "content-type": "application/json", ...analyticsFunnelHeaders() },
-		body: JSON.stringify(body),
-	});
+	let response: Response;
+	try {
+		response = await fetchImpl(`${API_URL}${path}`, {
+			method: "POST",
+			headers: { "content-type": "application/json", ...analyticsFunnelHeaders() },
+			body: JSON.stringify(body),
+		});
+	} catch {
+		throw new Error(
+			"Nie udało się połączyć z planerem. Sprawdź, czy usługa danych działa, i spróbuj ponownie.",
+		);
+	}
 	captureAnalyticsFunnel(response);
 	if (!response.ok) {
 		const payload = await response.json().catch(() => null);

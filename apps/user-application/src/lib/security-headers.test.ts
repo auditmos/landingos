@@ -41,6 +41,15 @@ describe("applySecurityHeaders", () => {
 		expect(csp).toContain("frame-ancestors 'none'");
 	});
 
+	it("allows only the configured local data-service origin in connect-src", () => {
+		const res = applySecurityHeaders(new Response("<html></html>"), "http://localhost:8788");
+		const csp = res.headers.get("Content-Security-Policy");
+		const connectSrc = csp?.split("; ").find((directive) => directive.startsWith("connect-src"));
+
+		expect(connectSrc).toBe("connect-src 'self' https: http://localhost:8788");
+		expect(connectSrc?.split(" ")).not.toContain("http:");
+	});
+
 	it("preserves original status, body, and existing response headers", async () => {
 		const original = new Response("<html>hi</html>", {
 			status: 201,

@@ -4,7 +4,7 @@ import {
 	FlightLookupRequestSchema,
 	type FlightResolveResult,
 } from "@repo/data-ops/flight";
-import { CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react";
+import { ArrowRight, CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { DestinationPlanner } from "@/components/destination/destination-planner";
 import { JourneyPlanner } from "@/components/journey/journey-planner";
@@ -127,36 +127,92 @@ export function FlightPlanner() {
 	}
 
 	return (
-		<div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
-			<header className="border-b bg-background/80 backdrop-blur">
-				<div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-4 sm:px-6">
-					<Plane className="h-6 w-6 text-primary" />
-					<span className="text-xl font-bold">LandingOS</span>
-					<span className="ml-auto text-sm text-muted-foreground">Polska → Bergamo</span>
+		<div className="min-h-dvh bg-muted/30 text-foreground">
+			<header className="border-b bg-background">
+				<div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+					<a className="flex items-center gap-3" href="/" aria-label="LandingOS — strona główna">
+						<span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+							<Plane className="size-5" />
+						</span>
+						<span className="text-xl font-bold">LandingOS</span>
+					</a>
+					<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+						<span>Polska</span>
+						<ArrowRight className="size-4" aria-hidden="true" />
+						<span className="text-foreground">BGY</span>
+					</div>
 				</div>
 			</header>
-			<main className="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_1.15fr] lg:py-16">
-				<section>
-					<Badge variant="secondary">Planer podróży BGY</Badge>
-					<h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl">
-						Zacznij od swojego lotu
-					</h1>
-					<p className="mt-4 max-w-xl text-lg text-muted-foreground">
-						Podaj numer lotu z Polski i datę wylotu. Rozpoznamy planowany przylot do
-						Mediolanu-Bergamo — bez logowania.
-					</p>
-				</section>
 
-				<section className="space-y-5">
-					<Card>
-						<CardHeader>
-							<CardTitle>Sprawdź lot</CardTitle>
-							<CardDescription>Data oznacza lokalną datę planowanego wylotu.</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<form className="space-y-4" onSubmit={submitLookup} noValidate>
+			<main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
+				<div className="grid overflow-hidden rounded-3xl border bg-card shadow-xl lg:grid-cols-[1.05fr_0.95fr]">
+					<section className="flex flex-col justify-between bg-primary/5 p-6 sm:p-10 lg:p-14">
+						<div>
+							<p className="flex items-center gap-3 text-sm font-semibold text-primary">
+								<span
+									className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
+									aria-hidden="true"
+								>
+									1
+								</span>
+								Zacznij od lotu
+							</p>
+							<h1 className="mt-6 max-w-xl text-balance text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
+								Z Bergamo prosto do celu w Mediolanie
+							</h1>
+							<p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-muted-foreground">
+								Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy
+								maksymalnie trzy sensowne warianty przejazdu.
+							</p>
+						</div>
+
+						<ul className="mt-10 hidden gap-5 lg:grid">
+							<li className="flex gap-3">
+								<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
 								<div>
-									<label className="mb-1.5 block text-sm font-medium" htmlFor="flight-number">
+									<p className="font-semibold">Start bez konta</p>
+									<p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+										Najpierw sprawdzasz lot. Logowanie jest potrzebne dopiero do pokoju.
+									</p>
+								</div>
+							</li>
+							<li className="flex gap-3">
+								<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+								<div>
+									<p className="font-semibold">Do 3 konkretnych opcji</p>
+									<p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+										Porównasz czas przejazdu, przesiadki i odcinki piesze.
+									</p>
+								</div>
+							</li>
+							<li className="flex gap-3">
+								<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+								<div>
+									<p className="font-semibold">Cel pozostaje prywatny</p>
+									<p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+										Dokładny adres nigdy nie trafia do pokoju wspólnego lotu.
+									</p>
+								</div>
+							</li>
+						</ul>
+					</section>
+
+					<section
+						className="flex items-center border-t bg-card p-6 sm:p-10 lg:border-l lg:border-t-0 lg:p-14"
+						aria-labelledby="flight-lookup-title"
+					>
+						<div className="mx-auto w-full max-w-md">
+							<p className="text-sm font-semibold text-primary">Etap 1 z 3</p>
+							<h2 id="flight-lookup-title" className="mt-2 text-balance text-3xl font-bold">
+								Znajdź swój lot
+							</h2>
+							<p className="mt-3 text-pretty leading-7 text-muted-foreground">
+								Numer lotu znajdziesz na bilecie lub karcie pokładowej.
+							</p>
+
+							<form className="mt-8 space-y-5" onSubmit={submitLookup} noValidate>
+								<div>
+									<label className="mb-2 block text-sm font-semibold" htmlFor="flight-number">
 										Numer lotu
 									</label>
 									<Input
@@ -167,16 +223,17 @@ export function FlightPlanner() {
 										value={flightNumber}
 										onChange={(event) => setFlightNumber(event.target.value)}
 										aria-invalid={Boolean(fieldErrors.flightNumber)}
-										aria-describedby="flight-number-error"
+										aria-describedby={fieldErrors.flightNumber ? "flight-number-error" : undefined}
+										className="h-12 bg-background px-4 text-base"
 									/>
 									{fieldErrors.flightNumber ? (
-										<p id="flight-number-error" className="mt-1 text-sm text-destructive">
+										<p id="flight-number-error" className="mt-2 text-sm text-destructive">
 											{fieldErrors.flightNumber}
 										</p>
 									) : null}
 								</div>
 								<div>
-									<label className="mb-1.5 block text-sm font-medium" htmlFor="departure-date">
+									<label className="mb-2 block text-sm font-semibold" htmlFor="departure-date">
 										Data wylotu
 									</label>
 									<Input
@@ -186,21 +243,36 @@ export function FlightPlanner() {
 										value={departureLocalDate}
 										onChange={(event) => setDepartureLocalDate(event.target.value)}
 										aria-invalid={Boolean(fieldErrors.departureLocalDate)}
-										aria-describedby="departure-date-error"
+										aria-describedby={
+											fieldErrors.departureLocalDate
+												? "departure-date-error"
+												: "departure-date-help"
+										}
+										className="h-12 bg-background px-4 text-base"
 									/>
 									{fieldErrors.departureLocalDate ? (
-										<p id="departure-date-error" className="mt-1 text-sm text-destructive">
+										<p id="departure-date-error" className="mt-2 text-sm text-destructive">
 											{fieldErrors.departureLocalDate}
 										</p>
-									) : null}
+									) : (
+										<p id="departure-date-help" className="mt-2 text-sm text-muted-foreground">
+											Wybierz lokalną datę wylotu z Polski.
+										</p>
+									)}
 								</div>
-								<Button className="w-full" size="lg" type="submit" disabled={loading}>
+								<Button className="h-12 w-full" size="lg" type="submit" disabled={loading}>
 									{loading ? "Sprawdzamy lot…" : "Sprawdź lot"}
+									{loading ? null : <ArrowRight className="size-4" aria-hidden="true" />}
 								</Button>
 							</form>
-						</CardContent>
-					</Card>
+							<p className="mt-5 text-pretty text-center text-xs leading-5 text-muted-foreground">
+								Na tym etapie nie potrzebujemy Twojego adresu ani konta.
+							</p>
+						</div>
+					</section>
+				</div>
 
+				<section className="mx-auto mt-6 max-w-4xl space-y-5" aria-label="Wynik planowania lotu">
 					{error ? (
 						<Alert variant="destructive">
 							<AlertTitle>Nie udało się wykonać operacji</AlertTitle>
@@ -267,6 +339,10 @@ export function FlightPlanner() {
 						</>
 					) : null}
 				</section>
+
+				<p className="mt-8 text-center text-pretty text-sm text-muted-foreground">
+					Lot → cel w Mediolanie → maksymalnie 3 warianty przejazdu
+				</p>
 			</main>
 		</div>
 	);

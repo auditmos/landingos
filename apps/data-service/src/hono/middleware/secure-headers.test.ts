@@ -23,6 +23,22 @@ describe("security headers (data-service)", () => {
 		expect(res.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
 	});
 
+	it("allows allowlisted browser origins to consume the JSON API across ports", async () => {
+		const res = await App.fetch(
+			new Request("http://localhost/flights/resolve", {
+				method: "OPTIONS",
+				headers: {
+					Origin: "http://localhost:3000",
+					"Access-Control-Request-Method": "POST",
+				},
+			}),
+			{ CLOUDFLARE_ENV: "dev" } as Env,
+		);
+
+		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		expect(res.headers.get("Cross-Origin-Resource-Policy")).toBe("cross-origin");
+	});
+
 	it("sets X-Frame-Options: DENY", async () => {
 		const res = await fetchApp("/health/live");
 		expect(res.headers.get("X-Frame-Options")).toBe("DENY");

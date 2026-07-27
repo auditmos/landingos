@@ -1,0 +1,41 @@
+// @vitest-environment jsdom
+
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { FlightPlanner } from "@/components/flight/flight-planner";
+
+describe("landing page visual baseline", () => {
+	it("applies the theme background and foreground tokens to the document", () => {
+		const styles = readFileSync(resolve(import.meta.dirname, "../styles.css"), "utf8");
+
+		expect(styles).toContain("background-color: var(--background)");
+		expect(styles).toContain("color: var(--foreground)");
+		expect(styles).toContain("min-height: 100dvh");
+	});
+
+	it("renders a cohesive, readable hero and touch-sized lookup form", async () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const page = container.firstElementChild;
+		const heading = container.querySelector("h1");
+		const introduction = heading?.nextElementSibling;
+		const inputs = Array.from(container.querySelectorAll("input"));
+
+		expect(page?.className).toContain("min-h-dvh");
+		expect(page?.className).not.toContain("gradient");
+		expect(heading?.className).toContain("text-balance");
+		expect(introduction?.className).toContain("text-pretty");
+		expect(inputs).toHaveLength(2);
+		for (const input of inputs) {
+			expect(input.className).toContain("h-12");
+		}
+
+		await act(async () => root.unmount());
+		container.remove();
+	});
+});

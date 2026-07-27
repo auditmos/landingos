@@ -1,4 +1,20 @@
-export const applySecurityHeaders = (response: Response): Response => {
+const connectSources = (dataServiceUrl?: string): string[] => {
+	const sources = ["'self'", "https:"];
+	if (!dataServiceUrl) return sources;
+
+	try {
+		const url = new URL(dataServiceUrl);
+		if ((url.protocol === "http:" || url.protocol === "https:") && !sources.includes(url.origin)) {
+			sources.push(url.origin);
+		}
+	} catch {
+		// Keep the restrictive default when configuration is invalid.
+	}
+
+	return sources;
+};
+
+export const applySecurityHeaders = (response: Response, dataServiceUrl?: string): Response => {
 	const headers = new Headers(response.headers);
 	headers.set("X-Content-Type-Options", "nosniff");
 	headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
@@ -13,7 +29,7 @@ export const applySecurityHeaders = (response: Response): Response => {
 			"style-src 'self' 'unsafe-inline'",
 			"img-src 'self' data: https:",
 			"font-src 'self' data:",
-			"connect-src 'self' https:",
+			`connect-src ${connectSources(dataServiceUrl).join(" ")}`,
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",

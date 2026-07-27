@@ -89,4 +89,14 @@ describe("anonymous flight planner UI integration", () => {
 			resolveFlightApi({ flightNumber: "FR1234", departureLocalDate: "2026-09-14" }, fetchImpl),
 		).rejects.toThrow();
 	});
+
+	it("turns a browser transport failure into a Polish actionable error", async () => {
+		const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
+
+		await expect(
+			resolveFlightApi({ flightNumber: "FR1234", departureLocalDate: "2026-09-14" }, fetchImpl),
+		).rejects.toThrow(
+			"Nie udało się połączyć z planerem. Sprawdź, czy usługa danych działa, i spróbuj ponownie.",
+		);
+	});
 });
