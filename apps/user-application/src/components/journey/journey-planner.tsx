@@ -1,7 +1,7 @@
 import type { PrivateDestination } from "@repo/data-ops/destination";
 import type { FlightInstance } from "@repo/data-ops/flight";
 import type { JourneyRecommendationResult, JourneyVariant } from "@repo/data-ops/journey";
-import { Clock3, ExternalLink, Footprints, RotateCcw, Route } from "lucide-react";
+import { Clock3, ExternalLink, Footprints, RotateCcw, Route, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
 	journeyUnavailableFromError,
 	recommendJourneysApi,
 } from "@/lib/journey-planner";
+import { publicSelectionFromJourneyVariant, saveRoomIntent } from "@/lib/room-intent";
 import { cn } from "@/lib/utils";
 
 const modeCopy = {
@@ -25,7 +26,13 @@ const modeCopy = {
 	walk: "Pieszo",
 } as const;
 
-export function JourneyVariantCard({ variant }: { variant: JourneyVariant }) {
+export function JourneyVariantCard({
+	variant,
+	onChoose,
+}: {
+	variant: JourneyVariant;
+	onChoose?: (variant: JourneyVariant) => void;
+}) {
 	return (
 		<Card>
 			<CardHeader>
@@ -134,6 +141,12 @@ export function JourneyVariantCard({ variant }: { variant: JourneyVariant }) {
 						</a>
 					</Button>
 				))}
+				{onChoose ? (
+					<Button type="button" variant="secondary" onClick={() => onChoose(variant)}>
+						<Users className="size-4" />
+						Wybierz i przejdź do pokoju
+					</Button>
+				) : null}
 			</CardContent>
 		</Card>
 	);
@@ -195,6 +208,11 @@ export function JourneyPlanner({
 	const [result, setResult] = useState<JourneyRecommendationResult>();
 	const [loading, setLoading] = useState(false);
 	const { latitude, longitude } = destination.coordinates;
+
+	function continueToRoom(selection: ReturnType<typeof publicSelectionFromJourneyVariant>) {
+		saveRoomIntent({ flightInstanceId: flight.id, selection });
+		window.location.assign("/app");
+	}
 
 	useEffect(() => {
 		void retryKey;
@@ -270,8 +288,38 @@ export function JourneyPlanner({
 				<>
 					{result.explanation ? <Alert>{result.explanation}</Alert> : null}
 					{result.variants.map((variant) => (
-						<JourneyVariantCard key={variant.id} variant={variant} />
+						<JourneyVariantCard
+							key={variant.id}
+							variant={variant}
+							onChoose={(selected) => continueToRoom(publicSelectionFromJourneyVariant(selected))}
+						/>
 					))}
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2 text-balance text-xl">
+								<Users className="size-5" />
+								Szukasz osób do dzielonej taksówki?
+							</CardTitle>
+							<CardDescription>
+								Zapisz publiczną deklarację i porozmawiaj z osobami z tego samego lotu.
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => {
+									saveRoomIntent({
+										flightInstanceId: flight.id,
+										selection: { kind: "shared_taxi" },
+									});
+									window.location.assign("/app");
+								}}
+							>
+								Przejdź do pokoju lotu
+							</Button>
+						</CardContent>
+					</Card>
 				</>
 			) : null}
 			{result && result.status !== "recommendations" ? (

@@ -70,7 +70,9 @@ export function EmailAuth() {
 					}),
 				});
 			}
-			await navigate({ to: "/dashboard" });
+			await navigate({
+				to: sessionStorage.getItem("landingos.room-intent") ? "/app" : "/dashboard",
+			});
 		} catch {
 			setError("Kod jest nieprawidłowy albo wygasł. Poproś o nowy kod.");
 		} finally {

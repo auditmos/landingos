@@ -8,7 +8,7 @@ vi.mock("hono/cors", async (importOriginal) => {
 	return { cors: vi.fn(actual.cors) };
 });
 
-function buildApp(env: Partial<Env>) {
+function buildApp(env: Partial<Omit<Env, "CLOUDFLARE_ENV">> & { CLOUDFLARE_ENV: string }) {
 	const app = new Hono<{ Bindings: Env }>();
 	app.use("*", createCorsMiddleware());
 	app.get("/r", (c) => c.text("ok"));

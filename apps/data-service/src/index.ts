@@ -5,6 +5,8 @@ import { App } from "@/hono/app";
 import { handleQueue } from "./queues";
 import { handleScheduled } from "./scheduled";
 
+export { FlightRoomDurableObject } from "./durable-objects/flight-room";
+
 export default class DataService extends WorkerEntrypoint<Env> {
 	constructor(ctx: ExecutionContext, env: Env) {
 		super(ctx, env);

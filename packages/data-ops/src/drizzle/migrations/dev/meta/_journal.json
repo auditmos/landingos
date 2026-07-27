@@ -43,6 +43,13 @@
       "when": 1785155546250,
       "tag": "0005_late_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785157795793,
+      "tag": "0006_great_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

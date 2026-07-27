@@ -20,6 +20,12 @@
 		 */
 		"dev": {
 			"name": "landingos-ds-dev",
+			"durable_objects": {
+				"bindings": [{ "name": "FLIGHT_ROOM", "class_name": "FlightRoomDurableObject" }]
+			},
+			"migrations": [
+				{ "tag": "flight-room-v1", "new_sqlite_classes": ["FlightRoomDurableObject"] }
+			],
 			"vars": {
 				"CLOUDFLARE_ENV": "dev",
 				"TRANSFER_CATALOG_FRESHNESS_DAYS": "30"
@@ -76,6 +82,12 @@
 				}
 			],
 			"name": "landingos-ds-staging",
+			"durable_objects": {
+				"bindings": [{ "name": "FLIGHT_ROOM", "class_name": "FlightRoomDurableObject" }]
+			},
+			"migrations": [
+				{ "tag": "flight-room-v1", "new_sqlite_classes": ["FlightRoomDurableObject"] }
+			],
 			"vars": {
 				"CLOUDFLARE_ENV": "staging",
 				"TRANSFER_CATALOG_FRESHNESS_DAYS": "30"
@@ -126,6 +138,12 @@
 				}
 			],
 			"name": "landingos-ds-production",
+			"durable_objects": {
+				"bindings": [{ "name": "FLIGHT_ROOM", "class_name": "FlightRoomDurableObject" }]
+			},
+			"migrations": [
+				{ "tag": "flight-room-v1", "new_sqlite_classes": ["FlightRoomDurableObject"] }
+			],
 			"vars": {
 				"CLOUDFLARE_ENV": "production",
 				"TRANSFER_CATALOG_FRESHNESS_DAYS": "30"

@@ -8,6 +8,7 @@ const config: Config = {
 		"./src/client/table.ts",
 		"./src/flight/table.ts",
 		"./src/journey/table.ts",
+		"./src/room/table.ts",
 		"./src/drizzle/relations.ts",
 	],
 	dialect: "postgresql",

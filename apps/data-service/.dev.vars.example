@@ -14,6 +14,10 @@ DATABASE_HOST=
 DATABASE_USERNAME=
 DATABASE_PASSWORD=
 
+# Better Auth server configuration. Use a random secret outside development.
+BETTER_AUTH_SECRET=
+BETTER_AUTH_BASE_URL=
+
 # API token for client-side callers (paired with VITE_API_TOKEN in user-application).
 API_TOKEN=
 
