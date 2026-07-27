@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/auditmos/landingos/compare/v1.10.0...v1.10.1) (2026-07-27)
+
+
+### Bug Fixes
+
+* **planner:** improve flight lookup and local API access ([1697dc6](https://github.com/auditmos/landingos/commit/1697dc66ac9b33d1151aa258a79866d251ea9b6a))
+
 # [1.10.0](https://github.com/auditmos/landingos/compare/v1.9.0...v1.10.0) (2026-07-27)
 
 
