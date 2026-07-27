@@ -15,6 +15,13 @@
       "when": 1770637701998,
       "tag": "0001_sloppy_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785148374130,
+      "tag": "0002_pretty_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
 const CLIENT_BUILD_DIR = join(PROJECT_ROOT, "dist", "client");
 const SECRET_MARKERS = {
 	VITE_API_TOKEN: "vite-api-token-marker-do-not-bundle-xyz12345",
+	BETTER_AUTH_SECRET: "better-auth-secret-marker-do-not-bundle-xyz12345",
 	AVIATIONSTACK_ACCESS_KEY: "aviationstack-marker-do-not-bundle-xyz12345",
 	GOOGLE_MAPS_API_KEY: "google-maps-marker-do-not-bundle-xyz12345",
 } as const;

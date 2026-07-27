@@ -1,228 +1,168 @@
-import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { type FormEvent, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
-interface EmailAuthProps {
-	mode: "signin" | "signup";
-}
+const MARKETING_POLICY_VERSION = "2026-07";
 
-interface AuthError {
-	message: string;
-}
-
-export function EmailAuth({ mode }: EmailAuthProps) {
+export function EmailAuth() {
 	const navigate = useNavigate();
-	const [signupSuccess, setSignupSuccess] = useState(false);
+	const [step, setStep] = useState<"email" | "otp">("email");
+	const [email, setEmail] = useState("");
+	const [otp, setOtp] = useState("");
+	const [marketingConsent, setMarketingConsent] = useState(false);
+	const [isPending, setIsPending] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-	const mutation = useMutation({
-		mutationFn: async (data: { name?: string; email: string; password: string }) => {
-			if (mode === "signup") {
-				const result = await authClient.signUp.email({
-					name: data.name ?? "",
-					email: data.email,
-					password: data.password,
-				});
-				if (result.error) throw new Error(result.error.message);
-				return { mode: "signup" as const };
-			}
-			const result = await authClient.signIn.email({
-				email: data.email,
-				password: data.password,
+	const normalizedEmail = email.trim().toLowerCase();
+
+	async function requestCode(event: FormEvent) {
+		event.preventDefault();
+		setError(null);
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+			setError("Wpisz prawidłowy adres e-mail.");
+			return;
+		}
+		setIsPending(true);
+		try {
+			const result = await authClient.emailOtp.sendVerificationOtp({
+				email: normalizedEmail,
+				type: "sign-in",
 			});
-			if (result.error) throw new Error(result.error.message);
-			return { mode: "signin" as const };
-		},
-	});
-
-	const form = useForm({
-		defaultValues: { name: "", email: "", password: "" },
-		onSubmit: async ({ value }) => {
-			mutation.reset();
-			const result = await mutation.mutateAsync(value);
-			if (result.mode === "signup") {
-				setSignupSuccess(true);
-			} else {
-				navigate({ to: "/dashboard" });
+			if (result.error) {
+				throw new Error("send_failed");
 			}
-		},
-	});
+			setStep("otp");
+		} catch {
+			setError("Nie udało się wysłać kodu. Spróbuj ponownie za chwilę.");
+		} finally {
+			setIsPending(false);
+		}
+	}
 
-	if (signupSuccess) {
-		return (
-			<div className="min-h-screen flex items-center justify-center bg-background p-4">
-				<Card className="w-full max-w-md">
-					<CardHeader className="text-center">
-						<CardTitle className="text-2xl font-bold text-foreground">Account Created</CardTitle>
-						<CardDescription>
-							Your account is pending admin approval. You'll be able to sign in once approved.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<Link to="/signin">
-							<Button variant="outline" className="w-full">
-								Back to Sign In
-							</Button>
-						</Link>
-					</CardContent>
-				</Card>
-			</div>
-		);
+	async function verifyCode(event: FormEvent) {
+		event.preventDefault();
+		setError(null);
+		if (!/^\d{6}$/.test(otp)) {
+			setError("Kod ma 6 cyfr.");
+			return;
+		}
+		setIsPending(true);
+		try {
+			const result = await authClient.signIn.emailOtp({
+				email: normalizedEmail,
+				otp,
+			});
+			if (result.error) {
+				throw new Error("verify_failed");
+			}
+			if (marketingConsent) {
+				await fetch("/api/profile", {
+					method: "PATCH",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						action: "marketing_consent",
+						granted: true,
+						policyVersion: MARKETING_POLICY_VERSION,
+					}),
+				});
+			}
+			await navigate({ to: "/dashboard" });
+		} catch {
+			setError("Kod jest nieprawidłowy albo wygasł. Poproś o nowy kod.");
+		} finally {
+			setIsPending(false);
+		}
 	}
 
 	return (
 		<div className="min-h-screen flex items-center justify-center bg-background p-4">
 			<Card className="w-full max-w-md">
 				<CardHeader className="text-center">
-					<CardTitle className="text-2xl font-bold text-foreground">
-						{mode === "signin" ? "Welcome back" : "Create account"}
-					</CardTitle>
+					<CardTitle className="text-2xl font-bold text-foreground">Zaloguj się kodem</CardTitle>
 					<CardDescription>
-						{mode === "signin" ? "Sign in to your account" : "Sign up for a new account"}
+						{step === "email"
+							? "Wyślemy jednorazowy kod na Twój adres e-mail."
+							: `Jeśli adres ${normalizedEmail} jest prawidłowy, znajdziesz na nim kod.`}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{mutation.isError && (
+					{error ? (
 						<Alert variant="destructive">
-							<AlertDescription>
-								{(mutation.error as AuthError).message ?? "Something went wrong"}
-							</AlertDescription>
+							<AlertDescription>{error}</AlertDescription>
 						</Alert>
-					)}
+					) : null}
 
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							form.handleSubmit();
-						}}
-						className="space-y-4"
-					>
-						{mode === "signup" && (
-							<form.Field
-								name="name"
-								validators={{
-									onChange: ({ value }) => (!value ? "Name is required" : undefined),
+					{step === "email" ? (
+						<form onSubmit={requestCode} className="space-y-4">
+							<div className="space-y-1">
+								<label htmlFor="auth-email" className="text-sm font-medium text-foreground">
+									Adres e-mail
+								</label>
+								<Input
+									id="auth-email"
+									type="email"
+									autoComplete="email"
+									placeholder="ty@example.com"
+									value={email}
+									onChange={(event) => setEmail(event.target.value)}
+								/>
+							</div>
+							<Button type="submit" className="w-full h-12" disabled={isPending}>
+								{isPending ? "Wysyłanie…" : "Wyślij kod"}
+							</Button>
+						</form>
+					) : (
+						<form onSubmit={verifyCode} className="space-y-4">
+							<div className="space-y-1">
+								<label htmlFor="auth-otp" className="text-sm font-medium text-foreground">
+									Kod ma 6 cyfr
+								</label>
+								<Input
+									id="auth-otp"
+									inputMode="numeric"
+									autoComplete="one-time-code"
+									maxLength={6}
+									pattern="[0-9]{6}"
+									placeholder="000000"
+									value={otp}
+									onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))}
+								/>
+							</div>
+							<label className="flex items-start gap-3 text-sm text-muted-foreground">
+								<input
+									type="checkbox"
+									className="mt-1"
+									checked={marketingConsent}
+									onChange={(event) => setMarketingConsent(event.target.checked)}
+								/>
+								<span>
+									Dobrowolnie wyrażam zgodę marketingową. Zgoda nie jest potrzebna do logowania i
+									mogę ją później wycofać.
+								</span>
+							</label>
+							<Button type="submit" className="w-full h-12" disabled={isPending}>
+								{isPending ? "Logowanie…" : "Zaloguj się"}
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								className="w-full"
+								onClick={() => {
+									setOtp("");
+									setStep("email");
 								}}
 							>
-								{(field) => (
-									<div className="space-y-1">
-										<label htmlFor={field.name} className="text-sm font-medium text-foreground">
-											Name
-										</label>
-										<Input
-											id={field.name}
-											placeholder="Your name"
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-										/>
-										{field.state.meta.errors.map((error) => (
-											<p key={String(error)} className="text-destructive text-sm">
-												{error}
-											</p>
-										))}
-									</div>
-								)}
-							</form.Field>
-						)}
-
-						<form.Field
-							name="email"
-							validators={{
-								onChange: ({ value }) => {
-									if (!value) return "Email is required";
-									if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Invalid email";
-								},
-							}}
-						>
-							{(field) => (
-								<div className="space-y-1">
-									<label htmlFor={field.name} className="text-sm font-medium text-foreground">
-										Email
-									</label>
-									<Input
-										id={field.name}
-										type="email"
-										placeholder="you@example.com"
-										value={field.state.value}
-										onChange={(e) => field.handleChange(e.target.value)}
-										onBlur={field.handleBlur}
-									/>
-									{field.state.meta.errors.map((error) => (
-										<p key={String(error)} className="text-destructive text-sm">
-											{error}
-										</p>
-									))}
-								</div>
-							)}
-						</form.Field>
-
-						<form.Field
-							name="password"
-							validators={{
-								onChange: ({ value }) => {
-									if (!value) return "Password is required";
-									if (value.length < 8) return "Min 8 characters";
-								},
-							}}
-						>
-							{(field) => (
-								<div className="space-y-1">
-									<label htmlFor={field.name} className="text-sm font-medium text-foreground">
-										Password
-									</label>
-									<Input
-										id={field.name}
-										type="password"
-										placeholder="Min 8 characters"
-										value={field.state.value}
-										onChange={(e) => field.handleChange(e.target.value)}
-										onBlur={field.handleBlur}
-									/>
-									{field.state.meta.errors.map((error) => (
-										<p key={String(error)} className="text-destructive text-sm">
-											{error}
-										</p>
-									))}
-								</div>
-							)}
-						</form.Field>
-
-						<form.Subscribe selector={(state) => state.canSubmit}>
-							{(canSubmit) => (
-								<Button
-									type="submit"
-									className="w-full h-12"
-									disabled={!canSubmit || mutation.isPending}
-								>
-									{mutation.isPending ? "Loading..." : mode === "signin" ? "Sign In" : "Sign Up"}
-								</Button>
-							)}
-						</form.Subscribe>
-					</form>
-
-					<div className="text-center text-sm text-muted-foreground">
-						{mode === "signin" ? (
-							<>
-								Don&apos;t have an account?{" "}
-								<Link to="/signup" className="text-primary hover:underline">
-									Sign up
-								</Link>
-							</>
-						) : (
-							<>
-								Already have an account?{" "}
-								<Link to="/signin" className="text-primary hover:underline">
-									Sign in
-								</Link>
-							</>
-						)}
-					</div>
+								Użyj innego adresu
+							</Button>
+						</form>
+					)}
+					<p className="text-center text-xs text-muted-foreground">
+						Pseudonim ustawisz dopiero przed wejściem do pokoju lotu.
+					</p>
 				</CardContent>
 			</Card>
 		</div>

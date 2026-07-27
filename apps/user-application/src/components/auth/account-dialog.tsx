@@ -39,11 +39,11 @@ export function AccountDialog({ children }: AccountDialogProps) {
 			<DialogTrigger asChild>{children}</DialogTrigger>
 			<DialogContent className="sm:max-w-md text-foreground">
 				<DialogHeader className="text-center pb-4">
-					<DialogTitle>Account</DialogTitle>
+					<DialogTitle>Konto</DialogTitle>
 				</DialogHeader>
 				<div className="flex flex-col items-center space-y-6 py-6">
 					<Avatar className="h-20 w-20">
-						<AvatarImage src={user.image || undefined} alt={user.name || "User"} />
+						<AvatarImage src={user.image || undefined} alt={user.name || "Użytkownik"} />
 						<AvatarFallback className="text-2xl font-semibold">{fallbackText}</AvatarFallback>
 					</Avatar>
 					<div className="text-center space-y-1">
@@ -54,13 +54,13 @@ export function AccountDialog({ children }: AccountDialogProps) {
 						<div className="flex items-center justify-between w-full py-3 px-4 rounded-lg border bg-card">
 							<span className="text-sm font-medium flex items-center gap-2">
 								<Palette className="h-4 w-4" />
-								Theme
+								Motyw
 							</span>
 							<ThemeToggle />
 						</div>
 						<Button onClick={signOut} variant="outline" size="lg" className="w-full gap-2">
 							<LogOut className="h-5 w-5" />
-							Sign Out
+							Wyloguj się
 						</Button>
 					</div>
 				</div>

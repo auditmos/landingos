@@ -3,6 +3,7 @@ packages:
   - "apps/*"
 
 allowBuilds:
+  '@prisma/client': false
   better-sqlite3: true
   esbuild: true
   sharp: true

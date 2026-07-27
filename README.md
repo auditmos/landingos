@@ -54,7 +54,7 @@ Every package ships an `AGENTS.md` with structure, patterns, and workflows (`CLA
 2. Provision a [Neon](https://neon.tech) Postgres database.
 3. Create the per-environment env files (this repo has not run `init-project` yet — do so once, or fill the `*.example` templates directly):
    - `packages/data-ops/.env.{dev,staging,production}` — `DATABASE_HOST/USERNAME/PASSWORD` (see [.env.example](./packages/data-ops/.env.example))
-   - `apps/user-application/.env{,.staging,.production}` — `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) + the matching `VITE_API_TOKEN` / `DATA_SERVICE_API_TOKEN` / `API_TOKEN` triple
+   - `apps/user-application/.env{,.staging,.production}` — `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), `BETTER_AUTH_BASE_URL`, `AUTH_EMAIL_FROM`, and the matching `VITE_API_TOKEN` / `DATA_SERVICE_API_TOKEN` / `API_TOKEN` triple
    - `apps/data-service/.dev.vars` (local) / Cloudflare dashboard (remote)
 4. `pnpm run setup && pnpm run db:generate:dev && pnpm run db:migrate:dev`
 5. Start dev in two terminals: `pnpm run dev:data-service` (port 8788) and `pnpm run dev:user-application` (port 3000).

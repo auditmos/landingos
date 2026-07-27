@@ -627,8 +627,13 @@ Required variables:
 - `DATABASE_USERNAME` - Database username
 - `DATABASE_PASSWORD` - Database password
 - `BETTER_AUTH_SECRET` - Authentication secret key
-- `GOOGLE_CLIENT_ID` - Google OAuth client ID (optional)
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret (optional)
+- `BETTER_AUTH_BASE_URL` - Public origin used by Better Auth
+- `AUTH_EMAIL_FROM` - Verified transactional sender address; currently
+  `logowanie@landingos.app` in `wrangler.jsonc`
+
+Passwordless OTP mail uses the typed `AUTH_EMAIL` Cloudflare Email Service
+`send_email` binding. Local/dev bindings set `remote: false`; staging and
+production require human sender-domain onboarding before deployment.
 
 ### Helper Scripts
 

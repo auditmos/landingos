@@ -1,7 +1,13 @@
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createBetterAuth } from "@/auth/setup";
 import type { getDb } from "@/database/setup";
-import { auth_account, auth_session, auth_user, auth_verification } from "@/drizzle/auth-schema";
+import {
+	auth_account,
+	auth_rate_limit,
+	auth_session,
+	auth_user,
+	auth_verification,
+} from "@/drizzle/auth-schema";
 
 let betterAuth: ReturnType<typeof createBetterAuth>;
 
@@ -24,6 +30,7 @@ export function setAuth(
 				auth_account,
 				auth_session,
 				auth_verification,
+				auth_rate_limit,
 			},
 		}),
 		...config,

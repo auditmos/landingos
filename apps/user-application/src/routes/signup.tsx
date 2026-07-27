@@ -6,5 +6,5 @@ export const Route = createFileRoute("/signup")({
 });
 
 function SignupPage() {
-	return <EmailAuth mode="signup" />;
+	return <EmailAuth />;
 }

@@ -9,6 +9,16 @@
 		"traces": { "enabled": true, "head_sampling_rate": 0.01 }
 	},
 	"main": "./src/server.ts",
+	"vars": {
+		"AUTH_EMAIL_FROM": "logowanie@landingos.app"
+	},
+	"send_email": [
+		{
+			"name": "AUTH_EMAIL",
+			"allowed_sender_addresses": ["logowanie@landingos.app"],
+			"remote": false
+		}
+	],
 	"services": [
 		{
 			"binding": "DATA_SERVICE",
@@ -21,7 +31,17 @@
 		 */
 		"dev": {
 			"name": "landingos-ua-dev",
-			"vars": { "CLOUDFLARE_ENV": "dev" },
+			"vars": {
+				"CLOUDFLARE_ENV": "dev",
+				"AUTH_EMAIL_FROM": "logowanie@landingos.app"
+			},
+			"send_email": [
+				{
+					"name": "AUTH_EMAIL",
+					"allowed_sender_addresses": ["logowanie@landingos.app"],
+					"remote": false
+				}
+			],
 			"services": [
 				{
 					"binding": "DATA_SERVICE",
@@ -34,7 +54,16 @@
 		 */
 		"staging": {
 			"name": "landingos-ua-staging",
-			"vars": { "CLOUDFLARE_ENV": "staging" },
+			"vars": {
+				"CLOUDFLARE_ENV": "staging",
+				"AUTH_EMAIL_FROM": "logowanie@landingos.app"
+			},
+			"send_email": [
+				{
+					"name": "AUTH_EMAIL",
+					"allowed_sender_addresses": ["logowanie@landingos.app"]
+				}
+			],
 			"routes": [
 				{
 					"pattern": "staging.landingos.app",
@@ -53,7 +82,16 @@
 		 */
 		"production": {
 			"name": "landingos-ua-production",
-			"vars": { "CLOUDFLARE_ENV": "production" },
+			"vars": {
+				"CLOUDFLARE_ENV": "production",
+				"AUTH_EMAIL_FROM": "logowanie@landingos.app"
+			},
+			"send_email": [
+				{
+					"name": "AUTH_EMAIL",
+					"allowed_sender_addresses": ["logowanie@landingos.app"]
+				}
+			],
 			"routes": [
 				{
 					"pattern": "landingos.app",

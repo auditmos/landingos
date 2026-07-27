@@ -37,10 +37,11 @@ describe("/api/auth/$ catch-all route", () => {
 
 	it.each<{ method: Method; path: string; status: number }>([
 		{ method: "GET", path: "/api/auth/session", status: 200 },
-		{ method: "POST", path: "/api/auth/sign-in/email", status: 200 },
+		{ method: "POST", path: "/api/auth/email-otp/send-verification-otp", status: 200 },
+		{ method: "POST", path: "/api/auth/sign-in/email-otp", status: 200 },
 		{ method: "PUT", path: "/api/auth/user/update", status: 200 },
 		{ method: "DELETE", path: "/api/auth/sessions/abc123", status: 204 },
-		{ method: "OPTIONS", path: "/api/auth/sign-in/email", status: 204 },
+		{ method: "OPTIONS", path: "/api/auth/sign-in/email-otp", status: 204 },
 	])("forwards $method $path to Better Auth's handler (preserves the original Request)", async ({
 		method,
 		path,

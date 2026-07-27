@@ -4,16 +4,16 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createBetterAuth } from "../src/auth/setup";
 import { initDatabase } from "../src/database/setup";
 
-const password = process.env.DATABASE_PASSWORD;
-const host = process.env.DATABASE_HOST;
-const username = process.env.DATABASE_USERNAME;
-
-if (!password || !host || !username) {
-	throw new Error("Missing required DATABASE_* environment variables");
-}
-
 export const auth = createBetterAuth({
-	database: drizzleAdapter(initDatabase({ password, host, username }), {
-		provider: "pg",
-	}),
+	database: drizzleAdapter(
+		initDatabase({
+			password: "schema-only",
+			host: "schema-only.invalid",
+			username: "schema-only",
+		}),
+		{ provider: "pg" },
+	),
+	sendVerificationOTP: async () => {
+		throw new Error("Schema generation configuration cannot send email");
+	},
 });

@@ -23,6 +23,9 @@ export default class DataService extends WorkerEntrypoint<Env> {
 			secret: optionalEnv.BETTER_AUTH_SECRET,
 			baseURL: optionalEnv.BETTER_AUTH_BASE_URL,
 			crossSubDomainCookieDomain: optionalEnv.BETTER_AUTH_COOKIE_DOMAIN || undefined,
+			sendVerificationOTP: async () => {
+				throw new Error("Data Service cannot send authentication email");
+			},
 			adapter: {
 				drizzleDb: getDb(),
 				provider: "pg",

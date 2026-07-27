@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { setAuth } from "@repo/data-ops/auth/server";
 import { getDb, initDatabase } from "@repo/data-ops/database/setup";
 import handler from "@tanstack/react-start/server-entry";
+import { createCloudflareOtpSender } from "./lib/auth-email";
 import { applySecurityHeaders } from "./lib/security-headers";
 
 export default {
@@ -25,6 +26,7 @@ export default {
 			secret: env.BETTER_AUTH_SECRET,
 			baseURL: env.BETTER_AUTH_BASE_URL,
 			crossSubDomainCookieDomain: optionalEnv.BETTER_AUTH_COOKIE_DOMAIN || undefined,
+			sendVerificationOTP: createCloudflareOtpSender(env.AUTH_EMAIL, env.AUTH_EMAIL_FROM),
 			adapter: {
 				drizzleDb: getDb(),
 				provider: "pg",

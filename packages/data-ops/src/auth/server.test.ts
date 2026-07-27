@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const baseConfig = {
 	secret: "test-secret",
 	baseURL: "http://localhost",
+	sendVerificationOTP: async () => {},
 	adapter: {
 		drizzleDb: drizzle("postgres://u:p@localhost/db"),
 		provider: "pg" as const,

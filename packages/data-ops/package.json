@@ -11,6 +11,10 @@
 			"types": "./dist/health/index.d.ts",
 			"default": "./dist/health/index.js"
 		},
+		"./identity": {
+			"types": "./dist/identity/index.d.ts",
+			"default": "./dist/identity/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"
@@ -26,7 +30,7 @@
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json --outDir ./dist && tsc-alias",
-		"better-auth:generate": "mkdir -p src/drizzle && npx @better-auth/cli@latest generate --config ./config/auth.ts --output ./src/drizzle/auth-schema.ts",
+		"better-auth:generate": "mkdir -p src/drizzle && pnpm dlx @better-auth/cli@1.4.21 generate --config ./config/auth.ts --output ./src/drizzle/auth-schema.ts --yes",
 		"db:generate:dev": "dotenvx run -f .env.dev -- drizzle-kit generate --config drizzle-dev.config.ts",
 		"db:migrate:dev": "dotenvx run -f .env.dev -- drizzle-kit migrate --config drizzle-dev.config.ts",
 		"db:pull:dev": "dotenvx run -f .env.dev -- drizzle-kit pull --config drizzle-dev.config.ts",
@@ -54,7 +58,9 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
+		"@better-auth/memory-adapter": "1.6.25",
 		"@cloudflare/workers-types": "^4.20260702.1",
+		"@electric-sql/pglite": "0.2.17",
 		"@types/node": "^22.20.1",
 		"drizzle-kit": "^0.31.10",
 		"postgres": "^3.4.9",

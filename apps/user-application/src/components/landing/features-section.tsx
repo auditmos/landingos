@@ -74,7 +74,7 @@ const templateFeatures = [
 		image: "/better-auth.png",
 		title: "Better Auth",
 		description:
-			"Complete authentication solution with social providers, email/password, and session management. Database-agnostic and edge-compatible.",
+			"Bezpieczne logowanie jednorazowym kodem e-mail i prywatna sesja na czas planowania podróży.",
 		badge: "Authentication",
 		highlight: true,
 	},
