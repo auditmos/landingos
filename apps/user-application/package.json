@@ -5,8 +5,8 @@
 	"scripts": {
 		"dev": "vite dev --port 3000",
 		"build": "vite build",
-		"build:staging": "vite build --mode staging",
-		"build:production": "vite build --mode production",
+		"build:staging": "vite build --mode staging && node scripts/remove-secret-artifacts.js",
+		"build:production": "vite build --mode production && node scripts/remove-secret-artifacts.js",
 		"deploy": "pnpm run build && wrangler deploy",
 		"deploy:staging": "pnpm run build:staging && wrangler deploy --env=''",
 		"deploy:production": "pnpm run build:production && wrangler deploy --env=''",

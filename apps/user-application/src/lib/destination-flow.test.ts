@@ -113,7 +113,170 @@ describe("anonymous flight-to-destination flow", () => {
 		expect(container.textContent).toContain("Cel jeszcze nieobsługiwany");
 		expect(container.textContent).toContain("Ryanair FR1234");
 		expect(destinationInput?.value).toBe("Lotnisko BGY");
-		expect(requestedPaths.filter((path) => path.includes("route"))).toEqual([]);
+		expect(requestedPaths).not.toContain("/journeys/recommend");
+	});
+
+	it("completes flight to destination to recommendations to an external link without auth", async () => {
+		const calls: Array<{ path: string; authorization: string | null; body: unknown }> = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const path = new URL(String(input)).pathname;
+				const headers = new Headers(init?.headers);
+				calls.push({
+					path,
+					authorization: headers.get("authorization"),
+					body: init?.body ? JSON.parse(String(init.body)) : undefined,
+				});
+				if (path === "/flights/resolve") {
+					return Response.json({
+						status: "recognized",
+						flight: {
+							id: "flight-id",
+							marketingCarrierCode: "FR",
+							marketingCarrierName: "Ryanair",
+							marketingFlightNumber: "1234",
+							operatingCarrierCode: "FR",
+							operatingFlightNumber: "1234",
+							departureLocalDate: "2026-09-14",
+							originIata: "WAW",
+							destinationIata: "BGY",
+							scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+							displayTimezone: "Europe/Rome",
+							source: "provider",
+						},
+					});
+				}
+				if (path === "/destinations/autocomplete") {
+					return Response.json({
+						status: "suggestions",
+						predictions: [
+							{
+								placeId: "fixture:place:duomo",
+								primaryText: "Duomo di Milano",
+								secondaryText: "Piazza del Duomo, Milano",
+							},
+						],
+					});
+				}
+				if (path === "/destinations/select") {
+					return Response.json({
+						status: "destination_selected",
+						destination: {
+							placeId: "fixture:place:duomo",
+							displayName: "Duomo di Milano",
+							coordinates: { latitude: 45.464098, longitude: 9.191926 },
+							supportedAreaVersion: "milan-municipality-v1",
+						},
+					});
+				}
+				if (path === "/journeys/recommend") {
+					return Response.json({
+						status: "recommendations",
+						explanation: "Znaleźliśmy tylko jedną unikalną i wiarygodną trasę.",
+						variants: [
+							{
+								id: "journey-1",
+								badges: ["recommended", "fastest", "simplest"],
+								durationMinutes: 65,
+								arrivalTimeUtc: "2026-09-14T10:10:00.000Z",
+								cost: {
+									currency: "EUR",
+									minorMin: 1_000,
+									minorMax: 1_200,
+									completeness: "partial",
+								},
+								transferCount: 0,
+								walkingMinutes: 8,
+								walkingMeters: 600,
+								steps: [
+									{
+										mode: "bus",
+										from: "Aeroporto BGY",
+										to: "Milano Centrale",
+										durationMinutes: 50,
+										walkingMeters: 0,
+									},
+								],
+								sourceReferences: [
+									{
+										kind: "catalog",
+										label: "Airport Bus Express",
+										url: "https://www.milanbergamoairport.it/en/bus/",
+										checkedAt: "2026-07-27T00:00:00.000Z",
+									},
+								],
+								manualVerification: {
+									checkedAt: "2026-07-27T00:00:00.000Z",
+									freshness: "fresh",
+								},
+								externalLinks: [
+									{
+										kind: "purchase",
+										label: "Sprawdź u Airport Bus Express",
+										url: "https://www.airportbusexpress.it/tickets",
+									},
+								],
+							},
+						],
+					});
+				}
+				throw new Error(`Unexpected request: ${path}`);
+			}),
+		);
+
+		await act(async () => root.render(createElement(FlightPlanner)));
+		await act(async () => {
+			setInputValue(
+				container.querySelector<HTMLInputElement>("#flight-number") as HTMLInputElement,
+				"FR1234",
+			);
+			setInputValue(
+				container.querySelector<HTMLInputElement>("#departure-date") as HTMLInputElement,
+				"2026-09-14",
+			);
+			container
+				.querySelector<HTMLFormElement>("form")
+				?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+			await Promise.resolve();
+		});
+		await act(async () => {
+			setInputValue(
+				container.querySelector<HTMLInputElement>("#destination-query") as HTMLInputElement,
+				"Duomo",
+			);
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		const prediction = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Duomo di Milano"),
+		);
+		await act(async () => {
+			prediction?.click();
+			await Promise.resolve();
+		});
+
+		expect(container.textContent).toContain("Warianty przejazdu");
+		expect(container.textContent).toContain("65 min");
+		const externalLink = container.querySelector<HTMLAnchorElement>(
+			'a[href="https://www.airportbusexpress.it/tickets"]',
+		);
+		expect(externalLink).toMatchObject({
+			target: "_blank",
+			rel: "noopener noreferrer",
+		});
+		expect(calls.map((call) => call.path)).toEqual([
+			"/flights/resolve",
+			"/destinations/autocomplete",
+			"/destinations/select",
+			"/journeys/recommend",
+		]);
+		expect(calls.every((call) => call.authorization === null)).toBe(true);
+		expect(calls.at(-1)?.body).toEqual({
+			flightInstanceId: "flight-id",
+			scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+			privateDestinationCoordinates: { latitude: 45.464098, longitude: 9.191926 },
+			bufferMinutes: 45,
+		});
 	});
 
 	it.each([

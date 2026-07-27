@@ -3,6 +3,7 @@ export {
 	FIXTURE_PROVENANCE,
 	FLIGHT_FIXTURE_SCENARIOS,
 	ROUTE_FIXTURE_SCENARIOS,
+	type RouteFixtureScenario,
 } from "./fixture-data";
 export {
 	type FixtureScenarioSummary,

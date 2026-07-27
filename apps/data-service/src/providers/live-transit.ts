@@ -15,6 +15,7 @@ interface LiveTransitConfig {
 interface GoogleRouteStep {
 	travelMode?: unknown;
 	staticDuration?: unknown;
+	distanceMeters?: unknown;
 	transitDetails?: {
 		stopDetails?: {
 			departureStop?: { name?: unknown };
@@ -71,11 +72,15 @@ function normalizeLeg(step: GoogleRouteStep, index: number): TransitLeg | string
 		return [`legs.steps[${index}].staticDuration`];
 	}
 	if (step.travelMode === "WALK") {
+		if (typeof step.distanceMeters !== "number") {
+			return [`legs.steps[${index}].distanceMeters`];
+		}
 		return {
 			mode: "walk",
 			from: "Początek odcinka pieszego",
 			to: "Koniec odcinka pieszego",
 			durationMinutes: minutes,
+			walkingMeters: Math.round(step.distanceMeters),
 		};
 	}
 	if (step.travelMode !== "TRANSIT") {
@@ -91,6 +96,7 @@ function normalizeLeg(step: GoogleRouteStep, index: number): TransitLeg | string
 		from,
 		to,
 		durationMinutes: minutes,
+		walkingMeters: 0,
 	};
 }
 
@@ -155,11 +161,16 @@ function normalizeRoute(
 	const transitLegCount = legs.filter((leg) => leg.mode !== "walk").length;
 	return {
 		id: stableRouteId(input, index),
+		departureTime: input.departureTime,
+		arrivalTime: new Date(
+			new Date(input.departureTime).getTime() + totalDuration * 60_000,
+		).toISOString(),
 		durationMinutes: totalDuration,
 		transfers: Math.max(0, transitLegCount - 1),
 		walkingMinutes: legs
 			.filter((leg) => leg.mode === "walk")
 			.reduce((total, leg) => total + leg.durationMinutes, 0),
+		walkingMeters: legs.reduce((total, leg) => total + leg.walkingMeters, 0),
 		legs,
 		fare: normalizeFare(raw),
 		source: {
@@ -211,7 +222,7 @@ export function createLiveTransitProvider(
 						"Content-Type": "application/json",
 						"X-Goog-Api-Key": config.googleMapsApiKey,
 						"X-Goog-FieldMask":
-							"routes.duration,routes.legs.steps,routes.travelAdvisory.transitFare",
+							"routes.duration,routes.legs.steps,routes.legs.steps.distanceMeters,routes.travelAdvisory.transitFare",
 					},
 					body: JSON.stringify({
 						origin: {

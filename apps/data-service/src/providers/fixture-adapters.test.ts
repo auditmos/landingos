@@ -144,27 +144,33 @@ describe("fixture provider adapters", () => {
 			value: [
 				{
 					id: "fixture:route:bgy-duomo:day",
+					departureTime: "2026-09-14T11:05:00+02:00",
+					arrivalTime: "2026-09-14T10:10:00.000Z",
 					durationMinutes: 65,
 					transfers: 0,
 					walkingMinutes: 8,
+					walkingMeters: 600,
 					legs: [
 						{
 							mode: "bus",
 							from: "Aeroporto BGY",
 							to: "Milano Centrale",
 							durationMinutes: 50,
+							walkingMeters: 0,
 						},
 						{
 							mode: "metro",
 							from: "Centrale FS",
 							to: "Duomo",
 							durationMinutes: 7,
+							walkingMeters: 0,
 						},
 						{
 							mode: "walk",
 							from: "Duomo M1/M3",
 							to: "Duomo di Milano",
 							durationMinutes: 8,
+							walkingMeters: 600,
 						},
 					],
 					fare: {
@@ -181,6 +187,21 @@ describe("fixture provider adapters", () => {
 		});
 	});
 
+	it("matches the same departure instant in canonical UTC form", async () => {
+		const providers = createFixtureProviderAdapters();
+
+		const result = await providers.transit.route({
+			origin: { latitude: 45.6739, longitude: 9.7042 },
+			destination: { latitude: 45.464098, longitude: 9.191926 },
+			departureTime: "2026-09-14T09:05:00.000Z",
+		});
+
+		expect(result.status).toBe("success");
+		if (result.status === "success") {
+			expect(result.value[0]?.id).toBe("fixture:route:bgy-duomo:day");
+		}
+	});
+
 	it("provides a normalized hand-seeded transfer catalog merge input", async () => {
 		const providers = createFixtureProviderAdapters();
 
@@ -190,19 +211,26 @@ describe("fixture provider adapters", () => {
 			status: "success",
 			value: [
 				{
-					id: "fixture:transfer:airport-bus-centrale",
-					operator: "Airport Bus Express",
-					service: "BGY → Milano Centrale",
+					id: "bgy-airport-bus-centrale",
+					operatorName: "Airport Bus Express",
+					serviceName: "BGY → Milano Centrale",
+					originIata: "BGY",
+					destinationStopCode: "milano-centrale",
+					destinationStopName: "Milano Centrale",
+					durationMinutes: 50,
+					transferCount: 0,
+					walkingMinutes: 0,
+					walkingMeters: 0,
 					sourceUrl: "https://www.milanbergamoairport.it/en/bus/",
-					checkedOn: "2026-07-27",
-					priceRange: {
-						currency: "EUR",
-						minorMin: 1_000,
-						minorMax: 1_200,
-					},
+					checkedAt: "2026-07-27T00:00:00.000Z",
+					costMinorMin: 1_000,
+					costMinorMax: 1_200,
 					purchaseUrl:
 						"https://www.airportbusexpress.it/en-GB/bus-stop-timetable/bergamo-orio-al-serio-milan-central-station",
-					provenance: "synthetic_recorded_for_testing",
+					publicationStatus: "published",
+					provenance: "seeded_fixture",
+					createdAt: "2026-07-27T00:00:00.000Z",
+					updatedAt: "2026-07-27T00:00:00.000Z",
 				},
 			],
 		});

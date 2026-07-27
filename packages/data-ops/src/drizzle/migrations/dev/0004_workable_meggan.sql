@@ -1,0 +1,21 @@
+CREATE TABLE "transfer_catalog_entries" (
+	"id" text PRIMARY KEY NOT NULL,
+	"operator_name" text NOT NULL,
+	"service_name" text NOT NULL,
+	"origin_iata" text NOT NULL,
+	"destination_stop_code" text NOT NULL,
+	"destination_stop_name" text NOT NULL,
+	"duration_minutes" integer NOT NULL,
+	"transfer_count" integer NOT NULL,
+	"walking_minutes" integer NOT NULL,
+	"walking_meters" integer NOT NULL,
+	"source_url" text NOT NULL,
+	"checked_at" timestamp with time zone NOT NULL,
+	"cost_minor_min" integer NOT NULL,
+	"cost_minor_max" integer NOT NULL,
+	"purchase_url" text NOT NULL,
+	"publication_status" text NOT NULL,
+	"provenance" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);

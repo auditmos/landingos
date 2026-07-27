@@ -1,3 +1,4 @@
+import type { PrivateDestination } from "@repo/data-ops/destination";
 import {
 	type FlightInstance,
 	FlightLookupRequestSchema,
@@ -6,6 +7,7 @@ import {
 import { CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { DestinationPlanner } from "@/components/destination/destination-planner";
+import { JourneyPlanner } from "@/components/journey/journey-planner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +72,7 @@ export function FlightPlanner() {
 	const [manualArrival, setManualArrival] = useState("");
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [destination, setDestination] = useState<PrivateDestination>();
 
 	async function submitLookup(event?: FormEvent) {
 		event?.preventDefault();
@@ -84,6 +87,7 @@ export function FlightPlanner() {
 			return;
 		}
 		setFieldErrors({});
+		setDestination(undefined);
 		setFlightNumber(parsed.data.flightNumber);
 		setDepartureLocalDate(parsed.data.departureLocalDate);
 		setLoading(true);
@@ -256,7 +260,10 @@ export function FlightPlanner() {
 					{result?.status === "recognized" ? (
 						<>
 							<FlightSummary flight={result.flight} />
-							<DestinationPlanner />
+							<DestinationPlanner onDestinationChange={setDestination} />
+							{destination ? (
+								<JourneyPlanner flight={result.flight} destination={destination} />
+							) : null}
 						</>
 					) : null}
 				</section>

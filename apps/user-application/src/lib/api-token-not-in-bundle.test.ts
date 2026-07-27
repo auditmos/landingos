@@ -1,10 +1,11 @@
 import { execSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
-const CLIENT_BUILD_DIR = join(PROJECT_ROOT, "dist", "client");
+const BUILD_DIR = join(PROJECT_ROOT, "dist");
+const SERVER_BUILD_DIR = join(BUILD_DIR, "server");
 const SECRET_MARKERS = {
 	VITE_API_TOKEN: "vite-api-token-marker-do-not-bundle-xyz12345",
 	BETTER_AUTH_SECRET: "better-auth-secret-marker-do-not-bundle-xyz12345",
@@ -16,16 +17,22 @@ const RUN = process.env.RUN_BUNDLE_TEST === "1";
 
 describe.skipIf(!RUN)("api token bundle isolation", () => {
 	beforeAll(() => {
-		execSync("pnpm run build", {
+		execSync("pnpm run build:production", {
 			cwd: PROJECT_ROOT,
 			env: { ...process.env, ...SECRET_MARKERS },
 			stdio: "inherit",
 		});
 	}, 300_000);
 
-	it("never embeds client or provider secrets into the client bundle", () => {
+	it("never embeds client or provider secrets into any production artifact", () => {
 		for (const marker of Object.values(SECRET_MARKERS)) {
-			expect(grepRecursive(CLIENT_BUILD_DIR, marker)).toEqual([]);
+			expect(grepRecursive(BUILD_DIR, marker)).toEqual([]);
+		}
+	});
+
+	it("removes generated dotenv files before the production artifact can be deployed", () => {
+		for (const fileName of [".dev.vars", ".env", ".env.production", ".env.staging"]) {
+			expect(existsSync(join(SERVER_BUILD_DIR, fileName)), fileName).toBe(false);
 		}
 	});
 });

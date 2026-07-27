@@ -21,7 +21,7 @@ function routeResponse(): Response {
 									transitLine: { vehicle: { type: "BUS" } },
 								},
 							},
-							{ travelMode: "WALK", staticDuration: "900s" },
+							{ travelMode: "WALK", staticDuration: "900s", distanceMeters: 1_125 },
 						],
 					},
 				],

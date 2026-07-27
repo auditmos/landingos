@@ -150,13 +150,17 @@ export interface TransitLeg {
 	from: string;
 	to: string;
 	durationMinutes: number;
+	walkingMeters: number;
 }
 
 export interface TransitRoute {
 	id: string;
+	departureTime: string;
+	arrivalTime: string;
 	durationMinutes: number;
 	transfers: number;
 	walkingMinutes: number;
+	walkingMeters: number;
 	legs: TransitLeg[];
 	fare: {
 		currency: "EUR";
@@ -173,20 +177,7 @@ export interface TransitProvider {
 	route(input: TransitRouteInput): Promise<ProviderResult<TransitRoute[], TransitRoute>>;
 }
 
-export interface TransferCatalogEntry {
-	id: string;
-	operator: string;
-	service: string;
-	sourceUrl: string;
-	checkedOn: string;
-	priceRange: {
-		currency: "EUR";
-		minorMin: number;
-		minorMax: number;
-	};
-	purchaseUrl: string;
-	provenance: "synthetic_recorded_for_testing" | "operator_verified";
-}
+export type TransferCatalogEntry = JourneyTransferCatalogEntry;
 
 export interface TransferCatalogProvider {
 	list(): Promise<ProviderResult<TransferCatalogEntry[]>>;
@@ -199,3 +190,5 @@ export interface ProviderAdapters {
 	transit: TransitProvider;
 	transferCatalog: TransferCatalogProvider;
 }
+
+import type { TransferCatalogEntry as JourneyTransferCatalogEntry } from "@repo/data-ops/journey";

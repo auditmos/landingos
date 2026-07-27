@@ -2,6 +2,7 @@ import type {
 	DestinationAutocompleteResult,
 	DestinationPrediction,
 	DestinationSelectionResult,
+	PrivateDestination,
 } from "@repo/data-ops/destination";
 import { CheckCircle2, MapPin, RotateCcw, Search } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -46,7 +47,11 @@ export function DestinationPredictionList({
 	);
 }
 
-export function DestinationPlanner() {
+export function DestinationPlanner({
+	onDestinationChange,
+}: {
+	onDestinationChange?: (destination: PrivateDestination | undefined) => void;
+} = {}) {
 	const [query, setQuery] = useState("");
 	const [predictions, setPredictions] = useState<DestinationPrediction[]>([]);
 	const [autocompleteFault, setAutocompleteFault] = useState<
@@ -80,6 +85,7 @@ export function DestinationPlanner() {
 	}
 
 	function scheduleSearch(nextQuery: string) {
+		onDestinationChange?.(undefined);
 		setQuery(nextQuery);
 		setPredictions([]);
 		setAutocompleteFault(undefined);
@@ -108,13 +114,14 @@ export function DestinationPlanner() {
 		setError("");
 		setLoading(true);
 		try {
-			setSelectionResult(
-				await selectDestinationApi({
-					placeId: prediction.placeId,
-					sessionToken,
-				}),
-			);
+			const next = await selectDestinationApi({
+				placeId: prediction.placeId,
+				sessionToken,
+			});
+			setSelectionResult(next);
+			onDestinationChange?.(next.status === "destination_selected" ? next.destination : undefined);
 		} catch (caught) {
+			onDestinationChange?.(undefined);
 			setError(
 				caught instanceof Error ? caught.message : "Nie udało się sprawdzić wybranego miejsca.",
 			);
@@ -126,6 +133,7 @@ export function DestinationPlanner() {
 	}
 
 	function changeInput() {
+		onDestinationChange?.(undefined);
 		setSelectedPrediction(undefined);
 		setSelectionResult(undefined);
 		setAutocompleteFault(undefined);

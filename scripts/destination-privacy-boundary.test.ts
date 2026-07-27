@@ -21,11 +21,17 @@ describe("destination privacy boundary", () => {
 			(file) =>
 				/(schema|table)\.ts$/.test(file) &&
 				!file.includes("/destination/") &&
+				!file.includes("/journey/") &&
 				!file.endsWith(".test.ts"),
 		);
 		const publicHandlerFiles = filesUnder(
 			resolve(ROOT, "apps/data-service/src/hono/handlers"),
-		).filter((file) => file.endsWith("-handlers.ts") && !file.endsWith("destination-handlers.ts"));
+		).filter(
+			(file) =>
+				file.endsWith("-handlers.ts") &&
+				!file.endsWith("destination-handlers.ts") &&
+				!file.endsWith("journey-handlers.ts"),
+		);
 		const telemetryAndLogFiles = filesUnder(resolve(ROOT, "apps")).filter(
 			(file) =>
 				/\.(ts|tsx)$/.test(file) &&

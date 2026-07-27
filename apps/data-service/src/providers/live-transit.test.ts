@@ -50,6 +50,7 @@ describe("live transit provider", () => {
 										{
 											travelMode: "WALK",
 											staticDuration: "480s",
+											distanceMeters: 600,
 										},
 									],
 								},
@@ -79,9 +80,12 @@ describe("live transit provider", () => {
 		expect(second).toEqual(first);
 		if (first.status === "success") {
 			expect(first.value[0]).toMatchObject({
+				departureTime: input.departureTime,
+				arrivalTime: "2026-09-14T10:10:00.000Z",
 				durationMinutes: 65,
 				transfers: 1,
 				walkingMinutes: 8,
+				walkingMeters: 600,
 				fare: {
 					currency: "EUR",
 					amountMinor: 1_500,

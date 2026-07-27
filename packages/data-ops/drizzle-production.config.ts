@@ -7,6 +7,7 @@ const config: Config = {
 		"./src/drizzle/auth-schema.ts",
 		"./src/client/table.ts",
 		"./src/flight/table.ts",
+		"./src/journey/table.ts",
 		"./src/drizzle/relations.ts",
 	],
 	dialect: "postgresql",

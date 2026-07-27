@@ -106,19 +106,26 @@ const PLACE_AUTOCOMPLETE_FAULTS: Record<
 };
 
 const AIRPORT_BUS_TRANSFER = {
-	id: "fixture:transfer:airport-bus-centrale",
-	operator: "Airport Bus Express",
-	service: "BGY → Milano Centrale",
+	id: "bgy-airport-bus-centrale",
+	operatorName: "Airport Bus Express",
+	serviceName: "BGY → Milano Centrale",
+	originIata: "BGY",
+	destinationStopCode: "milano-centrale",
+	destinationStopName: "Milano Centrale",
+	durationMinutes: 50,
+	transferCount: 0,
+	walkingMinutes: 0,
+	walkingMeters: 0,
 	sourceUrl: "https://www.milanbergamoairport.it/en/bus/",
-	checkedOn: "2026-07-27",
-	priceRange: {
-		currency: "EUR",
-		minorMin: 1_000,
-		minorMax: 1_200,
-	},
+	checkedAt: "2026-07-27T00:00:00.000Z",
+	costMinorMin: 1_000,
+	costMinorMax: 1_200,
 	purchaseUrl:
 		"https://www.airportbusexpress.it/en-GB/bus-stop-timetable/bergamo-orio-al-serio-milan-central-station",
-	provenance: "synthetic_recorded_for_testing",
+	publicationStatus: "published",
+	provenance: "seeded_fixture",
+	createdAt: "2026-07-27T00:00:00.000Z",
+	updatedAt: "2026-07-27T00:00:00.000Z",
 } as const;
 
 function coordinateKey(coordinate: { latitude: number; longitude: number }): string {
@@ -126,9 +133,11 @@ function coordinateKey(coordinate: { latitude: number; longitude: number }): str
 }
 
 function routeInputKey(input: TransitRouteInput): string {
-	return [coordinateKey(input.origin), coordinateKey(input.destination), input.departureTime].join(
-		"|",
-	);
+	return [
+		coordinateKey(input.origin),
+		coordinateKey(input.destination),
+		new Date(input.departureTime).toISOString(),
+	].join("|");
 }
 
 export function createFixtureProviderAdapters(

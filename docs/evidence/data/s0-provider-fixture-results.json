@@ -300,7 +300,7 @@
 					"scenarioId": "transfer-catalog:seeded",
 					"contract": "transferCatalog",
 					"status": "success",
-					"normalizedIds": ["fixture:transfer:airport-bus-centrale"]
+					"normalizedIds": ["bgy-airport-bus-centrale"]
 				}
 			]
 		}

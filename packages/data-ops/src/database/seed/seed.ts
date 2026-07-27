@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { sql } from "drizzle-orm";
 import { clients } from "../../client/table";
+import { seedTransferCatalog } from "../../journey/queries";
 import { initDatabase } from "../setup";
 
 const sampleClients = [
@@ -38,6 +39,7 @@ async function seedDb() {
 	const db = initDatabase({ host, username, password });
 	await db.execute(sql`SELECT 1`);
 	await db.insert(clients).values(sampleClients).onConflictDoNothing();
+	await seedTransferCatalog(db);
 
 	process.exit(0);
 }
