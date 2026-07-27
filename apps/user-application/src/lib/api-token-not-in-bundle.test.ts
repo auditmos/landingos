@@ -11,6 +11,12 @@ const SECRET_MARKERS = {
 	BETTER_AUTH_SECRET: "better-auth-secret-marker-do-not-bundle-xyz12345",
 	AVIATIONSTACK_ACCESS_KEY: "aviationstack-marker-do-not-bundle-xyz12345",
 	GOOGLE_MAPS_API_KEY: "google-maps-marker-do-not-bundle-xyz12345",
+	AUTH_EMAIL_FROM: "email-sender-marker-do-not-bundle-xyz12345@example.test",
+	DATABASE_HOST: "database-host-marker-do-not-bundle-xyz12345",
+	DATABASE_USERNAME: "database-user-marker-do-not-bundle-xyz12345",
+	DATABASE_PASSWORD: "database-password-marker-do-not-bundle-xyz12345",
+	DATA_SERVICE_API_TOKEN: "shared-service-marker-do-not-bundle-xyz12345",
+	ANALYTICS_PSEUDONYM_SECRET: "analytics-hmac-marker-do-not-bundle-xyz12345",
 } as const;
 
 const RUN = process.env.RUN_BUNDLE_TEST === "1";
@@ -19,7 +25,11 @@ describe.skipIf(!RUN)("api token bundle isolation", () => {
 	beforeAll(() => {
 		execSync("pnpm run build:production", {
 			cwd: PROJECT_ROOT,
-			env: { ...process.env, ...SECRET_MARKERS },
+			env: {
+				...process.env,
+				...SECRET_MARKERS,
+				WRANGLER_WRITE_LOGS: "false",
+			} as unknown as NodeJS.ProcessEnv,
 			stdio: "inherit",
 		});
 	}, 300_000);

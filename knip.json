@@ -3,7 +3,7 @@
 	"ignoreDependencies": ["cloudflare"],
 	"workspaces": {
 		".": {
-			"entry": ["scripts/*.ts", "taze.config.ts"]
+			"entry": ["scripts/*.ts", "scripts/e2e-touch-init.js", "taze.config.ts"]
 		},
 		"apps/data-service": {
 			"entry": ["src/providers/index.ts", "src/**/*.test.ts", "vitest.config.mts"],
@@ -11,7 +11,7 @@
 			"ignore": ["src/durable-objects/**", "src/workflows/**"]
 		},
 		"apps/user-application": {
-			"entry": ["src/start.tsx", "src/routes/**/*.{ts,tsx}", "vite.config.ts"],
+			"entry": ["src/routes/**/*.{ts,tsx}", "e2e/*.{js,ts,tsx}", "vite.config.ts"],
 			"vite": { "config": [] },
 			"ignoreDependencies": ["jsdom", "web-vitals"],
 			"ignore": [

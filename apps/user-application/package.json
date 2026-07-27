@@ -7,6 +7,7 @@
 		"build": "vite build",
 		"build:staging": "vite build --mode staging && node scripts/remove-secret-artifacts.js",
 		"build:production": "vite build --mode production && node scripts/remove-secret-artifacts.js",
+		"e2e:serve": "vite --config e2e/vite.config.ts --host 127.0.0.1 --port 4173",
 		"deploy": "pnpm run build && wrangler deploy",
 		"deploy:staging": "pnpm run build:staging && wrangler deploy --env=''",
 		"deploy:production": "pnpm run build:production && wrangler deploy --env=''",

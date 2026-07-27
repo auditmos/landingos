@@ -24,6 +24,7 @@ function createTestAuth(
 	sent: SentOtp[],
 	beforeDeleteUser?: (user: { id: string; email: string }) => Promise<void>,
 ) {
+	let nextOtp = 100_000;
 	return createBetterAuth({
 		database: memoryAdapter(db),
 		secret: TEST_SECRET,
@@ -31,6 +32,7 @@ function createTestAuth(
 		sendVerificationOTP: async (message) => {
 			sent.push(message);
 		},
+		generateOTP: () => String(nextOtp++),
 		beforeDeleteUser,
 	});
 }

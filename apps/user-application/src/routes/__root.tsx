@@ -24,8 +24,9 @@ export const Route = createRootRouteWithContext<{
 				content: "width=device-width, initial-scale=1",
 			},
 			...seo({
-				title: "TanStack Start | Type-Safe, Client-First, Full-Stack React Framework",
-				description: `TanStack Start is a type-safe, client-first, full-stack React framework. `,
+				title: "LandingOS | Z Bergamo do Mediolanu",
+				description:
+					"Zaplanuj przejazd z lotniska Mediolan-Bergamo i skontaktuj się z osobami z tego samego lotu.",
 			}),
 		],
 		links: [
@@ -33,10 +34,10 @@ export const Route = createRootRouteWithContext<{
 			{
 				rel: "apple-touch-icon",
 				sizes: "192x192",
-				href: "/logo192.png",
+				href: "/icon-192.png",
 			},
 			{ rel: "manifest", href: "/manifest.json" },
-			{ rel: "icon", href: "/favicon.ico" },
+			{ rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
 		],
 	}),
 	errorComponent: (props) => {
@@ -67,7 +68,7 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="en">
+		<html lang="pl">
 			<head>
 				<HeadContent />
 			</head>

@@ -9,6 +9,7 @@ export const createBetterAuth = (config: {
 	baseURL?: BetterAuthOptions["baseURL"];
 	crossSubDomainCookieDomain?: string;
 	sendVerificationOTP: EmailOTPOptions["sendVerificationOTP"];
+	generateOTP?: EmailOTPOptions["generateOTP"];
 	beforeDeleteUser?: (user: { id: string; email: string }, request?: Request) => Promise<void>;
 }) => {
 	return betterAuth({
@@ -18,6 +19,7 @@ export const createBetterAuth = (config: {
 		plugins: [
 			emailOTP({
 				sendVerificationOTP: config.sendVerificationOTP,
+				generateOTP: config.generateOTP,
 				otpLength: 6,
 				expiresIn: 5 * 60,
 				allowedAttempts: 3,

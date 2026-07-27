@@ -13,8 +13,9 @@ The planner works with no one else in the room; the community layer is upside, n
 
 ## Status
 
-The repository is the `saas-on-cf` starter stack (see [Architecture](#architecture)); the
-LandingOS product is **not yet implemented**. Delivery is tracked as an AFK issue queue:
+The LandingOS MVP AFK queue was implemented and closed through S10 on 2026-07-27. The
+production pilot still fails closed until live-provider commercial/licensing acceptance and
+independent privacy/compliance approval are recorded.
 
 | Issue | Slice | Scope |
 |-------|-------|-------|
@@ -29,7 +30,7 @@ LandingOS product is **not yet implemented**. Delivery is tracked as an AFK issu
 | #9 | S7 | Safety — block, report, community-rules acceptance |
 | #10 | S8 | Lifecycle & privacy (closure, retention, deletion) |
 | #11 | S9 | Analytics funnel |
-| #12 | S10 | PWA / mobile-readiness hardening (Playwright E2E, manifest, native-API smoke) |
+| #12 | S10 | PWA / mobile-readiness hardening (agent-browser E2E, manifest, native-API smoke) |
 
 Each issue is self-contained with locked decisions and testable acceptance criteria. **Read the
 issue before starting its slice.** All are completable unattended in `fixture` provider mode;
@@ -103,12 +104,15 @@ pnpm run test              # run all tests
 pnpm run test:watch        # watch mode
 pnpm run test:coverage     # with coverage report
 pnpm run types             # type-check all packages (builds data-ops first)
+pnpm run lint              # Biome checks
+pnpm run test:e2e          # self-starting agent-browser suite at mobile + desktop viewports
+pnpm run smoke:native-api  # raw Bearer HTTP + raw WebSocket smoke test
 ```
 
 Uses [Vitest](https://vitest.dev) with workspace projects (Cloudflare Workers pool where
 needed). Run tests + `types` before declaring a slice done — every issue requires
-`lint`, `types`, and `test` to exit 0. Slice S10 adds Playwright E2E (`test:e2e`) and a
-native-API smoke test (`smoke:native-api`).
+`lint`, `types`, and `test` to exit 0. The S10 E2E and native smoke commands are
+non-interactive, use deterministic in-memory fixtures, and require no live-provider credentials.
 
 ## Deployment
 

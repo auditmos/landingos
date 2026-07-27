@@ -1,0 +1,114 @@
+import { type ChildProcess, spawn } from "node:child_process";
+import { resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { startFixtureServer } from "./e2e-fixture-server.ts";
+import { type BrowserViewport, runViewportScenarios } from "./e2e-scenarios.ts";
+
+const ROOT = resolve(import.meta.dirname, "..");
+const USER_APP = resolve(ROOT, "apps/user-application");
+const TOUCH_INIT = resolve(ROOT, "scripts/e2e-touch-init.js");
+const FIXTURE_ORIGIN = "http://127.0.0.1:8789";
+const BASE_URL = "http://127.0.0.1:4173";
+const REALTIME_BOUND_MS = 5_000;
+const VIEWPORTS: BrowserViewport[] = [
+	{ name: "mobile", width: 390, height: 844, mobile: true },
+	{ name: "desktop", width: 1440, height: 900, mobile: false },
+];
+
+async function waitForUrl(url: string, child?: ChildProcess) {
+	for (let attempt = 0; attempt < 120; attempt += 1) {
+		if (child?.exitCode !== null) throw new Error(`Vite exited with code ${child.exitCode}`);
+		try {
+			const response = await fetch(url);
+			if (response.ok) return;
+		} catch {
+			// The isolated service is still starting.
+		}
+		await delay(100);
+	}
+	throw new Error(`Timed out waiting for ${url}`);
+}
+
+async function stopChild(child: ChildProcess) {
+	if (child.exitCode !== null) return;
+	child.kill("SIGTERM");
+	await Promise.race([
+		new Promise<void>((resolveExit) => child.once("exit", () => resolveExit())),
+		delay(3_000).then(() => {
+			if (child.exitCode === null) child.kill("SIGKILL");
+		}),
+	]);
+}
+
+async function main() {
+	const fixture = await startFixtureServer(8789);
+	const viteOutput: string[] = [];
+	const vite = spawn("pnpm", ["run", "e2e:serve"], {
+		cwd: USER_APP,
+		env: {
+			...process.env,
+			CLOUDFLARE_ENV: "development",
+			VITE_DATA_SERVICE_URL: FIXTURE_ORIGIN,
+		},
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	for (const stream of [vite.stdout, vite.stderr]) {
+		stream?.on("data", (chunk) => {
+			viteOutput.push(String(chunk));
+			if (viteOutput.length > 20) viteOutput.shift();
+		});
+	}
+	const heartbeat = setInterval(
+		() => process.stdout.write("E2E heartbeat: agent-browser suite is still running.\n"),
+		60_000,
+	);
+	try {
+		await waitForUrl(`${BASE_URL}/`, vite);
+		for (const viewport of VIEWPORTS) {
+			await fetch(`${FIXTURE_ORIGIN}/test-control/reset`, { method: "POST" });
+			process.stdout.write(
+				`Running agent-browser scenarios at ${viewport.width}x${viewport.height} (${viewport.name}).\n`,
+			);
+			await runViewportScenarios({
+				baseUrl: BASE_URL,
+				fixtureOrigin: FIXTURE_ORIGIN,
+				namespace: `landingos-e2e-${process.pid}`,
+				initScript: TOUCH_INIT,
+				viewport,
+			});
+			const messageCount = Number(
+				(
+					fixture.store.db.prepare("SELECT COUNT(*) AS count FROM messages").get() as {
+						count: number;
+					}
+				).count,
+			);
+			if (messageCount !== 1) {
+				throw new Error(`Expected one idempotent room message, found ${messageCount}`);
+			}
+			const reportCount = Number(
+				(
+					fixture.store.db.prepare("SELECT COUNT(*) AS count FROM reports").get() as {
+						count: number;
+					}
+				).count,
+			);
+			if (reportCount !== 1) throw new Error(`Expected one safety report, found ${reportCount}`);
+		}
+		process.stdout.write(
+			`Agent-browser E2E passed at both viewports; real-time bound ${REALTIME_BOUND_MS} ms.\n`,
+		);
+	} catch (error) {
+		if (viteOutput.length > 0) process.stderr.write(viteOutput.join(""));
+		throw error;
+	} finally {
+		clearInterval(heartbeat);
+		await stopChild(vite);
+		await fixture.close();
+	}
+}
+
+void main().catch((error: unknown) => {
+	process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+	process.exitCode = 1;
+});
