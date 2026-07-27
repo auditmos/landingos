@@ -253,6 +253,41 @@ describe("journey recommendation engine", () => {
 		});
 	});
 
+	it("uses a catalog edit on the very next recommendation without a cache flush", async () => {
+		const entries = [seededCatalog()];
+		const repository: TransferCatalogRepository = {
+			listPublished: vi.fn(async () => entries),
+		};
+		const provider = transit({
+			status: "success",
+			value: [
+				route("catalog-refresh", {
+					fare: { currency: "EUR", amountMinor: null, completeness: "unknown" },
+				}),
+			],
+		});
+		const first = await recommendJourneys(request, {
+			transit: provider,
+			catalog: repository,
+			now: () => new Date("2026-07-27T12:00:00.000Z"),
+		});
+		entries[0] = seededCatalog({ costMinorMin: 2_000, costMinorMax: 2_200 });
+		const second = await recommendJourneys(request, {
+			transit: provider,
+			catalog: repository,
+			now: () => new Date("2026-07-27T12:00:00.000Z"),
+		});
+		expect(first).toMatchObject({
+			status: "recommendations",
+			variants: [{ cost: { minorMin: 1_000, minorMax: 1_200 } }],
+		});
+		expect(second).toMatchObject({
+			status: "recommendations",
+			variants: [{ cost: { minorMin: 2_000, minorMax: 2_200 } }],
+		});
+		expect(repository.listPublished).toHaveBeenCalledTimes(2);
+	});
+
 	it.each([
 		[{ status: "zero_result" }, "no_trustworthy_route", "zero_result"],
 		[{ status: "timeout", retryable: true }, "recommendation_unavailable", "timeout"],

@@ -83,6 +83,19 @@ pnpm run db:studio         # Open Drizzle Studio (dev only)
 
 Replace `dev` with `staging` or `production` (except `db:studio`, which is dev-only).
 
+### Operator role
+
+Grant or revoke the initial transfer-catalog operator by normalized email with the
+non-interactive, database-only command:
+
+```bash
+pnpm run operator:role:dev grant operator@example.com
+pnpm run operator:role:dev revoke operator@example.com
+```
+
+Replace `dev` with `staging` or `production`. The command requires that environment's
+`DATABASE_HOST`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD`; no equivalent HTTP endpoint exists.
+
 ## Testing
 
 ```bash

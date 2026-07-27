@@ -21,6 +21,7 @@ import { Route as AuthDashboardIndexRouteImport } from './routes/_auth/dashboard
 import { Route as AuthDashboardApiRouteRouteImport } from './routes/_auth/dashboard/api/route'
 import { Route as AuthDashboardBindingRouteRouteImport } from './routes/_auth/dashboard/binding/route'
 import { Route as AuthDashboardDirectRouteRouteImport } from './routes/_auth/dashboard/direct/route'
+import { Route as AuthOperatorIndexRouteImport } from './routes/_auth/operator/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
 import { Route as AuthDashboardApiIndexRouteImport } from './routes/_auth/dashboard/api/index'
 import { Route as AuthDashboardApiCreateRouteImport } from './routes/_auth/dashboard/api/create'
@@ -102,6 +103,11 @@ const AuthDashboardDirectRouteRoute =
     path: '/direct',
     getParentRoute: () => AuthDashboardRouteRoute,
   } as any)
+const AuthOperatorIndexRoute = AuthOperatorIndexRouteImport.update({
+  id: '/operator/',
+  path: '/operator/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/app/': typeof AuthAppIndexRoute
   '/dashboard/': typeof AuthDashboardIndexRoute
+  '/operator/': typeof AuthOperatorIndexRoute
   '/dashboard/api/create': typeof AuthDashboardApiCreateRoute
   '/dashboard/api/delete': typeof AuthDashboardApiDeleteRoute
   '/dashboard/api/list': typeof AuthDashboardApiListRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/app': typeof AuthAppIndexRoute
   '/dashboard': typeof AuthDashboardIndexRoute
+  '/operator': typeof AuthOperatorIndexRoute
   '/dashboard/api/create': typeof AuthDashboardApiCreateRoute
   '/dashboard/api/delete': typeof AuthDashboardApiDeleteRoute
   '/dashboard/api/list': typeof AuthDashboardApiListRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_auth/app/': typeof AuthAppIndexRoute
   '/_auth/dashboard/': typeof AuthDashboardIndexRoute
+  '/_auth/operator/': typeof AuthOperatorIndexRoute
   '/_auth/dashboard/api/create': typeof AuthDashboardApiCreateRoute
   '/_auth/dashboard/api/delete': typeof AuthDashboardApiDeleteRoute
   '/_auth/dashboard/api/list': typeof AuthDashboardApiListRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/app/'
     | '/dashboard/'
+    | '/operator/'
     | '/dashboard/api/create'
     | '/dashboard/api/delete'
     | '/dashboard/api/list'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/app'
     | '/dashboard'
+    | '/operator'
     | '/dashboard/api/create'
     | '/dashboard/api/delete'
     | '/dashboard/api/list'
@@ -378,6 +389,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/_auth/app/'
     | '/_auth/dashboard/'
+    | '/_auth/operator/'
     | '/_auth/dashboard/api/create'
     | '/_auth/dashboard/api/delete'
     | '/_auth/dashboard/api/list'
@@ -493,6 +505,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/direct'
       preLoaderRoute: typeof AuthDashboardDirectRouteRouteImport
       parentRoute: typeof AuthDashboardRouteRoute
+    }
+    '/_auth/operator/': {
+      id: '/_auth/operator/'
+      path: '/operator'
+      fullPath: '/operator/'
+      preLoaderRoute: typeof AuthOperatorIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -721,11 +740,13 @@ const AuthDashboardRouteRouteWithChildren =
 interface AuthRouteRouteChildren {
   AuthDashboardRouteRoute: typeof AuthDashboardRouteRouteWithChildren
   AuthAppIndexRoute: typeof AuthAppIndexRoute
+  AuthOperatorIndexRoute: typeof AuthOperatorIndexRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthDashboardRouteRoute: AuthDashboardRouteRouteWithChildren,
   AuthAppIndexRoute: AuthAppIndexRoute,
+  AuthOperatorIndexRoute: AuthOperatorIndexRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(

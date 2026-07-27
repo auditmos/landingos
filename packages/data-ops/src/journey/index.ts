@@ -1,8 +1,31 @@
 export {
+	ApprovedJourneyExternalUrlSchema,
+	sanitizeJourneyExternalUrl,
+} from "./external-links";
+export {
+	getTransferCatalogFreshness,
+	type TransferCatalogDraftInput,
+	TransferCatalogDraftInputSchema,
+	TransferCatalogDraftPatchSchema,
+	type TransferCatalogEditableField,
+	type TransferCatalogPublishValidation,
+	type TransferCatalogRecord,
+	TransferCatalogRecordSchema,
+	validateTransferCatalogPublish,
+} from "./operator-schema";
+export {
+	type CatalogClockOptions,
 	countTransferCatalogEntries,
+	createTransferCatalogDraft,
+	DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
 	DEFAULT_TRANSFER_CATALOG_SEED,
+	deleteTransferCatalogRecord,
+	getTransferCatalogRecord,
 	listPublishedTransferCatalog,
+	listTransferCatalogRecords,
 	seedTransferCatalog,
+	setTransferCatalogPublicationStatus,
+	updateTransferCatalogDraft,
 } from "./queries";
 export {
 	JourneyBufferMinutesSchema,

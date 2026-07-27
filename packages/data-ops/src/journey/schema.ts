@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ApprovedJourneyExternalUrlSchema } from "./external-links";
 
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
@@ -8,11 +9,6 @@ const UtcInstantSchema = z
 		(value) => UTC_INSTANT_PATTERN.test(value) && !Number.isNaN(Date.parse(value)),
 		"Nieprawidłowy czas UTC.",
 	);
-
-const HttpsUrlSchema = z
-	.string()
-	.url()
-	.refine((value) => value.startsWith("https://"), "Dozwolony jest wyłącznie adres HTTPS.");
 
 export const JourneyBufferMinutesSchema = z
 	.number()
@@ -42,14 +38,14 @@ export const JourneyStepSchema = z.strictObject({
 export const JourneySourceReferenceSchema = z.strictObject({
 	kind: z.enum(["provider", "catalog"]),
 	label: z.string().min(1),
-	url: HttpsUrlSchema.nullable(),
+	url: ApprovedJourneyExternalUrlSchema.nullable(),
 	checkedAt: UtcInstantSchema.nullable(),
 });
 
 export const JourneyExternalLinkSchema = z.strictObject({
 	kind: z.enum(["purchase", "navigation", "source"]),
 	label: z.string().min(1),
-	url: HttpsUrlSchema,
+	url: ApprovedJourneyExternalUrlSchema,
 });
 
 export const JourneyCostSchema = z
@@ -118,12 +114,12 @@ export const TransferCatalogEntrySchema = z
 		transferCount: z.number().int().nonnegative(),
 		walkingMinutes: z.number().int().nonnegative(),
 		walkingMeters: z.number().int().nonnegative(),
-		sourceUrl: HttpsUrlSchema,
+		sourceUrl: ApprovedJourneyExternalUrlSchema,
 		checkedAt: UtcInstantSchema,
 		costMinorMin: z.number().int().nonnegative(),
 		costMinorMax: z.number().int().nonnegative(),
-		purchaseUrl: HttpsUrlSchema,
-		publicationStatus: z.enum(["draft", "published", "archived"]),
+		purchaseUrl: ApprovedJourneyExternalUrlSchema,
+		publicationStatus: z.literal("published"),
 		provenance: z.enum(["seeded_fixture", "operator_verified"]),
 		createdAt: UtcInstantSchema,
 		updatedAt: UtcInstantSchema,

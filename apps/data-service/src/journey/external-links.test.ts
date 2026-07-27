@@ -1,4 +1,4 @@
-import { sanitizeExternalUrl } from "./external-links";
+import { sanitizeJourneyExternalUrl } from "@repo/data-ops/journey";
 
 describe("external journey link allowlist", () => {
 	it.each([
@@ -16,7 +16,7 @@ describe("external journey link allowlist", () => {
 			"https://www.google.com/url?url=https%3A%2F%2Fwww.airportbusexpress.it%2Ftickets",
 		],
 	])("allows the exact HTTPS host %s", (input, expected) => {
-		expect(sanitizeExternalUrl(input)).toBe(expected);
+		expect(sanitizeJourneyExternalUrl(input)).toBe(expected);
 	});
 
 	it.each([
@@ -29,6 +29,6 @@ describe("external journey link allowlist", () => {
 		"https://www.google.com/url?URL=https%3A%2F%2Fevil.example%2Fsteal",
 		"https://www.google.com/url?url=https%3A%2F%2Fwww.airportbusexpress.it&url=https%3A%2F%2Fevil.example",
 	])("rejects unsafe or redirect-escaping URL %s", (input) => {
-		expect(sanitizeExternalUrl(input)).toBeNull();
+		expect(sanitizeJourneyExternalUrl(input)).toBeNull();
 	});
 });

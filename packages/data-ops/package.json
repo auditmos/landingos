@@ -27,6 +27,10 @@
 			"types": "./dist/journey/index.d.ts",
 			"default": "./dist/journey/index.js"
 		},
+		"./operator": {
+			"types": "./dist/operator/index.d.ts",
+			"default": "./dist/operator/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"
@@ -56,6 +60,9 @@
 		"db:seed:dev": "dotenvx run -f .env.dev -- tsx src/database/seed/seed.ts",
 		"db:seed:staging": "dotenvx run -f .env.staging -- tsx src/database/seed/seed.ts",
 		"db:seed:production": "dotenvx run -f .env.production -- tsx src/database/seed/seed.ts",
+		"operator:role:dev": "dotenvx run -f .env.dev -- tsx src/operator/role-command.ts",
+		"operator:role:staging": "dotenvx run -f .env.staging -- tsx src/operator/role-command.ts",
+		"operator:role:production": "dotenvx run -f .env.production -- tsx src/operator/role-command.ts",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},

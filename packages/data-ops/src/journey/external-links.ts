@@ -1,4 +1,6 @@
-const JOURNEY_EXTERNAL_HOST_ALLOWLIST = new Set([
+import { z } from "zod";
+
+const APPROVED_EXTERNAL_HOSTS = new Set([
 	"maps.google.com",
 	"www.airportbusexpress.it",
 	"www.google.com",
@@ -14,7 +16,7 @@ const REDIRECT_PARAMETERS = new Set([
 	"url",
 ]);
 
-export function sanitizeExternalUrl(rawUrl: string, depth = 0): string | null {
+export function sanitizeJourneyExternalUrl(rawUrl: string, depth = 0): string | null {
 	if (depth > 2) return null;
 	let url: URL;
 	try {
@@ -26,17 +28,24 @@ export function sanitizeExternalUrl(rawUrl: string, depth = 0): string | null {
 		url.protocol !== "https:" ||
 		url.username.length > 0 ||
 		url.password.length > 0 ||
-		!JOURNEY_EXTERNAL_HOST_ALLOWLIST.has(url.hostname.toLowerCase())
+		!APPROVED_EXTERNAL_HOSTS.has(url.hostname.toLowerCase())
 	) {
 		return null;
 	}
 	for (const [parameter, redirect] of url.searchParams) {
 		if (
 			REDIRECT_PARAMETERS.has(parameter.toLowerCase()) &&
-			sanitizeExternalUrl(redirect, depth + 1) === null
+			sanitizeJourneyExternalUrl(redirect, depth + 1) === null
 		) {
 			return null;
 		}
 	}
 	return rawUrl;
 }
+
+export const ApprovedJourneyExternalUrlSchema = z
+	.string()
+	.refine(
+		(value) => sanitizeJourneyExternalUrl(value) !== null,
+		"Dozwolony jest wyłącznie zatwierdzony adres HTTPS.",
+	);

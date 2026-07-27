@@ -37,14 +37,16 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 				<AccountDialog>
 					<Button variant="ghost" className="flex items-center gap-2 px-3">
 						<Avatar className="h-8 w-8">
-							<AvatarImage src={user?.image || undefined} alt={user?.name || "User"} />
+							<AvatarImage src={user?.image || undefined} alt={user?.name || "Użytkownik"} />
 							<AvatarFallback className="bg-primary text-primary-foreground text-sm">
 								{fallbackText}
 							</AvatarFallback>
 						</Avatar>
 						<div className="hidden sm:flex flex-col items-start">
-							<span className="text-sm font-medium text-foreground">{user?.name || "User"}</span>
-							<span className="text-xs text-muted-foreground">Online</span>
+							<span className="text-sm font-medium text-foreground">
+								{user?.name || "Użytkownik"}
+							</span>
+							<span className="text-xs text-muted-foreground">Aktywny</span>
 						</div>
 					</Button>
 				</AccountDialog>

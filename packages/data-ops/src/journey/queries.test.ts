@@ -4,18 +4,26 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import {
 	countTransferCatalogEntries,
+	createTransferCatalogDraft,
 	DEFAULT_TRANSFER_CATALOG_SEED,
+	deleteTransferCatalogRecord,
+	getTransferCatalogRecord,
 	listPublishedTransferCatalog,
+	listTransferCatalogRecords,
 	seedTransferCatalog,
+	setTransferCatalogPublicationStatus,
+	updateTransferCatalogDraft,
 } from "./queries";
 
 async function createTestDatabase() {
 	const client = new PGlite();
-	const migration = readFileSync(
-		resolve(import.meta.dirname, "../drizzle/migrations/dev/0004_workable_meggan.sql"),
-		"utf8",
-	);
-	await client.exec(migration);
+	for (const migrationName of ["0004_workable_meggan.sql", "0005_late_darkstar.sql"]) {
+		const migration = readFileSync(
+			resolve(import.meta.dirname, `../drizzle/migrations/dev/${migrationName}`),
+			"utf8",
+		);
+		await client.exec(migration);
+	}
 	return {
 		client,
 		db: drizzle(client) as unknown as Parameters<typeof seedTransferCatalog>[0],
@@ -23,13 +31,15 @@ async function createTestDatabase() {
 }
 
 describe("transfer catalog persistence and seed", () => {
+	const now = new Date("2026-07-27T12:00:00.000Z");
+
 	it("applies the generated migration and seeds twice without duplicates", async () => {
 		const { client, db } = await createTestDatabase();
 		try {
 			expect(await seedTransferCatalog(db)).toBe(1);
 			expect(await seedTransferCatalog(db)).toBe(0);
 			expect(await countTransferCatalogEntries(db)).toBe(1);
-			const entries = await listPublishedTransferCatalog(db);
+			const entries = await listPublishedTransferCatalog(db, { now });
 			expect(entries).toHaveLength(1);
 			expect(entries[0]).toMatchObject(DEFAULT_TRANSFER_CATALOG_SEED[0] as object);
 			expect(entries[0]).not.toHaveProperty("placeId");
@@ -53,20 +63,88 @@ describe("transfer catalog persistence and seed", () => {
 					...(DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
 						(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
 					>),
-					id: "a-draft",
-					publicationStatus: "draft",
-				},
-				{
-					...(DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
-						(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
-					>),
 					id: "a-published",
 				},
 			]);
-			expect((await listPublishedTransferCatalog(db)).map((entry) => entry.id)).toEqual([
+			await createTransferCatalogDraft(db, { operatorName: "Szkic" }, { id: "a-draft", now });
+			expect((await listPublishedTransferCatalog(db, { now })).map((entry) => entry.id)).toEqual([
 				"a-published",
 				"z-published",
 			]);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("persists an incomplete draft through edit, publish, unpublish, and delete", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const draft = await createTransferCatalogDraft(
+				db,
+				{ operatorName: "Operator szkicu" },
+				{ id: "operator-entry", now },
+			);
+			expect(draft).toMatchObject({
+				id: "operator-entry",
+				publicationStatus: "draft",
+				freshness: "incomplete",
+				serviceName: null,
+			});
+			expect(
+				await setTransferCatalogPublicationStatus(db, draft.id, "published", { now }),
+			).toMatchObject({ publicationStatus: "draft", freshness: "incomplete" });
+
+			const complete = DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
+				(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
+			>;
+			const {
+				id: _id,
+				originIata: _origin,
+				publicationStatus: _status,
+				provenance: _provenance,
+				...editable
+			} = complete;
+			expect(await updateTransferCatalogDraft(db, draft.id, editable, { now })).toMatchObject({
+				freshness: "fresh",
+				publicationStatus: "draft",
+			});
+			expect(
+				await setTransferCatalogPublicationStatus(db, draft.id, "published", { now }),
+			).toMatchObject({ publicationStatus: "published" });
+			expect((await listPublishedTransferCatalog(db, { now })).map((entry) => entry.id)).toEqual([
+				draft.id,
+			]);
+			expect(
+				await setTransferCatalogPublicationStatus(db, draft.id, "draft", { now }),
+			).toMatchObject({ publicationStatus: "draft" });
+			expect(await deleteTransferCatalogRecord(db, draft.id)).toBe(true);
+			expect(await deleteTransferCatalogRecord(db, draft.id)).toBe(false);
+			expect(await getTransferCatalogRecord(db, draft.id, { now })).toBeNull();
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("flags stale published records for operators and excludes them from recommendations", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			await seedTransferCatalog(db);
+			const staleNow = new Date("2026-08-26T00:00:00.001Z");
+			expect(await listPublishedTransferCatalog(db, { now: staleNow })).toEqual([]);
+			expect(await listTransferCatalogRecords(db, { now: staleNow })).toMatchObject([
+				{
+					id: "bgy-airport-bus-centrale",
+					publicationStatus: "published",
+					freshness: "stale",
+				},
+			]);
+			await updateTransferCatalogDraft(
+				db,
+				"bgy-airport-bus-centrale",
+				{ checkedAt: staleNow.toISOString() },
+				{ now: staleNow },
+			);
+			expect(await listPublishedTransferCatalog(db, { now: staleNow })).toHaveLength(1);
 		} finally {
 			await client.close();
 		}

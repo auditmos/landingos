@@ -20,7 +20,10 @@
 		 */
 		"dev": {
 			"name": "landingos-ds-dev",
-			"vars": { "CLOUDFLARE_ENV": "dev" },
+			"vars": {
+				"CLOUDFLARE_ENV": "dev",
+				"TRANSFER_CATALOG_FRESHNESS_DAYS": "30"
+			},
 			"unsafe": {
 				"bindings": [
 					{
@@ -73,7 +76,10 @@
 				}
 			],
 			"name": "landingos-ds-staging",
-			"vars": { "CLOUDFLARE_ENV": "staging" },
+			"vars": {
+				"CLOUDFLARE_ENV": "staging",
+				"TRANSFER_CATALOG_FRESHNESS_DAYS": "30"
+			},
 			"unsafe": {
 				"bindings": [
 					{
@@ -120,7 +126,10 @@
 				}
 			],
 			"name": "landingos-ds-production",
-			"vars": { "CLOUDFLARE_ENV": "production" },
+			"vars": {
+				"CLOUDFLARE_ENV": "production",
+				"TRANSFER_CATALOG_FRESHNESS_DAYS": "30"
+			},
 			"unsafe": {
 				"bindings": [
 					{

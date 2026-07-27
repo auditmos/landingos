@@ -1,13 +1,30 @@
 import { asc, count, eq } from "drizzle-orm";
 import type { getDb } from "@/database/setup";
 import {
+	getTransferCatalogFreshness,
+	type TransferCatalogDraftInput,
+	type TransferCatalogRecord,
+	TransferCatalogRecordSchema,
+	validateTransferCatalogPublish,
+} from "./operator-schema";
+import {
 	type TransferCatalogEntry,
 	TransferCatalogEntrySchema,
 	type TransferCatalogEntryWrite,
 } from "./schema";
 import { transferCatalogEntries } from "./table";
 
-type TransferCatalogDatabase = Pick<ReturnType<typeof getDb>, "insert" | "select">;
+type TransferCatalogDatabase = Pick<
+	ReturnType<typeof getDb>,
+	"delete" | "insert" | "select" | "update"
+>;
+
+export interface CatalogClockOptions {
+	now?: Date;
+	freshnessDays?: number;
+}
+
+export const DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS = 30;
 
 export const DEFAULT_TRANSFER_CATALOG_SEED: TransferCatalogEntryWrite[] = [
 	{
@@ -32,7 +49,7 @@ export const DEFAULT_TRANSFER_CATALOG_SEED: TransferCatalogEntryWrite[] = [
 	},
 ];
 
-const publicSelection = {
+const catalogSelection = {
 	id: transferCatalogEntries.id,
 	operatorName: transferCatalogEntries.operatorName,
 	serviceName: transferCatalogEntries.serviceName,
@@ -54,33 +71,78 @@ const publicSelection = {
 	updatedAt: transferCatalogEntries.updatedAt,
 };
 
-function toTransferCatalogEntry(row: {
+type CatalogRow = {
 	id: string;
-	operatorName: string;
-	serviceName: string;
+	operatorName: string | null;
+	serviceName: string | null;
 	originIata: string;
-	destinationStopCode: string;
-	destinationStopName: string;
-	durationMinutes: number;
-	transferCount: number;
-	walkingMinutes: number;
-	walkingMeters: number;
-	sourceUrl: string;
-	checkedAt: Date;
-	costMinorMin: number;
-	costMinorMax: number;
-	purchaseUrl: string;
+	destinationStopCode: string | null;
+	destinationStopName: string | null;
+	durationMinutes: number | null;
+	transferCount: number | null;
+	walkingMinutes: number | null;
+	walkingMeters: number | null;
+	sourceUrl: string | null;
+	checkedAt: Date | null;
+	costMinorMin: number | null;
+	costMinorMax: number | null;
+	purchaseUrl: string | null;
 	publicationStatus: string;
 	provenance: string;
 	createdAt: Date;
 	updatedAt: Date;
-}): TransferCatalogEntry {
-	return TransferCatalogEntrySchema.parse({
-		...row,
-		checkedAt: row.checkedAt.toISOString(),
+};
+
+function clockOptions(options: CatalogClockOptions) {
+	return {
+		now: options.now ?? new Date(),
+		freshnessDays: options.freshnessDays ?? DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
+	};
+}
+
+function toCatalogRecord(row: CatalogRow, options: CatalogClockOptions): TransferCatalogRecord {
+	const draft = {
+		operatorName: row.operatorName,
+		serviceName: row.serviceName,
+		destinationStopCode: row.destinationStopCode,
+		destinationStopName: row.destinationStopName,
+		durationMinutes: row.durationMinutes,
+		transferCount: row.transferCount,
+		walkingMinutes: row.walkingMinutes,
+		walkingMeters: row.walkingMeters,
+		sourceUrl: row.sourceUrl,
+		checkedAt: row.checkedAt?.toISOString() ?? null,
+		costMinorMin: row.costMinorMin,
+		costMinorMax: row.costMinorMax,
+		purchaseUrl: row.purchaseUrl,
+	};
+	return TransferCatalogRecordSchema.parse({
+		id: row.id,
+		originIata: row.originIata,
+		...draft,
+		publicationStatus: row.publicationStatus,
+		provenance: row.provenance,
+		freshness: getTransferCatalogFreshness(draft, clockOptions(options)),
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 	});
+}
+
+function toPublishedEntry(record: TransferCatalogRecord): TransferCatalogEntry {
+	const { freshness: _freshness, ...entry } = record;
+	return TransferCatalogEntrySchema.parse(entry);
+}
+
+function draftValues(input: TransferCatalogDraftInput) {
+	return {
+		...input,
+		checkedAt:
+			input.checkedAt === undefined
+				? undefined
+				: input.checkedAt === null
+					? null
+					: new Date(input.checkedAt),
+	};
 }
 
 export async function seedTransferCatalog(
@@ -90,10 +152,7 @@ export async function seedTransferCatalog(
 	const inserted = await db
 		.insert(transferCatalogEntries)
 		.values(
-			entries.map(({ checkedAt, ...entry }) => ({
-				...entry,
-				checkedAt: new Date(checkedAt),
-			})),
+			entries.map(({ checkedAt, ...entry }) => ({ ...entry, checkedAt: new Date(checkedAt) })),
 		)
 		.onConflictDoNothing({ target: transferCatalogEntries.id })
 		.returning({ id: transferCatalogEntries.id });
@@ -102,13 +161,105 @@ export async function seedTransferCatalog(
 
 export async function listPublishedTransferCatalog(
 	db: TransferCatalogDatabase,
+	options: CatalogClockOptions = {},
 ): Promise<TransferCatalogEntry[]> {
 	const rows = await db
-		.select(publicSelection)
+		.select(catalogSelection)
 		.from(transferCatalogEntries)
 		.where(eq(transferCatalogEntries.publicationStatus, "published"))
 		.orderBy(asc(transferCatalogEntries.id));
-	return rows.map(toTransferCatalogEntry);
+	return (rows as CatalogRow[])
+		.map((row) => toCatalogRecord(row, options))
+		.filter((record) => record.freshness === "fresh")
+		.map(toPublishedEntry);
+}
+
+export async function listTransferCatalogRecords(
+	db: TransferCatalogDatabase,
+	options: CatalogClockOptions = {},
+): Promise<TransferCatalogRecord[]> {
+	const rows = await db
+		.select(catalogSelection)
+		.from(transferCatalogEntries)
+		.orderBy(asc(transferCatalogEntries.id));
+	return (rows as CatalogRow[]).map((row) => toCatalogRecord(row, options));
+}
+
+export async function getTransferCatalogRecord(
+	db: TransferCatalogDatabase,
+	id: string,
+	options: CatalogClockOptions = {},
+): Promise<TransferCatalogRecord | null> {
+	const [row] = await db
+		.select(catalogSelection)
+		.from(transferCatalogEntries)
+		.where(eq(transferCatalogEntries.id, id))
+		.limit(1);
+	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+}
+
+export async function createTransferCatalogDraft(
+	db: TransferCatalogDatabase,
+	input: TransferCatalogDraftInput,
+	options: CatalogClockOptions & { id?: string } = {},
+): Promise<TransferCatalogRecord> {
+	const now = options.now ?? new Date();
+	const [row] = await db
+		.insert(transferCatalogEntries)
+		.values({
+			id: options.id ?? crypto.randomUUID(),
+			...draftValues(input),
+			createdAt: now,
+			updatedAt: now,
+		})
+		.returning(catalogSelection);
+	if (!row) throw new Error("Nie udało się utworzyć wpisu katalogu.");
+	return toCatalogRecord(row as CatalogRow, options);
+}
+
+export async function updateTransferCatalogDraft(
+	db: TransferCatalogDatabase,
+	id: string,
+	input: TransferCatalogDraftInput,
+	options: CatalogClockOptions = {},
+): Promise<TransferCatalogRecord | null> {
+	const [row] = await db
+		.update(transferCatalogEntries)
+		.set({ ...draftValues(input), updatedAt: options.now ?? new Date() })
+		.where(eq(transferCatalogEntries.id, id))
+		.returning(catalogSelection);
+	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+}
+
+export async function setTransferCatalogPublicationStatus(
+	db: TransferCatalogDatabase,
+	id: string,
+	status: "draft" | "published",
+	options: CatalogClockOptions = {},
+): Promise<TransferCatalogRecord | null> {
+	const existing = await getTransferCatalogRecord(db, id, options);
+	if (!existing) return null;
+	if (status === "published") {
+		const validation = validateTransferCatalogPublish(existing, clockOptions(options));
+		if (!validation.ok) return existing;
+	}
+	const [row] = await db
+		.update(transferCatalogEntries)
+		.set({ publicationStatus: status, updatedAt: options.now ?? new Date() })
+		.where(eq(transferCatalogEntries.id, id))
+		.returning(catalogSelection);
+	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+}
+
+export async function deleteTransferCatalogRecord(
+	db: TransferCatalogDatabase,
+	id: string,
+): Promise<boolean> {
+	const deleted = await db
+		.delete(transferCatalogEntries)
+		.where(eq(transferCatalogEntries.id, id))
+		.returning({ id: transferCatalogEntries.id });
+	return deleted.length === 1;
 }
 
 export async function countTransferCatalogEntries(db: TransferCatalogDatabase): Promise<number> {

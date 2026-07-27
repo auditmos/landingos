@@ -7,6 +7,7 @@ import {
 } from "@repo/data-ops/journey";
 import { Hono } from "hono";
 import { createJourneyService } from "../../journey/service";
+import { resolveCatalogFreshnessDays } from "../../operator/catalog-service";
 import {
 	createFixtureProviderAdapters,
 	createLiveProviderAdapters,
@@ -40,7 +41,9 @@ function defaultOperations(env: Env): JourneyHandlerOperations {
 			fetch(input, init),
 		).transit;
 	}
-	return createJourneyService(transit, getDb());
+	return createJourneyService(transit, getDb(), {
+		freshnessDays: resolveCatalogFreshnessDays(env),
+	});
 }
 
 function publicVariant(variant: JourneyVariant): JourneyVariant {

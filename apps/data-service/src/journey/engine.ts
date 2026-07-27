@@ -7,10 +7,10 @@ import {
 	type JourneySourceReference,
 	type JourneyStep,
 	type JourneyVariant,
+	sanitizeJourneyExternalUrl,
 	type TransferCatalogEntry,
 } from "@repo/data-ops/journey";
 import type { ProviderResult, TransitProvider, TransitRoute } from "../providers";
-import { sanitizeExternalUrl } from "./external-links";
 
 const BGY_COORDINATES = { latitude: 45.6739, longitude: 9.7042 };
 const DEFAULT_FRESHNESS_DAYS = 30;
@@ -149,8 +149,8 @@ function normalizeRoute(
 	];
 	const externalLinks: JourneyExternalLink[] = [];
 	for (const entry of matchingEntries) {
-		const sourceUrl = sanitizeExternalUrl(entry.sourceUrl);
-		const purchaseUrl = sanitizeExternalUrl(entry.purchaseUrl);
+		const sourceUrl = sanitizeJourneyExternalUrl(entry.sourceUrl);
+		const purchaseUrl = sanitizeJourneyExternalUrl(entry.purchaseUrl);
 		sourceReferences.push({
 			kind: "catalog",
 			label: entry.operatorName,
@@ -298,7 +298,7 @@ function rank(candidates: Candidate[]): JourneyVariant[] {
 function manualAlternatives(entries: TransferCatalogEntry[]): JourneyExternalLink[] {
 	return uniqueLinks(
 		entries.flatMap((entry) => {
-			const url = sanitizeExternalUrl(entry.purchaseUrl);
+			const url = sanitizeJourneyExternalUrl(entry.purchaseUrl);
 			return url
 				? [{ kind: "purchase" as const, label: `Sprawdź u ${entry.operatorName}`, url }]
 				: [];
