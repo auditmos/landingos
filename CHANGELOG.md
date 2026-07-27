@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/auditmos/landingos/compare/v1.4.0...v1.5.0) (2026-07-27)
+
+
+### Features
+
+* **operator:** add transfer catalog console ([78a3aeb](https://github.com/auditmos/landingos/commit/78a3aeb76f90257396fc08f1d059f85b9835620a)), closes [#7](https://github.com/auditmos/landingos/issues/7)
+
 # [1.4.0](https://github.com/auditmos/landingos/compare/v1.3.0...v1.4.0) (2026-07-27)
 
 
