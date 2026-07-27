@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/auditmos/landingos/compare/v1.9.0...v1.10.0) (2026-07-27)
+
+
+### Features
+
+* **pwa:** harden mobile release checks Closes [#12](https://github.com/auditmos/landingos/issues/12) ([76249f5](https://github.com/auditmos/landingos/commit/76249f59031722a46d16a5a9f1ff4587da01a00c))
+
 # [1.9.0](https://github.com/auditmos/landingos/compare/v1.8.0...v1.9.0) (2026-07-27)
 
 
