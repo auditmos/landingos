@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/auditmos/landingos/compare/v1.1.0...v1.2.0) (2026-07-27)
+
+
+### Features
+
+* **flights:** add anonymous recognition flow ([1e5f3c5](https://github.com/auditmos/landingos/commit/1e5f3c57892c4bf0377a0a2ed0d9b3e321846963)), closes [#4](https://github.com/auditmos/landingos/issues/4)
+
 # [1.1.0](https://github.com/auditmos/landingos/compare/v1.0.0...v1.1.0) (2026-07-27)
 
 
