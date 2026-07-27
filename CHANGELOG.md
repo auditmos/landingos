@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/auditmos/landingos/compare/v1.3.0...v1.4.0) (2026-07-27)
+
+
+### Features
+
+* **journeys:** add ranked BGY recommendations ([ff79645](https://github.com/auditmos/landingos/commit/ff796451253170a1ee4261b1f9a83799434ca440)), closes [#6](https://github.com/auditmos/landingos/issues/6)
+
 # [1.3.0](https://github.com/auditmos/landingos/compare/v1.2.0...v1.3.0) (2026-07-27)
 
 
