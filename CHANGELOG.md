@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/auditmos/landingos/compare/v1.2.0...v1.3.0) (2026-07-27)
+
+
+### Features
+
+* **destinations:** add private Milan selection ([b4744f1](https://github.com/auditmos/landingos/commit/b4744f1944c34c1caa95ff6e6e43eb6d9d00e621)), closes [#5](https://github.com/auditmos/landingos/issues/5)
+
 # [1.2.0](https://github.com/auditmos/landingos/compare/v1.1.0...v1.2.0) (2026-07-27)
 
 
