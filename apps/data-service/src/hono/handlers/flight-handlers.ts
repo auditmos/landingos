@@ -9,6 +9,12 @@ import {
 	ManualFlightRequestSchema,
 } from "@repo/data-ops/flight";
 import { Hono } from "hono";
+import { createDatabaseAnalyticsTracker } from "../../analytics/repository";
+import {
+	ANALYTICS_FUNNEL_HEADER,
+	type AnalyticsTracker,
+	readRequestedFunnelId,
+} from "../../analytics/service";
 import { createFlightService } from "../../flight/service";
 import {
 	createFixtureProviderAdapters,
@@ -23,6 +29,7 @@ export interface FlightHandlerOperations {
 }
 
 export type FlightOperationsFactory = (env: Env) => FlightHandlerOperations;
+export type FlightAnalyticsFactory = (env: Env) => AnalyticsTracker;
 
 function unavailableProvider(): FlightProvider {
 	return {
@@ -88,6 +95,7 @@ function validationResponse(error: {
 
 export function createFlightHandlers(
 	operationsFactory: FlightOperationsFactory = defaultOperations,
+	analyticsFactory: FlightAnalyticsFactory = createDatabaseAnalyticsTracker,
 ) {
 	const flights = new Hono<{ Bindings: Env }>();
 
@@ -97,7 +105,13 @@ export function createFlightHandlers(
 		if (!parsed.success) {
 			return c.json(validationResponse(parsed.error), 400);
 		}
+		const tracker = analyticsFactory(c.env);
+		let funnelId = await tracker.begin(readRequestedFunnelId(c.req.raw));
 		const result = await operationsFactory(c.env).resolve(parsed.data);
+		if (result.status === "recognized") {
+			funnelId = await tracker.track(funnelId, { eventName: "flight_recognized" });
+		}
+		c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
 		return c.json(publicResult(result));
 	});
 
@@ -107,7 +121,13 @@ export function createFlightHandlers(
 		if (!parsed.success) {
 			return c.json(validationResponse(parsed.error), 400);
 		}
+		const tracker = analyticsFactory(c.env);
+		let funnelId = await tracker.begin(readRequestedFunnelId(c.req.raw));
 		const result = await operationsFactory(c.env).completeManual(parsed.data);
+		if (result.status === "recognized") {
+			funnelId = await tracker.track(funnelId, { eventName: "flight_recognized" });
+		}
+		c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
 		return c.json(publicResult(result));
 	});
 

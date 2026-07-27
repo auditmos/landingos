@@ -39,6 +39,10 @@
 			"types": "./dist/safety/index.d.ts",
 			"default": "./dist/safety/index.js"
 		},
+		"./analytics": {
+			"types": "./dist/analytics/index.d.ts",
+			"default": "./dist/analytics/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"

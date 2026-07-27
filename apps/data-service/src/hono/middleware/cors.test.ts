@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import * as honoCors from "hono/cors";
 import { describe, expect, it, vi } from "vitest";
+import { ANALYTICS_FUNNEL_HEADER } from "../../analytics/service";
 import { createCorsMiddleware } from "./cors";
 
 vi.mock("hono/cors", async (importOriginal) => {
@@ -21,6 +22,14 @@ describe("createCorsMiddleware", () => {
 		const fetch = buildApp({ CLOUDFLARE_ENV: "dev" });
 		const res = await fetch("http://localhost:3000");
 		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+	});
+
+	it("allows and exposes the opaque analytics funnel header", async () => {
+		const fetch = buildApp({ CLOUDFLARE_ENV: "dev" });
+		const response = await fetch("http://localhost:3000");
+		expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+			ANALYTICS_FUNNEL_HEADER,
+		);
 	});
 
 	it("does NOT allow http://localhost:5173 in dev (stale Vite port)", async () => {

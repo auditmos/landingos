@@ -1,6 +1,9 @@
 import type { FlightResolveResult } from "@repo/data-ops/flight";
 import { describe, expect, it, vi } from "vitest";
+import { ANALYTICS_FUNNEL_HEADER, type AnalyticsTracker } from "../../analytics/service";
 import { createFlightHandlers, type FlightHandlerOperations } from "./flight-handlers";
+
+const FUNNEL_ID = "00112233445566778899aabbccddeeff";
 
 const recognized: Extract<FlightResolveResult, { status: "recognized" }> = {
 	status: "recognized",
@@ -31,10 +34,30 @@ function operations(overrides: Partial<FlightHandlerOperations> = {}): FlightHan
 	};
 }
 
-function post(path: string, body: unknown) {
+function tracker(): AnalyticsTracker {
+	return {
+		begin: vi.fn(async () => FUNNEL_ID),
+		track: vi.fn(async () => FUNNEL_ID),
+	};
+}
+
+function buildApp(service: FlightHandlerOperations, analytics = tracker()) {
+	return {
+		analytics,
+		app: createFlightHandlers(
+			() => service,
+			() => analytics,
+		),
+	};
+}
+
+function post(path: string, body: unknown, funnelId?: string) {
 	return new Request(`http://localhost${path}`, {
 		method: "POST",
-		headers: { "content-type": "application/json" },
+		headers: {
+			"content-type": "application/json",
+			...(funnelId ? { [ANALYTICS_FUNNEL_HEADER]: funnelId } : {}),
+		},
 		body: JSON.stringify(body),
 	});
 }
@@ -46,10 +69,11 @@ describe("anonymous flight routes", () => {
 		[{ flightNumber: "FR1234", departureLocalDate: "" }, "departureLocalDate"],
 	] as const)("returns Polish field errors and makes zero resolver/provider calls", async (body, field) => {
 		const service = operations();
-		const app = createFlightHandlers(() => service);
+		const { app, analytics } = buildApp(service);
 		const response = await app.fetch(post("/resolve", body), {} as Env);
 		expect(response.status).toBe(400);
 		expect(service.resolve).not.toHaveBeenCalled();
+		expect(analytics.begin).not.toHaveBeenCalled();
 		const payload = (await response.json()) as {
 			status: string;
 			fieldErrors: Record<string, string[]>;
@@ -60,7 +84,7 @@ describe("anonymous flight routes", () => {
 
 	it("returns a recognized flight to a request with no auth or session", async () => {
 		const service = operations();
-		const app = createFlightHandlers(() => service);
+		const { app, analytics } = buildApp(service);
 		const response = await app.fetch(
 			post("/resolve", {
 				flightNumber: " fr1234 ",
@@ -69,6 +93,11 @@ describe("anonymous flight routes", () => {
 			{} as Env,
 		);
 		expect(response.status).toBe(200);
+		expect(response.headers.get(ANALYTICS_FUNNEL_HEADER)).toBe(FUNNEL_ID);
+		expect(analytics.begin).toHaveBeenCalledWith(undefined);
+		expect(analytics.track).toHaveBeenCalledWith(FUNNEL_ID, {
+			eventName: "flight_recognized",
+		});
 		expect(service.resolve).toHaveBeenCalledWith({
 			flightNumber: "FR1234",
 			departureLocalDate: "2026-09-14",
@@ -81,7 +110,7 @@ describe("anonymous flight routes", () => {
 			...recognized,
 			providerPayload: { access_key: "server-secret", raw: "provider-response" },
 		} as unknown as FlightResolveResult;
-		const app = createFlightHandlers(() => operations({ resolve: vi.fn(async () => leaked) }));
+		const { app } = buildApp(operations({ resolve: vi.fn(async () => leaked) }));
 		const response = await app.fetch(
 			post("/resolve", {
 				flightNumber: "FR1234",
@@ -98,17 +127,25 @@ describe("anonymous flight routes", () => {
 
 	it("completes a manual BGY arrival without auth and returns planner-ready state", async () => {
 		const service = operations();
-		const app = createFlightHandlers(() => service);
+		const { app, analytics } = buildApp(service);
 		const response = await app.fetch(
-			post("/manual", {
-				flightNumber: "FR1234",
-				departureLocalDate: "2026-09-14",
-				destinationIata: "BGY",
-				scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
-			}),
+			post(
+				"/manual",
+				{
+					flightNumber: "FR1234",
+					departureLocalDate: "2026-09-14",
+					destinationIata: "BGY",
+					scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+				},
+				FUNNEL_ID,
+			),
 			{} as Env,
 		);
 		expect(response.status).toBe(200);
+		expect(analytics.begin).toHaveBeenCalledWith(FUNNEL_ID);
+		expect(analytics.track).toHaveBeenCalledWith(FUNNEL_ID, {
+			eventName: "flight_recognized",
+		});
 		expect(service.completeManual).toHaveBeenCalledOnce();
 		expect(await response.json()).toMatchObject({
 			status: "recognized",

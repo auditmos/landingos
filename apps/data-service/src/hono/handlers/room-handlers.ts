@@ -9,6 +9,13 @@ import {
 import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 import type { Context } from "hono";
 import { Hono } from "hono";
+import { createDatabaseAnalyticsTracker } from "../../analytics/repository";
+import {
+	ANALYTICS_FUNNEL_HEADER,
+	type AnalyticsTracker,
+	readRequestedFunnelId,
+	roomOccupancyBucket,
+} from "../../analytics/service";
 import {
 	ROOM_ID_HEADER,
 	ROOM_RULES_VERSION_HEADER,
@@ -23,6 +30,7 @@ interface RoomSession {
 
 export interface RoomHandlerDependencies {
 	createService(env: Env): FlightRoomService;
+	createAnalyticsTracker(env: Env): AnalyticsTracker;
 	getSession(request: Request): Promise<RoomSession | null>;
 	openSocket(
 		access: RoomAccessContext,
@@ -34,6 +42,7 @@ export interface RoomHandlerDependencies {
 
 const defaultDependencies: RoomHandlerDependencies = {
 	createService: createDatabaseFlightRoomService,
+	createAnalyticsTracker: createDatabaseAnalyticsTracker,
 	getSession: async (request) =>
 		(await getAuth().api.getSession({ headers: request.headers })) as RoomSession | null,
 	openSocket: async (access, _request, rulesAccepted, env) => {
@@ -89,9 +98,18 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 			return c.json({ code: "ROOM_JOIN_INVALID", error: "Wybierz rozpoznany lot." }, 400);
 		}
 		try {
-			return c.json(
-				await dependencies.createService(c.env).join(parsed.data.flightInstanceId, userId),
-			);
+			const snapshot = await dependencies
+				.createService(c.env)
+				.join(parsed.data.flightInstanceId, userId);
+			const funnelId = await dependencies
+				.createAnalyticsTracker(c.env)
+				.track(readRequestedFunnelId(c.req.raw), {
+					eventName: "room_joined",
+					userId,
+					roomOccupancyBucket: roomOccupancyBucket(snapshot.members.length),
+				});
+			c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
+			return c.json(snapshot);
 		} catch (error) {
 			return serviceError(c, error);
 		}
@@ -124,11 +142,18 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 			);
 		}
 		try {
-			return c.json(
-				await dependencies
-					.createService(c.env)
-					.replaceSelection(roomId.data, userId, parsed.data.selection),
-			);
+			const member = await dependencies
+				.createService(c.env)
+				.replaceSelection(roomId.data, userId, parsed.data.selection);
+			const funnelId = await dependencies
+				.createAnalyticsTracker(c.env)
+				.track(readRequestedFunnelId(c.req.raw), {
+					eventName: "transport_selected",
+					userId,
+					transportKind: parsed.data.selection.kind,
+				});
+			c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
+			return c.json(member);
 		} catch (error) {
 			return serviceError(c, error);
 		}
@@ -155,6 +180,13 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 			const result = await dependencies
 				.createService(c.env)
 				.createMessage(roomId.data, userId, parsed.data);
+			const funnelId = await dependencies
+				.createAnalyticsTracker(c.env)
+				.track(readRequestedFunnelId(c.req.raw), {
+					eventName: "chat_activated",
+					userId,
+				});
+			c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
 			return c.json(result, result.created ? 201 : 200);
 		} catch (error) {
 			return serviceError(c, error);

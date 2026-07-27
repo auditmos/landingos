@@ -6,4 +6,6 @@ interface ExampleQueueMessage {
 	messageData: Record<string, unknown>;
 }
 
-interface Env extends BaseEnv {}
+interface Env extends BaseEnv {
+	ANALYTICS_PSEUDONYM_SECRET: string;
+}

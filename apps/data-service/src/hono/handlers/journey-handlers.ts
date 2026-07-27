@@ -6,6 +6,12 @@ import {
 	type JourneyVariant,
 } from "@repo/data-ops/journey";
 import { Hono } from "hono";
+import { createDatabaseAnalyticsTracker } from "../../analytics/repository";
+import {
+	ANALYTICS_FUNNEL_HEADER,
+	type AnalyticsTracker,
+	readRequestedFunnelId,
+} from "../../analytics/service";
 import { createJourneyService } from "../../journey/service";
 import { resolveCatalogFreshnessDays } from "../../operator/catalog-service";
 import {
@@ -20,6 +26,7 @@ export interface JourneyHandlerOperations {
 }
 
 export type JourneyOperationsFactory = (env: Env) => JourneyHandlerOperations;
+export type JourneyAnalyticsFactory = (env: Env) => AnalyticsTracker;
 
 function unavailableTransit(): TransitProvider {
 	return {
@@ -121,6 +128,7 @@ function publicResult(result: JourneyRecommendationResult): JourneyRecommendatio
 
 export function createJourneyHandlers(
 	operationsFactory: JourneyOperationsFactory = defaultOperations,
+	analyticsFactory: JourneyAnalyticsFactory = createDatabaseAnalyticsTracker,
 ) {
 	const journeys = new Hono<{ Bindings: Env }>();
 	journeys.post("/recommend", async (c) => {
@@ -135,7 +143,14 @@ export function createJourneyHandlers(
 				400,
 			);
 		}
-		return c.json(publicResult(await operationsFactory(c.env).recommend(parsed.data)));
+		const result = await operationsFactory(c.env).recommend(parsed.data);
+		if (result.status === "recommendations") {
+			const funnelId = await analyticsFactory(c.env).track(readRequestedFunnelId(c.req.raw), {
+				eventName: "recommendations_viewed",
+			});
+			c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
+		}
+		return c.json(publicResult(result));
 	});
 	return journeys;
 }

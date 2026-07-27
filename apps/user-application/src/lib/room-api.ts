@@ -11,6 +11,7 @@ import {
 	type RoomSnapshot,
 	RoomSnapshotSchema,
 } from "@repo/data-ops/room";
+import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
 
 const DEFAULT_API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";
 const JSON_HEADERS: HeadersInit = { "content-type": "application/json" };
@@ -20,11 +21,16 @@ async function roomRequest(
 	init: RequestInit,
 	fetchImpl: typeof fetch,
 ): Promise<unknown> {
+	const headers = new Headers(init.headers ?? JSON_HEADERS);
+	for (const [name, value] of Object.entries(analyticsFunnelHeaders())) {
+		headers.set(name, value);
+	}
 	const response = await fetchImpl(`${DEFAULT_API_URL}${path}`, {
 		...init,
-		headers: init.headers ?? JSON_HEADERS,
+		headers,
 		credentials: "include",
 	});
+	captureAnalyticsFunnel(response);
 	const body = await response.json().catch(() => undefined);
 	if (!response.ok) {
 		const message =

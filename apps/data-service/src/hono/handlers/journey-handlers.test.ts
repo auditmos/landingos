@@ -2,7 +2,10 @@ import type {
 	JourneyRecommendationRequest,
 	JourneyRecommendationResult,
 } from "@repo/data-ops/journey";
+import { ANALYTICS_FUNNEL_HEADER, type AnalyticsTracker } from "../../analytics/service";
 import { createJourneyHandlers, type JourneyHandlerOperations } from "./journey-handlers";
+
+const FUNNEL_ID = "00112233445566778899aabbccddeeff";
 
 const request: JourneyRecommendationRequest = {
 	flightInstanceId: "flight-id",
@@ -68,10 +71,30 @@ function operations(overrides: Partial<JourneyHandlerOperations> = {}): JourneyH
 	};
 }
 
+function tracker(): AnalyticsTracker {
+	return {
+		begin: vi.fn(async () => FUNNEL_ID),
+		track: vi.fn(async () => FUNNEL_ID),
+	};
+}
+
+function buildApp(service: JourneyHandlerOperations, analytics = tracker()) {
+	return {
+		analytics,
+		app: createJourneyHandlers(
+			() => service,
+			() => analytics,
+		),
+	};
+}
+
 function post(body: unknown) {
 	return new Request("http://localhost/recommend", {
 		method: "POST",
-		headers: { "content-type": "application/json" },
+		headers: {
+			"content-type": "application/json",
+			[ANALYTICS_FUNNEL_HEADER]: FUNNEL_ID,
+		},
 		body: JSON.stringify(body),
 	});
 }
@@ -79,20 +102,25 @@ function post(body: unknown) {
 describe("anonymous journey route", () => {
 	it("rejects invalid buffer increments before any provider/service call", async () => {
 		const service = operations();
-		const app = createJourneyHandlers(() => service);
+		const { app, analytics } = buildApp(service);
 		const response = await app.fetch(post({ ...request, bufferMinutes: 17 }), {} as Env);
 		expect(response.status).toBe(400);
 		expect(service.recommend).not.toHaveBeenCalled();
+		expect(analytics.track).not.toHaveBeenCalled();
 		const text = await response.text();
 		expect(text).toContain("Bufor można zmieniać co 5 minut.");
 	});
 
 	it("works without auth and returns only the normalized private planner contract", async () => {
 		const service = operations();
-		const app = createJourneyHandlers(() => service);
+		const { app, analytics } = buildApp(service);
 		const response = await app.fetch(post(request), {} as Env);
 		expect(response.status).toBe(200);
+		expect(response.headers.get(ANALYTICS_FUNNEL_HEADER)).toBe(FUNNEL_ID);
 		expect(service.recommend).toHaveBeenCalledWith(request);
+		expect(analytics.track).toHaveBeenCalledWith(FUNNEL_ID, {
+			eventName: "recommendations_viewed",
+		});
 		expect(await response.json()).toEqual(recommendations);
 	});
 
@@ -109,7 +137,7 @@ describe("anonymous journey route", () => {
 						}))
 					: [],
 		} as JourneyRecommendationResult;
-		const app = createJourneyHandlers(() => operations({ recommend: vi.fn(async () => leaked) }));
+		const { app } = buildApp(operations({ recommend: vi.fn(async () => leaked) }));
 		const text = await (await app.fetch(post(request), {} as Env)).text();
 		expect(text).not.toContain("raw-secret");
 		expect(text).not.toContain("private-place");

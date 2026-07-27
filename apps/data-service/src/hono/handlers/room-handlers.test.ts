@@ -1,8 +1,11 @@
 import type { PublicRoomMember, RoomAccessContext, RoomSnapshot } from "@repo/data-ops/room";
 import { Hono } from "hono";
 import { vi } from "vitest";
+import { ANALYTICS_FUNNEL_HEADER, type AnalyticsTracker } from "../../analytics/service";
 import { type FlightRoomService, FlightRoomServiceError } from "../../room/service";
 import { createRoomHandlers } from "./room-handlers";
+
+const FUNNEL_ID = "00112233445566778899aabbccddeeff";
 
 const room = {
 	id: "018f4c8e-5697-7df4-8f6e-c7644b137e5b",
@@ -67,14 +70,19 @@ function buildApp(serviceOverrides: Partial<FlightRoomService> = {}) {
 		return null;
 	});
 	const openSocket = vi.fn(async () => new Response(null, { status: 204 }));
+	const analytics: AnalyticsTracker = {
+		begin: vi.fn(async () => FUNNEL_ID),
+		track: vi.fn(async () => FUNNEL_ID),
+	};
 	const handlers = createRoomHandlers({
 		createService: () => service,
+		createAnalyticsTracker: () => analytics,
 		getSession,
 		openSocket,
 	});
 	const app = new Hono();
 	app.route("/rooms", handlers);
-	return { app, getSession, openSocket, service };
+	return { analytics, app, getSession, openSocket, service };
 }
 
 const browserHeaders = {
@@ -198,6 +206,51 @@ describe("flight room authenticated HTTP API", () => {
 			code: "rules_acceptance_required",
 			error: "Zaakceptuj aktualne zasady społeczności przed wysłaniem wiadomości.",
 		});
+	});
+
+	it("records join, first selection, and first persisted chat with only the opaque funnel ID", async () => {
+		const { analytics, app } = buildApp();
+		const headers = {
+			...browserHeaders,
+			[ANALYTICS_FUNNEL_HEADER]: FUNNEL_ID,
+		};
+		const joined = await app.request("/rooms/join", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ flightInstanceId: "flight-1" }),
+		});
+		const selected = await app.request(`/rooms/${room.id}/selection`, {
+			method: "PUT",
+			headers,
+			body: JSON.stringify({ selection: { kind: "shared_taxi" } }),
+		});
+		const messaged = await app.request(`/rooms/${room.id}/messages`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({
+				clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e53",
+				content: "Pierwsza wiadomość",
+			}),
+		});
+		expect([joined.status, selected.status, messaged.status]).toEqual([200, 200, 201]);
+		expect(joined.headers.get(ANALYTICS_FUNNEL_HEADER)).toBe(FUNNEL_ID);
+		expect(analytics.track).toHaveBeenNthCalledWith(1, FUNNEL_ID, {
+			eventName: "room_joined",
+			userId: "user-1",
+			roomOccupancyBucket: "one",
+		});
+		expect(analytics.track).toHaveBeenNthCalledWith(2, FUNNEL_ID, {
+			eventName: "transport_selected",
+			userId: "user-1",
+			transportKind: "shared_taxi",
+		});
+		expect(analytics.track).toHaveBeenNthCalledWith(3, FUNNEL_ID, {
+			eventName: "chat_activated",
+			userId: "user-1",
+		});
+		expect(JSON.stringify(vi.mocked(analytics.track).mock.calls)).not.toMatch(
+			/email|address|placeId|coordinates|messageContent|Pierwsza wiadomość/i,
+		);
 	});
 
 	it("issues a short-lived browser connection ticket to a room member", async () => {

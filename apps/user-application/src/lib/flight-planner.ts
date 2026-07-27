@@ -6,6 +6,7 @@ import {
 	type ManualFlightRequest,
 	ManualFlightRequestSchema,
 } from "@repo/data-ops/flight";
+import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
 
 const API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";
 
@@ -16,9 +17,10 @@ async function requestFlight(
 ): Promise<FlightResolveResult> {
 	const response = await fetchImpl(`${API_URL}${path}`, {
 		method: "POST",
-		headers: { "content-type": "application/json" },
+		headers: { "content-type": "application/json", ...analyticsFunnelHeaders() },
 		body: JSON.stringify(body),
 	});
+	captureAnalyticsFunnel(response);
 	if (!response.ok) {
 		const payload = await response.json().catch(() => null);
 		throw new Error(

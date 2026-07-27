@@ -5,6 +5,7 @@ import {
 	type JourneyRecommendationResult,
 	JourneyRecommendationResultSchema,
 } from "@repo/data-ops/journey";
+import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
 
 const API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";
 
@@ -37,10 +38,11 @@ export async function recommendJourneysApi(
 	const input = JourneyRecommendationRequestSchema.parse(rawInput);
 	const response = await fetchImpl(`${API_URL}/journeys/recommend`, {
 		method: "POST",
-		headers: { "content-type": "application/json" },
+		headers: { "content-type": "application/json", ...analyticsFunnelHeaders() },
 		body: JSON.stringify(input),
 		signal,
 	});
+	captureAnalyticsFunnel(response);
 	if (!response.ok) {
 		throw new JourneyApiError(
 			response.status === 429

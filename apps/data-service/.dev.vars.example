@@ -18,6 +18,9 @@ DATABASE_PASSWORD=
 BETTER_AUTH_SECRET=
 BETTER_AUTH_BASE_URL=
 
+# Dedicated server-only HMAC secret for analytics actor pseudonyms (minimum 32 characters).
+ANALYTICS_PSEUDONYM_SECRET=
+
 # API token for client-side callers (paired with VITE_API_TOKEN in user-application).
 API_TOKEN=
 
