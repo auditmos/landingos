@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/auditmos/landingos/compare/v1.7.0...v1.8.0) (2026-07-27)
+
+
+### Features
+
+* **analytics:** add privacy-safe funnel ledger ([#11](https://github.com/auditmos/landingos/issues/11)) ([5a3352b](https://github.com/auditmos/landingos/commit/5a3352baf82e62f4d3167c90e248bd166b5a7891))
+
 # [1.7.0](https://github.com/auditmos/landingos/compare/v1.6.0...v1.7.0) (2026-07-27)
 
 
