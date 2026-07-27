@@ -68,7 +68,10 @@ describe("live provider spike", () => {
 							{
 								placePrediction: {
 									placeId: "google:measured-place",
-									text: { text: "Measured Milan place" },
+									structuredFormat: {
+										mainText: { text: "Measured Milan place" },
+										secondaryText: { text: "Milano, Włochy" },
+									},
 								},
 							},
 						],

@@ -81,7 +81,8 @@ describe("fixture provider adapters", () => {
 			value: [
 				{
 					placeId: "fixture:place:duomo",
-					displayText: "Duomo di Milano",
+					primaryText: "Duomo di Milano",
+					secondaryText: "Piazza del Duomo, Milano",
 				},
 			],
 		});
@@ -89,13 +90,44 @@ describe("fixture provider adapters", () => {
 			status: "success",
 			value: {
 				placeId: "fixture:place:duomo",
-				displayText: "Duomo di Milano",
+				displayName: "Duomo di Milano",
 				coordinate: {
 					latitude: 45.464098,
 					longitude: 9.191926,
 				},
 			},
 		});
+	});
+
+	it.each([
+		["Via Torino", "fixture:place:via-torino", "Via Torino 42", "20123 Milano MI, Włochy"],
+		["Hotel Berna", "fixture:place:hotel-berna", "Hotel Berna", "Via Napo Torriani 18, Milano"],
+		["Duomo", "fixture:place:duomo", "Duomo di Milano", "Piazza del Duomo, Milano"],
+	])("returns the stable %s address/hotel/place fixture", async (query, placeId, primaryText, secondaryText) => {
+		const result = await createFixtureProviderAdapters().places.autocomplete({
+			query,
+			languageCode: "pl",
+			regionCode: "IT",
+			sessionToken: "planner-session-123456",
+		});
+		expect(result).toEqual({
+			status: "success",
+			value: [{ placeId, primaryText, secondaryText }],
+		});
+	});
+
+	it.each([
+		["fixture timeout", "timeout"],
+		["fixture limit", "rate_limited"],
+		["fixture awaria", "provider_error"],
+		["fixture brak", "zero_result"],
+		["fixture uszkodzone", "malformed_response"],
+	] as const)("returns the controlled Places fixture %s as %s", async (query, status) => {
+		const result = await createFixtureProviderAdapters().places.autocomplete({
+			query,
+			sessionToken: "planner-session-123456",
+		});
+		expect(result.status).toBe(status);
 	});
 
 	it("normalizes a fixture transit route without exposing provider payloads", async () => {

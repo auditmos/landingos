@@ -49,6 +49,7 @@ export type {
 	ProviderFlight,
 	ProviderMode,
 	ProviderResult,
+	SupportedArea,
 	TransferCatalogEntry,
 	TransferCatalogProvider,
 	TransitLeg,

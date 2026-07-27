@@ -5,6 +5,7 @@ import {
 } from "@repo/data-ops/flight";
 import { CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import { DestinationPlanner } from "@/components/destination/destination-planner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -252,7 +253,12 @@ export function FlightPlanner() {
 						</Card>
 					) : null}
 
-					{result?.status === "recognized" ? <FlightSummary flight={result.flight} /> : null}
+					{result?.status === "recognized" ? (
+						<>
+							<FlightSummary flight={result.flight} />
+							<DestinationPlanner />
+						</>
+					) : null}
 				</section>
 			</main>
 		</div>

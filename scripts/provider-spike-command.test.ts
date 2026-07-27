@@ -68,7 +68,10 @@ describe("configured provider spike command", () => {
 							{
 								placePrediction: {
 									placeId: "google:measured",
-									text: { text: "Measured place" },
+									structuredFormat: {
+										mainText: { text: "Measured place" },
+										secondaryText: { text: "Milano, Włochy" },
+									},
 								},
 							},
 						],

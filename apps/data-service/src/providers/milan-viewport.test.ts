@@ -30,4 +30,37 @@ describe("milan-municipality-v1", () => {
 		expect(containsCoordinate(MILAN_MUNICIPALITY_VIEWPORT.rectangle.low)).toBe(true);
 		expect(containsCoordinate(MILAN_MUNICIPALITY_VIEWPORT.rectangle.high)).toBe(true);
 	});
+
+	it.each([
+		[
+			"below low latitude",
+			{
+				...MILAN_MUNICIPALITY_VIEWPORT.rectangle.low,
+				latitude: MILAN_MUNICIPALITY_VIEWPORT.rectangle.low.latitude - 0.000000001,
+			},
+		],
+		[
+			"below low longitude",
+			{
+				...MILAN_MUNICIPALITY_VIEWPORT.rectangle.low,
+				longitude: MILAN_MUNICIPALITY_VIEWPORT.rectangle.low.longitude - 0.000000001,
+			},
+		],
+		[
+			"above high latitude",
+			{
+				...MILAN_MUNICIPALITY_VIEWPORT.rectangle.high,
+				latitude: MILAN_MUNICIPALITY_VIEWPORT.rectangle.high.latitude + 0.000000001,
+			},
+		],
+		[
+			"above high longitude",
+			{
+				...MILAN_MUNICIPALITY_VIEWPORT.rectangle.high,
+				longitude: MILAN_MUNICIPALITY_VIEWPORT.rectangle.high.longitude + 0.000000001,
+			},
+		],
+	])("rejects a point %s", (_label, coordinate) => {
+		expect(containsCoordinate(coordinate)).toBe(false);
+	});
 });

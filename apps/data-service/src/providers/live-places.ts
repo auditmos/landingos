@@ -1,6 +1,12 @@
 import { type ProviderFetch, requestProviderJson } from "./live-http";
 import { MILAN_MUNICIPALITY_VIEWPORT } from "./milan-viewport";
-import type { Place, PlaceSuggestion, PlacesProvider, ProviderResult } from "./types";
+import type {
+	Place,
+	PlaceSuggestion,
+	PlacesProvider,
+	ProviderResult,
+	SupportedArea,
+} from "./types";
 
 interface LivePlacesConfig {
 	googleMapsApiKey: string;
@@ -10,7 +16,10 @@ interface GoogleAutocompleteResponse {
 	suggestions?: Array<{
 		placePrediction?: {
 			placeId?: unknown;
-			text?: { text?: unknown };
+			structuredFormat?: {
+				mainText?: { text?: unknown };
+				secondaryText?: { text?: unknown };
+			};
 		};
 	}>;
 }
@@ -36,7 +45,11 @@ function normalizeAutocomplete(
 	const suggestions: PlaceSuggestion[] = [];
 	for (const suggestion of response.suggestions) {
 		const prediction = suggestion.placePrediction;
-		if (typeof prediction?.placeId !== "string" || typeof prediction.text?.text !== "string") {
+		if (
+			typeof prediction?.placeId !== "string" ||
+			typeof prediction.structuredFormat?.mainText?.text !== "string" ||
+			typeof prediction.structuredFormat.secondaryText?.text !== "string"
+		) {
 			return {
 				status: "incomplete_response",
 				missingFields: ["suggestions.placePrediction"],
@@ -44,7 +57,8 @@ function normalizeAutocomplete(
 		}
 		suggestions.push({
 			placeId: prediction.placeId,
-			displayText: prediction.text.text,
+			primaryText: prediction.structuredFormat.mainText.text,
+			secondaryText: prediction.structuredFormat.secondaryText.text,
 		});
 	}
 	if (suggestions.length === 0) {
@@ -77,7 +91,7 @@ function normalizeDetails(response: GooglePlaceDetailsResponse): ProviderResult<
 		status: "success",
 		value: {
 			placeId: response.id as string,
-			displayText: response.displayName?.text as string,
+			displayName: response.displayName?.text as string,
 			coordinate: {
 				latitude: response.location?.latitude as number,
 				longitude: response.location?.longitude as number,
@@ -89,13 +103,14 @@ function normalizeDetails(response: GooglePlaceDetailsResponse): ProviderResult<
 export function createLivePlacesProvider(
 	config: LivePlacesConfig,
 	fetchImpl: ProviderFetch,
+	supportedArea: SupportedArea = MILAN_MUNICIPALITY_VIEWPORT,
 ): PlacesProvider {
 	const commonHeaders = {
 		"Content-Type": "application/json",
 		"X-Goog-Api-Key": config.googleMapsApiKey,
 	};
 	return {
-		viewport: MILAN_MUNICIPALITY_VIEWPORT,
+		viewport: supportedArea,
 		autocomplete: async (input) => {
 			const result = await requestProviderJson<GoogleAutocompleteResponse>(
 				fetchImpl,
@@ -105,13 +120,15 @@ export function createLivePlacesProvider(
 					headers: {
 						...commonHeaders,
 						"X-Goog-FieldMask":
-							"suggestions.placePrediction.placeId,suggestions.placePrediction.text",
+							"suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat",
 					},
 					body: JSON.stringify({
 						input: input.query,
 						languageCode: input.languageCode ?? "pl",
+						regionCode: input.regionCode ?? "IT",
+						sessionToken: input.sessionToken,
 						locationRestriction: {
-							rectangle: MILAN_MUNICIPALITY_VIEWPORT.rectangle,
+							rectangle: supportedArea.rectangle,
 						},
 					}),
 				},
@@ -119,9 +136,14 @@ export function createLivePlacesProvider(
 			return result.status === "success" ? normalizeAutocomplete(result.value) : result;
 		},
 		details: async (input) => {
+			const query = new URLSearchParams({
+				languageCode: input.languageCode ?? "pl",
+				regionCode: input.regionCode ?? "IT",
+			});
+			if (input.sessionToken) query.set("sessionToken", input.sessionToken);
 			const result = await requestProviderJson<GooglePlaceDetailsResponse>(
 				fetchImpl,
-				`https://places.googleapis.com/v1/places/${encodeURIComponent(input.placeId)}`,
+				`https://places.googleapis.com/v1/places/${encodeURIComponent(input.placeId)}?${query}`,
 				{
 					headers: {
 						...commonHeaders,

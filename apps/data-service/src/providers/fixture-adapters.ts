@@ -1,15 +1,109 @@
 import { FLIGHT_FIXTURE_SCENARIOS, ROUTE_FIXTURE_SCENARIOS } from "./fixture-data";
 import { MILAN_MUNICIPALITY_VIEWPORT } from "./milan-viewport";
-import type { ProviderAdapters, TransitRouteInput } from "./types";
+import type {
+	Place,
+	PlaceSuggestion,
+	ProviderAdapters,
+	ProviderResult,
+	SupportedArea,
+	TransitRouteInput,
+} from "./types";
 
-const DUOMO_FIXTURE = {
-	placeId: "fixture:place:duomo",
-	displayText: "Duomo di Milano",
-	coordinate: {
-		latitude: 45.464098,
-		longitude: 9.191926,
+const PLACE_FIXTURES: Array<{
+	queries: string[];
+	prediction: PlaceSuggestion;
+	details: Place;
+}> = [
+	{
+		queries: ["duomo", "katedra"],
+		prediction: {
+			placeId: "fixture:place:duomo",
+			primaryText: "Duomo di Milano",
+			secondaryText: "Piazza del Duomo, Milano",
+		},
+		details: {
+			placeId: "fixture:place:duomo",
+			displayName: "Duomo di Milano",
+			coordinate: { latitude: 45.464098, longitude: 9.191926 },
+		},
 	},
-} as const;
+	{
+		queries: ["via torino", "torino 42"],
+		prediction: {
+			placeId: "fixture:place:via-torino",
+			primaryText: "Via Torino 42",
+			secondaryText: "20123 Milano MI, Włochy",
+		},
+		details: {
+			placeId: "fixture:place:via-torino",
+			displayName: "Via Torino 42, Milano",
+			coordinate: { latitude: 45.45946, longitude: 9.18444 },
+		},
+	},
+	{
+		queries: ["hotel berna", "berna"],
+		prediction: {
+			placeId: "fixture:place:hotel-berna",
+			primaryText: "Hotel Berna",
+			secondaryText: "Via Napo Torriani 18, Milano",
+		},
+		details: {
+			placeId: "fixture:place:hotel-berna",
+			displayName: "Hotel Berna",
+			coordinate: { latitude: 45.48209, longitude: 9.20481 },
+		},
+	},
+	{
+		queries: [],
+		prediction: {
+			placeId: "fixture:place:bgy",
+			primaryText: "Lotnisko Mediolan-Bergamo",
+			secondaryText: "Orio al Serio, Bergamo",
+		},
+		details: {
+			placeId: "fixture:place:bgy",
+			displayName: "Lotnisko Mediolan-Bergamo",
+			coordinate: { latitude: 45.6739, longitude: 9.7042 },
+		},
+	},
+	{
+		queries: [],
+		prediction: {
+			placeId: "fixture:boundary:low",
+			primaryText: "Granica południowo-zachodnia",
+			secondaryText: "Mediolan",
+		},
+		details: {
+			placeId: "fixture:boundary:low",
+			displayName: "Granica południowo-zachodnia",
+			coordinate: MILAN_MUNICIPALITY_VIEWPORT.rectangle.low,
+		},
+	},
+	{
+		queries: [],
+		prediction: {
+			placeId: "fixture:boundary:high",
+			primaryText: "Granica północno-wschodnia",
+			secondaryText: "Mediolan",
+		},
+		details: {
+			placeId: "fixture:boundary:high",
+			displayName: "Granica północno-wschodnia",
+			coordinate: MILAN_MUNICIPALITY_VIEWPORT.rectangle.high,
+		},
+	},
+];
+
+const PLACE_AUTOCOMPLETE_FAULTS: Record<
+	string,
+	ProviderResult<PlaceSuggestion[], PlaceSuggestion>
+> = {
+	"fixture timeout": { status: "timeout", retryable: true },
+	"fixture limit": { status: "rate_limited", retryable: true },
+	"fixture awaria": { status: "provider_error", httpStatus: 500, retryable: true },
+	"fixture brak": { status: "zero_result" },
+	"fixture uszkodzone": { status: "malformed_response" },
+};
 
 const AIRPORT_BUS_TRANSFER = {
 	id: "fixture:transfer:airport-bus-centrale",
@@ -37,7 +131,9 @@ function routeInputKey(input: TransitRouteInput): string {
 	);
 }
 
-export function createFixtureProviderAdapters(): ProviderAdapters {
+export function createFixtureProviderAdapters(
+	supportedArea: SupportedArea = MILAN_MUNICIPALITY_VIEWPORT,
+): ProviderAdapters {
 	return {
 		mode: "fixture",
 		flight: {
@@ -49,20 +145,24 @@ export function createFixtureProviderAdapters(): ProviderAdapters {
 				)?.result ?? { status: "zero_result" },
 		},
 		places: {
-			viewport: MILAN_MUNICIPALITY_VIEWPORT,
-			autocomplete: async () => ({
-				status: "success",
-				value: [
-					{
-						placeId: DUOMO_FIXTURE.placeId,
-						displayText: DUOMO_FIXTURE.displayText,
-					},
-				],
-			}),
-			details: async () => ({
-				status: "success",
-				value: DUOMO_FIXTURE,
-			}),
+			viewport: supportedArea,
+			autocomplete: async (input) => {
+				const query = input.query.trim().toLocaleLowerCase("pl");
+				const fault = PLACE_AUTOCOMPLETE_FAULTS[query];
+				if (fault) return fault;
+				const matches = PLACE_FIXTURES.filter((fixture) =>
+					fixture.queries.some((candidate) => query.includes(candidate)),
+				).map((fixture) => fixture.prediction);
+				return matches.length > 0
+					? { status: "success", value: matches }
+					: { status: "zero_result" };
+			},
+			details: async (input) => {
+				const fixture = PLACE_FIXTURES.find(
+					(candidate) => candidate.details.placeId === input.placeId,
+				);
+				return fixture ? { status: "success", value: fixture.details } : { status: "zero_result" };
+			},
 		},
 		transit: {
 			route: async (input) =>

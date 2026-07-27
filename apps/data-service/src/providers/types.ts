@@ -82,26 +82,49 @@ export interface FlightProvider {
 export interface PlaceAutocompleteInput {
 	query: string;
 	languageCode?: string;
+	regionCode?: string;
+	sessionToken?: string;
 }
 
 export interface PlaceDetailsInput {
 	placeId: string;
+	languageCode?: string;
+	regionCode?: string;
+	sessionToken?: string;
 }
 
 export interface PlaceSuggestion {
 	placeId: string;
-	displayText: string;
+	primaryText: string;
+	secondaryText: string;
 }
 
-export interface Place extends PlaceSuggestion {
+export interface Place {
+	placeId: string;
+	displayName: string;
 	coordinate: {
 		latitude: number;
 		longitude: number;
 	};
 }
 
+export interface SupportedArea {
+	version: string;
+	rectangle: {
+		low: {
+			latitude: number;
+			longitude: number;
+		};
+		high: {
+			latitude: number;
+			longitude: number;
+		};
+	};
+	source?: unknown;
+}
+
 export interface PlacesProvider {
-	viewport: unknown;
+	viewport: SupportedArea;
 	autocomplete(
 		input: PlaceAutocompleteInput,
 	): Promise<ProviderResult<PlaceSuggestion[], PlaceSuggestion>>;

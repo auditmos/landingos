@@ -13,7 +13,7 @@
 		"apps/user-application": {
 			"entry": ["src/start.tsx", "src/routes/**/*.{ts,tsx}", "vite.config.ts"],
 			"vite": { "config": [] },
-			"ignoreDependencies": ["web-vitals"],
+			"ignoreDependencies": ["jsdom", "web-vitals"],
 			"ignore": [
 				"src/core/functions/example-*.ts",
 				"src/core/middleware/example-*.ts",

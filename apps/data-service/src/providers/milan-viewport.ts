@@ -1,3 +1,5 @@
+import type { SupportedArea } from "./types";
+
 export interface Coordinate {
 	latitude: number;
 	longitude: number;
@@ -24,10 +26,13 @@ export const MILAN_MUNICIPALITY_VIEWPORT = {
 		accessedOn: "2026-07-27",
 		geometryPointCount: 19_553,
 	},
-} as const;
+} as const satisfies SupportedArea;
 
-export function containsCoordinate(coordinate: Coordinate): boolean {
-	const { low, high } = MILAN_MUNICIPALITY_VIEWPORT.rectangle;
+export function containsCoordinate(
+	coordinate: Coordinate,
+	area: SupportedArea = MILAN_MUNICIPALITY_VIEWPORT,
+): boolean {
+	const { low, high } = area.rectangle;
 	return (
 		coordinate.latitude >= low.latitude &&
 		coordinate.latitude <= high.latitude &&

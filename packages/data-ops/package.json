@@ -19,6 +19,10 @@
 			"types": "./dist/flight/index.d.ts",
 			"default": "./dist/flight/index.js"
 		},
+		"./destination": {
+			"types": "./dist/destination/index.d.ts",
+			"default": "./dist/destination/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"
