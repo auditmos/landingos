@@ -1,0 +1,233 @@
+# Session Handoff: LandingOS MVP Blueprint Review
+
+> Generated 2026-07-26 for handoff to Codex / Cursor.
+> Source: chat session with Claude.
+
+## TL;DR
+
+- Reviewed GitHub issue #1 (the LandingOS MVP blueprint/PRD, written in Polish) against a client's approval comment plus a standing requirement to keep a future native mobile app viable.
+- Client comment had 5 points: 3 were pure confirmations, 3 required actual blueprint content changes, and 1 was a direct open question ("does the Milan-only restriction work absolutely?").
+- Applied all changes directly to issue #1's body via `gh issue edit`, and posted a Polish reply comment answering the client.
+- No source code was touched -- this was a product/spec session. The blueprint lives ONLY in GitHub issue #1 (there is no `/docs` mirror in the repo).
+- Next work is implementation: the blueprint now mandates an Operator Console (admin panel), a configurable Milan geo-boundary, a separate marketing-consent opt-in, and a client-agnostic API boundary for future native apps.
+
+## Project Context
+
+- **Name:** LandingOS (aka `saas-on-cf` / `landingos`)
+- **Repo:** https://github.com/auditmos/landingos (origin, https)
+- **Local path:** /Users/tkowalczyk/Code/Auditmos/landingos
+- **Stack:** TanStack Start (SSR frontend, PWA) + Hono API, both on Cloudflare Workers; Better Auth; Drizzle ORM + Postgres; pnpm monorepo; Biome for lint/format
+- **Deployment:** Cloudflare Workers (staging + production). Frontend uses `@cloudflare/vite-plugin`; data-service uses plain wrangler
+- **Key deps:** TanStack Start, Hono, Better Auth, Drizzle, Zod
+- **Branch / working state:** `main` (clean at session start; solo dev works directly on main -- do NOT create branches). No code commits made this session -- only GitHub issue edits.
+
+## Session Goal
+
+The user (agency owner building LandingOS for a client) ran an "ask and blueprint" session whose result is GitHub issue #1. The client added an approval comment with several notes and one question. The user asked to verify whether the blueprint content needs changing based on that comment, while keeping in mind that a native mobile app will probably be needed in the future -- so every implementation should be prepared for that too.
+
+## Timeline
+
+1. Located the blueprint: `gh issue list` found issue #1 "PRD: LandingOS MVP -- Polska -> Mediolan-Bergamo (BGY)". Confirmed repo is `auditmos/landingos`.
+2. Read issue #1 body (the full Polish PRD) and the client's comment via `gh issue view 1 --comments`.
+3. Confirmed there is NO `/docs` folder in the repo (searched) -- so the blueprint exists only as the GitHub issue. CLAUDE.md's "/docs is source of truth" rule therefore maps onto the issue itself.
+4. Analyzed the client's 5 comment points, mapping each to "change needed / no change / open question", plus the user's standing mobile-app requirement.
+5. Asked the user two decisions via AskUserQuestion: (a) Milan-boundary enforcement style, (b) whether to record the client's future post-arrival-comms idea.
+6. User chose: (a) "Soft-but-explicit" boundary, (b) "Add as future note".
+7. Applied all edits to a scratchpad copy of the issue body, then pushed with `gh issue edit 1 --body-file`.
+8. Drafted a Polish client reply; user said "yes"; posted it with `gh issue comment 1`.
+
+## Decisions
+
+| Decision | Rationale | Alternatives Rejected |
+|---|---|---|
+| Milan-only restriction = "soft-but-explicit" | Autocomplete restricted/biased to Milan; out-of-bounds destination returns a controlled "not supported yet" state instead of a route. Consistent with the existing no-hallucination rule; boundary is a config param so new cities are cheap to add later | "Hard block" (user literally cannot submit) -- too rigid; "Allow but warn" -- risks fabricated routes, contradicts no-hallucination principle |
+| Add an Operator Console (admin panel) as a first-class module | Client explicitly wants to self-serve shuttle/price catalog entries ("Jesli bede miec panel, moge to tez sama wrzucac"). Must be a real authenticated UI + server-enforced operator role, not a dev-only DB seed | Dev-only seeding / manual DB inserts -- rejected because the client wants autonomy without the dev team |
+| Marketing/lead use of email requires a separate opt-in consent | Client noted monetization value shifts to leads + retention now that payments are out. Email is currently captured for OTP auth only; reusing it for marketing needs explicit GDPR consent, revocable, covered by account deletion (US-29) | Implicitly reusing the auth email as a marketing lead -- rejected, contradicts the doc's own privacy stance |
+| Native mobile app reframed "deferred, not precluded" + client-agnostic API constraint added | User's standing requirement. The Hono API-first stack is already mobile-ready; just lock in the constraint so no browser-only logic creeps in | Leaving native apps flatly "rejected" in the doc -- rejected because it invites browser-only lock-in |
+| Record client's post-arrival "help abroad" comms idea as a Future consideration | Client called it "just an idea, not now"; 24h room lifecycle stays unchanged in MVP | Skipping it entirely -- rejected; capturing deferred ideas is cheap and useful |
+| Apply changes directly to GitHub issue #1 (not a new file) | The blueprint lives only in the issue; CLAUDE.md forbids separate review/audit md files | Creating a separate review doc -- forbidden by project instructions |
+| Post client reply in Polish | Client wrote in Polish; audience is the client | -- |
+
+## Constraints, Gotchas, and Hard Rules
+
+- The blueprint exists ONLY as GitHub issue #1. There is NO `/docs` folder. Do not look for a markdown file for it.
+- The PRD body is in Polish. All blueprint edits and the client reply were written in Polish to stay consistent. Keep future edits Polish.
+- Solo dev: do NOT create git branches. Work directly on `main`. (From global CLAUDE.md.)
+- CLAUDE.md rule: never create separate md files for reviews/audits/analyses unless explicitly asked -- apply review notes directly in the design doc (here, the issue).
+- Max 500 lines per source file (repo rule); split if exceeding.
+- After code changes, must run `pnpm run types` and `pnpm run test` before declaring done. (Not triggered this session -- no code changed.)
+- Lint auto-runs via PostToolUse hook (biome check --write) on Edit/Write.
+- Cloudflare rules: use `wrangler.jsonc` not `.toml`; each Worker gets its own subdomain; prefer `custom_domain: true` over routes; SSL mode must be Full/Full(strict); never use the HTTP->HTTPS redirect rule template (use "Always Use HTTPS" toggle).
+- Data-ops must be built before type-checking (`pnpm run types` builds it first).
+
+## Files Touched
+
+| Path | Purpose | Status |
+|---|---|---|
+| GitHub issue #1 body | The blueprint/PRD; edited to add US-26a, US-31, US-32, Operator Console module, Milan boundary rule, consent notes, mobile-readiness reframing, Future considerations | modified (via `gh issue edit`) |
+| GitHub issue #1 comment | Polish reply to client answering the Milan-boundary question and summarizing changes | created (via `gh issue comment`) |
+| ./handoffs/handoff-landingos-blueprint-2026-07-26.md | This handoff | created |
+| ./handoffs/handoff-landingos-blueprint-2026-07-26.txt | Plaintext handoff | created |
+
+No repository source files were created, modified, or deleted this session.
+
+## Code Artifacts
+
+_No source code was written this session._ The artifacts below are the exact Polish blueprint text blocks inserted into GitHub issue #1. They are `[FINAL]` -- persisted live in the issue -- and reproduced verbatim so the changes are auditable without GitHub access.
+
+### [FINAL] issue #1 -- new User Stories (added after US-26 and US-30)
+```markdown
+26a. **US-26a:** Jako operator produktu chcę samodzielnie dodawać i edytować wpisy katalogu transferów w uwierzytelnionym panelu administracyjnym, abym mógł utrzymywać brakujące shuttle busy i ceny bez udziału zespołu developerskiego.
+
+31. **US-31:** Jako podróżny chcę, aby wyszukiwanie celu było ograniczone do obszaru Mediolanu, a wybór punktu poza wspieranym zakresem kończył się jasnym komunikatem „cel jeszcze nieobsługiwany”, abym nie otrzymał trasy dla lokalizacji spoza korytarza MVP.
+32. **US-32:** Jako użytkownik chcę osobno i dobrowolnie wyrazić zgodę, zanim mój e-mail zostanie użyty do celów marketingowych lub jako lead, aby logowanie kodem nie oznaczało automatycznej zgody na komunikację marketingową.
+```
+
+### [FINAL] issue #1 -- Scope and platform, mobile-readiness decision (appended)
+```markdown
+- Natywna aplikacja mobilna jest odłożona, ale nie wykluczona. Aby przyszły klient natywny (iOS/Android) mógł korzystać z tego samego backendu bez przebudowy, granica API pozostaje niezależna od klienta: żadna kluczowa logika nie zakłada wyłącznie sesji przeglądarki, logowanie kodem e-mail wydaje token nadający się do użycia również przez klienta natywnego, a transport dostarczania wiadomości w pokoju (WebSocket/SSE) musi być osiągalny spoza przeglądarki. Panel administracyjny jest cienką nakładką na to samo API.
+```
+
+### [FINAL] issue #1 -- Journey Recommendation Engine, Milan boundary rule (appended)
+```markdown
+   - Ograniczenie do Mediolanu jest miękkie, ale jawne: autouzupełnianie celu jest zawężone/biasowane do obszaru administracyjnego Mediolanu, a wybór punktu poza wspieranym zakresem nie uruchamia routingu i zwraca kontrolowany stan „cel jeszcze nieobsługiwany” (ten sam wzorzec co brak wiarygodnej trasy). Granica jest parametrem konfiguracyjnym, aby można ją było rozszerzyć na kolejne miasta bez zmiany interfejsu.
+```
+
+### [FINAL] issue #1 -- Identity & Safety additions + new Operator Console deep module
+```markdown
+   - Istnieje wyodrębniona rola operatora/administratora, egzekwowana po stronie serwera, uprawniająca wyłącznie do panelu administracyjnego, a nie do prywatnych danych planera użytkowników.
+   - Zgoda marketingowa na użycie e-maila jako leada jest odrębna od logowania i domyślnie wyłączona.
+
+5. **Operator Console**
+   - Uwierzytelniony panel administracyjny udostępnia operacje CRUD na katalogu transferów BGY (operator, źródło, data kontroli, zakres ceny, link zakupu).
+   - Panel jest cienką nakładką na to samo API co reszta produktu, dostępną wyłącznie dla roli operatora.
+   - Wpis bez wymaganych pól nie może zostać opublikowany; walidacja świeżości oznacza wpisy wymagające ponownej weryfikacji.
+   - Panel nie ma dostępu do dokładnych celów podróży ani treści prywatnych czatów; obsługa zgłoszeń pozostaje po stronie modułu Identity & Safety.
+```
+
+### [FINAL] issue #1 -- Privacy and lifecycle, consent line (appended)
+```markdown
+- E-mail jest pozyskiwany wyłącznie do logowania kodem. Ponieważ podstawową wartością biznesową MVP (przy wyłączonych płatnościach) są leady do bazy i retencja, każde użycie e-maila jako leada lub do komunikacji marketingowej wymaga odrębnej, dobrowolnej zgody (opt-in) i musi być zgodne z polityką prywatności oraz prawem do usunięcia danych (US-29).
+```
+
+### [FINAL] issue #1 -- Assumption 6 (reworded)
+```markdown
+6. Brakujące shuttle busy i ceny można utrzymywać ręcznie dla jednego lotniska bez nieakceptowalnego obciążenia operacyjnego, a operator produktu utrzymuje je samodzielnie w panelu administracyjnym (potwierdzone przez klienta).
+```
+
+### [FINAL] issue #1 -- new validation rows (US-26a, US-31, US-32)
+```markdown
+| US-26a | Test dostępu do panelu administracyjnego i operacji CRUD przez rolę operatora oraz próby dostępu przez zwykłego użytkownika | Operator wykonuje pełny CRUD katalogu w panelu; użytkownik bez roli operatora otrzymuje odmowę egzekwowaną po stronie serwera; panel nie ujawnia dokładnych celów ani treści czatów |
+| US-31 | Test autouzupełniania celu w granicach Mediolanu oraz wyboru punktu poza zakresem | Wyniki autouzupełniania są ograniczone do obszaru Mediolanu; punkt poza zakresem nie uruchamia routingu i pokazuje komunikat „cel jeszcze nieobsługiwany”; granica jest konfigurowalna |
+| US-32 | Test logowania bez zgody marketingowej oraz z wyrażoną zgodą | Domyślnie e-mail nie jest oznaczony jako lead marketingowy; użycie do marketingu wymaga zapisanej, dobrowolnej zgody, a jej wycofanie i usunięcie konta usuwają zgodę |
+```
+
+### [FINAL] issue #1 -- major component gates: Identity & Safety additions + new Operator Console gate (renumbered Repository gate to 6)
+```markdown
+   - Rola operatora jest egzekwowana po stronie serwera; zwykły użytkownik nie ma dostępu do panelu ani operacji katalogu.
+   - Zgoda marketingowa jest odrębna od logowania, domyślnie wyłączona i podlega wycofaniu.
+
+5. **Operator Console — done**
+   - Panel administracyjny wykonuje pełny CRUD katalogu transferów wyłącznie dla roli operatora.
+   - Walidacja świeżości i wymaganych pól blokuje publikację niekompletnych wpisów.
+   - Panel nie eksponuje dokładnych celów podróży ani treści czatów.
+
+6. **Repository quality gate**
+```
+
+### [FINAL] issue #1 -- Tradeoffs, native apps reframed
+```markdown
+- **Natywne aplikacje iOS i Android** — odłożone (nie wykluczone) na rzecz jednej PWA w MVP, aby ograniczyć liczbę powierzchni wdrożeniowych. Ponieważ natywny klient jest planowany w przyszłości, granica API pozostaje niezależna od klienta (patrz Scope and platform), aby dodać go później bez przebudowy backendu.
+```
+
+### [FINAL] issue #1 -- Out of Scope, two reworded lines
+```markdown
+- Cele poza Mediolanem (ograniczenie miękkie, ale egzekwowane: patrz US-31 — cel poza obszarem Mediolanu nie generuje trasy).
+- Natywne aplikacje iOS i Android w MVP (odłożone, nie wykluczone; API pozostaje niezależne od klienta, aby dodać je później).
+```
+
+### [FINAL] issue #1 -- Further Notes, new Future considerations section
+```markdown
+### Future considerations (poza MVP)
+
+- **Wydłużone okno komunikacji po przylocie** — obecnie pokój staje się niedostępny 24 godziny po planowanym lądowaniu i tak zostaje w MVP (potwierdzone przez klienta). W przyszłości można rozważyć pozostawienie kanału komunikacji na wypadek potrzeby pomocy za granicą — polskojęzyczna grupa z tego samego lotu jako nieformalny backup przy dużych zakłóceniach. To wyłącznie kierunek do rozważenia, świadomie niewprowadzany teraz, aby nie rozszerzać zakresu.
+- **Klient natywny (iOS/Android)** — planowany po MVP; architektura MVP celowo utrzymuje niezależną od klienta granicę API, aby dodanie go nie wymagało przebudowy backendu.
+- **Model monetyzacji** — przy wyłączonych płatnościach główną wartością są leady do bazy i retencja; przyszła monetyzacja powinna opierać się na tej wartości i wymaga odrębnej zgody marketingowej (US-32).
+```
+
+### [FINAL] client reply comment posted to issue #1
+```markdown
+Dziękujemy za uwagi 🌷 Zaktualizowaliśmy blueprint:
+
+– Ograniczenie do Mediolanu jest **miękkie, ale jawne**: wyszukiwanie celu jest zawężone do Mediolanu, a cel spoza zakresu nie generuje trasy, tylko pokazuje komunikat „jeszcze nieobsługiwany”. Granica jest konfigurowalna, więc łatwo dodamy kolejne miasta.
+– Dodaliśmy **panel administracyjny**, w którym samodzielnie dodasz shuttle busy i ceny.
+– Zapisaliśmy zmianę modelu monetyzacji (leady + retencja) wraz z odrębną zgodą marketingową.
+– Pomysł na komunikację po przylocie zapisaliśmy jako przyszły kierunek; okno 24h zostaje bez zmian.
+```
+
+## Errors and Fixes
+
+_(none recorded in this session)_
+
+## Commands
+
+```bash
+# Discover the blueprint
+gh issue list --state all --limit 20
+git remote -v
+
+# Read the blueprint + client comment
+gh issue view 1 --comments
+gh issue view 1 --json body --jq '.body'
+
+# Confirm no /docs mirror exists
+ls docs/
+find . -path ./node_modules -prune -o -name '*.md' -print | grep -iE 'docs|prd|blueprint|landing'
+
+# Push edited blueprint body back to the issue
+gh issue edit 1 --body-file <scratchpad-copy-of-body>.md
+
+# Post client reply
+gh issue comment 1 --body '<polish reply text>'
+```
+
+## User Preferences and Style Rules
+
+- Solo dev -- never create git branches for coding tasks; commit directly on the current branch (`main`).
+- Never create separate md files for reviews/audits/analyses -- edit the design doc (issue) in place.
+- Blueprint and client-facing content are in Polish; keep them Polish. Full orthographic correctness required (accents/diacritics preserved; never ASCII-fold).
+- Respond to the user in English; keep technical identifiers in original form.
+- After a big task, only offer follow-ups if genuinely concrete -- never invent filler.
+- Type safety: no `any`; use `unknown` + type guards; discriminated unions over boolean flags; custom error classes (never `throw new Error(string)`); `Result<T>` for recoverable errors; guard `array[i]` access.
+- Web research routes through Exa MCP tools, GitHub through `gh` CLI (not WebFetch/Exa).
+
+## Open Threads
+
+- **Compliance review still pending** (pre-existing in the blueprint): privacy/retention/account-deletion policy, and now the new marketing-consent (US-32) mechanism, must pass a compliance review before production pilot.
+- **Data spike not yet run**: go/no-go for BGY corridor depends on measuring provider coverage (>=9/10), cost, latency across flight + routing + manual catalog. No implementation of the full planner should start before this.
+- **Provider selection unconfirmed**: Aviationstack (flight data) and Google Routes/Places (routing/geocoding) are first candidates behind adapters, not final; licensing for commercial use must be confirmed.
+- **Milan boundary definition**: "obszar administracyjny Mediolanu" needs a concrete geofence/bounds definition at implementation time (which admin polygon or bounding box, and the config format).
+- No native mobile app work is scheduled -- only the API-agnostic constraint is locked in.
+
+## Next Steps
+
+1. Read the updated GitHub issue #1 in full (it is the single source of truth; no `/docs` file exists).
+2. Begin with the blueprint's own delivery gates: run the **Data spike** first (flight provider + routing + manual catalog on representative Polska->BGY / BGY->Milan scenarios; publish coverage, cost, latency). Do not start the full planner before the spike clears >=9/10.
+3. When implementing, honor the new mandates added this session:
+   - Build the **Operator Console** as an authenticated admin panel (server-enforced operator role) over the same API -- CRUD on the BGY transfer catalog (operator, source, check date, price range, purchase link); block publish on missing/stale fields; no access to exact destinations or chat content.
+   - Implement the **Milan geo-boundary** as a config parameter: Places autocomplete restricted/biased to Milan; out-of-bounds selection returns a controlled "cel jeszcze nieobsługiwany" state (reuse the no-route/US-11 pattern), never a fabricated route.
+   - Add a **separate marketing-consent opt-in** distinct from OTP login: default off, revocable, removed on account deletion (US-29).
+   - Keep the **API boundary client-agnostic**: no browser-only core logic; OTP issues a token consumable by a native client; Flight Room message transport (WebSocket/SSE) reachable outside a browser.
+4. Follow the blueprint's module boundaries (deep-modules rule): Flight Context Resolver, Journey Recommendation Engine, Flight Room, Identity & Safety, Operator Console -- narrow interfaces, deep implementations, one file per domain where possible.
+5. Before declaring any code done: `pnpm run types` then `pnpm run test` (both exit 0); lint auto-runs via hook.
+
+## Raw Notes
+
+- Issue title: "PRD: LandingOS MVP -- Polska -> Mediolan-Bergamo (BGY)". Author: paulinaankisiel-beep (this is the client who left the approval comment).
+- Client's 5 comment points, verbatim intent: (1) Bergamo is a good choice, strong approval -- no change. (2) Manual shuttle/prices are maintainable by hand and she'll input them herself if she has a panel -> drove the Operator Console. (3) 24h room lifecycle stays; future idea = leave a channel for help abroad, "na razie tylko pomysl". (4) With payments off, value = leads + retention, monetization model shifts. (5) Direct question: does the "destinations outside Milan disabled" restriction work absolutely? -> answered soft-but-explicit.
+- Client comment closed with full approval: "Przeszlam przez caly tekst i brak innych uwag, wszystko bardzo na tak. Dziekuje."
+- The blueprint had 30 user stories (US-01..US-30); this session added US-26a, US-31, US-32 and their validation rows, plus a 5th deep module and 5th major component gate (renumbering the Repository quality gate from 5 to 6).
+- The reply comment URL: https://github.com/auditmos/landingos/issues/1#issuecomment-5083124540
+- Monorepo packages: `packages/data-ops` (Drizzle/Zod/Better Auth shared DB), `apps/data-service` (Hono REST API on CF Workers, port 8788 dev), `apps/user-application` (TanStack Start SSR frontend on CF Workers, port 3000 dev). Each has its own AGENTS.md (CLAUDE.md symlinks to it).
+- Error-handling layering (repo convention): DB wraps pg errors in DrizzleQueryError (check `error.cause.code`, e.g. `23505` unique violation); data-service services return `Result<T>` and never throw HTTPException; user-application throws `AppError` (code/message/status/field) from server fns and api-client.
+- Nothing in the client comment invalidated the core design -- all changes were additive.
