@@ -26,6 +26,10 @@ interface FlightSpec {
 	origin: string;
 	originName: string;
 	arrivalTime: string;
+	carrier?: string;
+	stableFlightId?: string;
+	operatingCarrierCode?: string;
+	operatingFlightNumber?: string;
 }
 
 const SUCCESS_FLIGHT_SPECS: FlightSpec[] = [
@@ -103,10 +107,19 @@ const SUCCESS_FLIGHT_SPECS: FlightSpec[] = [
 
 function createFlightInstance(spec: FlightSpec): FlightInstance {
 	const normalizedNumber = spec.flightNumber.toUpperCase();
+	const carrierCode = normalizedNumber.slice(0, 2);
+	const flightDigits = normalizedNumber.slice(2);
+	const operatingCarrierCode = spec.operatingCarrierCode ?? carrierCode;
+	const operatingFlightNumber = spec.operatingFlightNumber ?? flightDigits;
 	return {
 		id: `${normalizedNumber.toLowerCase()}:${spec.date}:${spec.origin.toLowerCase()}-bgy`,
-		carrier: normalizedNumber.startsWith("W6") ? "Wizz Air" : "Ryanair",
+		stableFlightId:
+			spec.stableFlightId ??
+			`${operatingCarrierCode}${operatingFlightNumber}:${spec.date}:${spec.origin}:BGY:${spec.arrivalTime}`,
+		carrier: spec.carrier ?? (normalizedNumber.startsWith("W6") ? "Wizz Air" : "Ryanair"),
 		flightNumber: normalizedNumber,
+		operatingCarrierCode,
+		operatingFlightNumber,
 		date: spec.date,
 		origin: {
 			iata: spec.origin,
@@ -133,6 +146,44 @@ const successfulFlights: FlightFixtureScenario[] = SUCCESS_FLIGHT_SPECS.map((spe
 		value: createFlightInstance(spec),
 	},
 }));
+
+const codeshareFlights: FlightFixtureScenario[] = [
+	{
+		scenarioId: "flight:codeshare:fr8123",
+		provenance: FIXTURE_PROVENANCE,
+		input: { flightNumber: "FR8123", date: "2026-10-02" },
+		result: {
+			status: "success",
+			value: createFlightInstance({
+				flightNumber: "FR8123",
+				date: "2026-10-02",
+				origin: "WAW",
+				originName: "Lotnisko Chopina w Warszawie",
+				arrivalTime: "12:30",
+				stableFlightId: "fixture:operating:fr8123:2026-10-02",
+			}),
+		},
+	},
+	{
+		scenarioId: "flight:codeshare:w69000",
+		provenance: FIXTURE_PROVENANCE,
+		input: { flightNumber: "W69000", date: "2026-10-02" },
+		result: {
+			status: "success",
+			value: createFlightInstance({
+				flightNumber: "W69000",
+				date: "2026-10-02",
+				origin: "WAW",
+				originName: "Lotnisko Chopina w Warszawie",
+				arrivalTime: "12:30",
+				carrier: "Wizz Air",
+				stableFlightId: "fixture:operating:fr8123:2026-10-02",
+				operatingCarrierCode: "FR",
+				operatingFlightNumber: "8123",
+			}),
+		},
+	},
+];
 
 const ambiguousFlightA = createFlightInstance({
 	flightNumber: "FX9001",
@@ -207,6 +258,7 @@ const faultFlights: FlightFixtureScenario[] = [
 
 export const FLIGHT_FIXTURE_SCENARIOS: FlightFixtureScenario[] = [
 	...successfulFlights,
+	...codeshareFlights,
 	...faultFlights,
 ];
 

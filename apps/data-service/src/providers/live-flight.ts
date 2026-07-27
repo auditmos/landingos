@@ -6,7 +6,13 @@ interface LiveFlightConfig {
 }
 
 interface AviationstackFlight {
-	flight?: { iata?: unknown };
+	flight?: {
+		iata?: unknown;
+		codeshared?: {
+			airline_iata?: unknown;
+			flight_number?: unknown;
+		};
+	};
 	airline?: { name?: unknown };
 	departure?: { iata?: unknown; airport?: unknown };
 	arrival?: {
@@ -23,8 +29,19 @@ interface AviationstackResponse {
 
 function normalizeFlight(raw: AviationstackFlight, date: string): FlightInstance | string[] {
 	const missingFields: string[] = [];
+	const marketingFlight =
+		typeof raw.flight?.iata === "string" ? raw.flight.iata.trim().toUpperCase() : "";
+	const marketingMatch = /^([A-Z0-9]{2})(\d{1,4})$/.exec(marketingFlight);
+	const codeshareCarrier = raw.flight?.codeshared?.airline_iata;
+	const codeshareNumber = raw.flight?.codeshared?.flight_number;
 	const fields = {
-		flightNumber: raw.flight?.iata,
+		flightNumber: marketingFlight,
+		operatingCarrierCode:
+			typeof codeshareCarrier === "string"
+				? codeshareCarrier.trim().toUpperCase()
+				: marketingMatch?.[1],
+		operatingFlightNumber:
+			typeof codeshareNumber === "string" ? codeshareNumber.trim() : marketingMatch?.[2],
 		carrier: raw.airline?.name,
 		originIata: raw.departure?.iata,
 		originName: raw.departure?.airport,
@@ -48,6 +65,8 @@ function normalizeFlight(raw: AviationstackFlight, date: string): FlightInstance
 		id: `${flightNumber.toLowerCase()}:${date}:${originIata.toLowerCase()}-${destinationIata.toLowerCase()}`,
 		carrier: fields.carrier as string,
 		flightNumber,
+		operatingCarrierCode: fields.operatingCarrierCode as string,
+		operatingFlightNumber: fields.operatingFlightNumber as string,
 		date,
 		origin: {
 			iata: originIata,

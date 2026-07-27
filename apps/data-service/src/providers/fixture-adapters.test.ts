@@ -25,8 +25,11 @@ describe("fixture provider adapters", () => {
 			status: "success",
 			value: {
 				id: "fr1234:2026-09-14:waw-bgy",
+				stableFlightId: "FR1234:2026-09-14:WAW:BGY:10:20",
 				carrier: "Ryanair",
 				flightNumber: "FR1234",
+				operatingCarrierCode: "FR",
+				operatingFlightNumber: "1234",
 				date: "2026-09-14",
 				origin: {
 					iata: "WAW",

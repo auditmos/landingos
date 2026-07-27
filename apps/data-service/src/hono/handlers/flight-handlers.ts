@@ -1,0 +1,117 @@
+import { getDb } from "@repo/data-ops/database/setup";
+import {
+	type FlightInstance,
+	FlightInstanceSchema,
+	type FlightLookupRequest,
+	FlightLookupRequestSchema,
+	type FlightResolveResult,
+	type ManualFlightRequest,
+	ManualFlightRequestSchema,
+} from "@repo/data-ops/flight";
+import { Hono } from "hono";
+import { createFlightService } from "../../flight/service";
+import {
+	createFixtureProviderAdapters,
+	createLiveProviderAdapters,
+	type FlightProvider,
+	resolveProviderConfig,
+} from "../../providers";
+
+export interface FlightHandlerOperations {
+	resolve(input: FlightLookupRequest): Promise<FlightResolveResult>;
+	completeManual(input: ManualFlightRequest): Promise<FlightResolveResult>;
+}
+
+export type FlightOperationsFactory = (env: Env) => FlightHandlerOperations;
+
+function unavailableProvider(): FlightProvider {
+	return {
+		lookup: async () => ({
+			status: "provider_error",
+			httpStatus: 503,
+			retryable: true,
+		}),
+	};
+}
+
+function defaultOperations(env: Env): FlightHandlerOperations {
+	const runtimeEnv = env as unknown as Record<string, string | undefined>;
+	const config = resolveProviderConfig(runtimeEnv);
+	let provider: FlightProvider = unavailableProvider();
+	if (config.ok && config.config.mode === "fixture") {
+		provider = createFixtureProviderAdapters().flight;
+	} else if (config.ok && config.config.mode === "live") {
+		provider = createLiveProviderAdapters(config.config.credentials, (input, init) =>
+			fetch(input, init),
+		).flight;
+	}
+	return createFlightService(provider, getDb());
+}
+
+function publicFlight(flight: FlightInstance): FlightInstance {
+	return FlightInstanceSchema.parse({
+		id: flight.id,
+		marketingCarrierCode: flight.marketingCarrierCode,
+		marketingCarrierName: flight.marketingCarrierName,
+		marketingFlightNumber: flight.marketingFlightNumber,
+		operatingCarrierCode: flight.operatingCarrierCode,
+		operatingFlightNumber: flight.operatingFlightNumber,
+		departureLocalDate: flight.departureLocalDate,
+		originIata: flight.originIata,
+		destinationIata: flight.destinationIata,
+		scheduledArrivalUtc: flight.scheduledArrivalUtc,
+		displayTimezone: flight.displayTimezone,
+		source: flight.source,
+	});
+}
+
+function publicResult(result: FlightResolveResult): FlightResolveResult {
+	if (result.status === "recognized") {
+		return { status: "recognized", flight: publicFlight(result.flight) };
+	}
+	return {
+		status: "manual_required",
+		reason: result.reason,
+		flightNumber: result.flightNumber,
+		departureLocalDate: result.departureLocalDate,
+	};
+}
+
+function validationResponse(error: {
+	flatten(): { fieldErrors: Record<string, string[] | undefined> };
+}) {
+	return {
+		status: "validation_error" as const,
+		fieldErrors: error.flatten().fieldErrors,
+	};
+}
+
+export function createFlightHandlers(
+	operationsFactory: FlightOperationsFactory = defaultOperations,
+) {
+	const flights = new Hono<{ Bindings: Env }>();
+
+	flights.post("/resolve", async (c) => {
+		const body = await c.req.json().catch(() => ({}));
+		const parsed = FlightLookupRequestSchema.safeParse(body);
+		if (!parsed.success) {
+			return c.json(validationResponse(parsed.error), 400);
+		}
+		const result = await operationsFactory(c.env).resolve(parsed.data);
+		return c.json(publicResult(result));
+	});
+
+	flights.post("/manual", async (c) => {
+		const body = await c.req.json().catch(() => ({}));
+		const parsed = ManualFlightRequestSchema.safeParse(body);
+		if (!parsed.success) {
+			return c.json(validationResponse(parsed.error), 400);
+		}
+		const result = await operationsFactory(c.env).completeManual(parsed.data);
+		return c.json(publicResult(result));
+	});
+
+	return flights;
+}
+
+export default createFlightHandlers();

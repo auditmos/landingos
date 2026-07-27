@@ -11,10 +11,10 @@
 			"viewportVersion": "milan-municipality-v1",
 			"contracts": {
 				"flight": {
-					"total": 17,
-					"successful": 10,
+					"total": 19,
+					"successful": 12,
 					"outcomes": {
-						"success": 10,
+						"success": 12,
 						"ambiguous": 1,
 						"zero_result": 1,
 						"timeout": 1,
@@ -73,6 +73,18 @@
 					"contract": "flight",
 					"status": "ambiguous",
 					"normalizedIds": ["fx9001:2026-10-01:waw-bgy", "fx9001:2026-10-01:wmi-bgy"]
+				},
+				{
+					"scenarioId": "flight:codeshare:fr8123",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr8123:2026-10-02:waw-bgy"]
+				},
+				{
+					"scenarioId": "flight:codeshare:w69000",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["w69000:2026-10-02:waw-bgy"]
 				},
 				{
 					"scenarioId": "flight:fr1234:2026-09-14",

@@ -40,6 +40,8 @@ describe("live flight provider", () => {
 				id: "fr1234:2026-09-14:waw-bgy",
 				carrier: "Ryanair",
 				flightNumber: "FR1234",
+				operatingCarrierCode: "FR",
+				operatingFlightNumber: "1234",
 				date: "2026-09-14",
 				origin: {
 					iata: "WAW",

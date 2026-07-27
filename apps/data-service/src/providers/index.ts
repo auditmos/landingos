@@ -46,6 +46,7 @@ export type {
 	PlaceSuggestion,
 	PlacesProvider,
 	ProviderAdapters,
+	ProviderFlight,
 	ProviderMode,
 	ProviderResult,
 	TransferCatalogEntry,

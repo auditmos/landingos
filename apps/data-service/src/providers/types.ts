@@ -10,16 +10,21 @@ export interface Airport {
 	name: string;
 }
 
-export interface FlightInstance {
+export interface ProviderFlight {
 	id: string;
+	stableFlightId?: string;
 	carrier: string;
 	flightNumber: string;
+	operatingCarrierCode?: string;
+	operatingFlightNumber?: string;
 	date: string;
 	origin: Airport;
 	destination: Airport;
 	scheduledArrival: string;
 	timeZone: string;
 }
+
+export type FlightInstance = ProviderFlight;
 
 interface ProviderSuccess<T> {
 	status: "success";
@@ -71,7 +76,7 @@ export type ProviderResult<T, TOption = T> =
 	| ProviderMalformedResponse;
 
 export interface FlightProvider {
-	lookup(input: FlightLookupInput): Promise<ProviderResult<FlightInstance>>;
+	lookup(input: FlightLookupInput): Promise<ProviderResult<ProviderFlight>>;
 }
 
 export interface PlaceAutocompleteInput {

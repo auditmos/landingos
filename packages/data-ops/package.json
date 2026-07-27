@@ -15,6 +15,10 @@
 			"types": "./dist/identity/index.d.ts",
 			"default": "./dist/identity/index.js"
 		},
+		"./flight": {
+			"types": "./dist/flight/index.d.ts",
+			"default": "./dist/flight/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"
