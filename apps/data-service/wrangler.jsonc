@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "saas-on-cf-ds",
+	"name": "landingos-ds",
 	"main": "./src/index.ts",
 	"compatibility_date": "2026-05-25",
 	"compatibility_flags": ["nodejs_compat"],
@@ -19,7 +19,7 @@
 		 * Local / Development environment
 		 */
 		"dev": {
-			"name": "saas-on-cf-ds-dev",
+			"name": "landingos-ds-dev",
 			"vars": { "CLOUDFLARE_ENV": "dev" },
 			"unsafe": {
 				"bindings": [
@@ -66,13 +66,13 @@
 		 * Remote / Staging environment
 		 */
 		"staging": {
-			// "routes": [
-			//   {
-			//     "pattern": "api-staging.YOUR_DOMAIN.COM",
-			//     "custom_domain": true
-			//   }
-			// ],
-			"name": "saas-on-cf-ds-staging",
+			"routes": [
+				{
+					"pattern": "api-staging.landingos.app",
+					"custom_domain": true
+				}
+			],
+			"name": "landingos-ds-staging",
 			"vars": { "CLOUDFLARE_ENV": "staging" },
 			"unsafe": {
 				"bindings": [
@@ -113,13 +113,13 @@
 		 * Remote / Production environment
 		 */
 		"production": {
-			// "routes": [
-			//   {
-			//     "pattern": "api.YOUR_DOMAIN.COM",
-			//     "custom_domain": true
-			//   }
-			// ],
-			"name": "saas-on-cf-ds-production",
+			"routes": [
+				{
+					"pattern": "api.landingos.app",
+					"custom_domain": true
+				}
+			],
+			"name": "landingos-ds-production",
 			"vars": { "CLOUDFLARE_ENV": "production" },
 			"unsafe": {
 				"bindings": [
