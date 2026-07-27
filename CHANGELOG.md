@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/auditmos/landingos/compare/v1.10.1...v1.10.2) (2026-07-27)
+
+
+### Bug Fixes
+
+* **user-application:** replace deprecated server validators ([2894a02](https://github.com/auditmos/landingos/commit/2894a022b1fb4bcc963af4fca501271dc675a258))
+
 ## [1.10.1](https://github.com/auditmos/landingos/compare/v1.10.0...v1.10.1) (2026-07-27)
 
 
