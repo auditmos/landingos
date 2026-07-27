@@ -1,0 +1,316 @@
+{
+	"schemaVersion": "s0-provider-readiness-v1",
+	"generatedOn": "2026-07-27",
+	"fixture": {
+		"status": "complete",
+		"datasetLabel": "synthetic_recorded_for_testing",
+		"summary": {
+			"schemaVersion": "s0-provider-readiness-v1",
+			"mode": "fixture",
+			"datasetLabel": "synthetic_recorded_for_testing",
+			"viewportVersion": "milan-municipality-v1",
+			"contracts": {
+				"flight": {
+					"total": 17,
+					"successful": 10,
+					"outcomes": {
+						"success": 10,
+						"ambiguous": 1,
+						"zero_result": 1,
+						"timeout": 1,
+						"rate_limited": 1,
+						"provider_error": 1,
+						"incomplete_response": 1,
+						"malformed_response": 1
+					}
+				},
+				"places": {
+					"total": 2,
+					"successful": 2,
+					"outcomes": {
+						"success": 2,
+						"ambiguous": 0,
+						"zero_result": 0,
+						"timeout": 0,
+						"rate_limited": 0,
+						"provider_error": 0,
+						"incomplete_response": 0,
+						"malformed_response": 0
+					}
+				},
+				"transit": {
+					"total": 17,
+					"successful": 10,
+					"outcomes": {
+						"success": 10,
+						"ambiguous": 1,
+						"zero_result": 1,
+						"timeout": 1,
+						"rate_limited": 1,
+						"provider_error": 1,
+						"incomplete_response": 1,
+						"malformed_response": 1
+					}
+				},
+				"transferCatalog": {
+					"total": 1,
+					"successful": 1,
+					"outcomes": {
+						"success": 1,
+						"ambiguous": 0,
+						"zero_result": 0,
+						"timeout": 0,
+						"rate_limited": 0,
+						"provider_error": 0,
+						"incomplete_response": 0,
+						"malformed_response": 0
+					}
+				}
+			},
+			"scenarioResults": [
+				{
+					"scenarioId": "flight:ambiguous",
+					"contract": "flight",
+					"status": "ambiguous",
+					"normalizedIds": ["fx9001:2026-10-01:waw-bgy", "fx9001:2026-10-01:wmi-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr1234:2026-09-14",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr1234:2026-09-14:waw-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr2137:2026-09-15",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr2137:2026-09-15:krk-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr2597:2026-09-22",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr2597:2026-09-22:szz-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr3473:2026-09-18",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr3473:2026-09-18:poz-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr3591:2026-09-17",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr3591:2026-09-17:wro-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr3669:2026-09-19",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr3669:2026-09-19:ktw-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr3898:2026-09-21",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr3898:2026-09-21:wmi-bgy"]
+				},
+				{
+					"scenarioId": "flight:fr7149:2026-09-20",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["fr7149:2026-09-20:rze-bgy"]
+				},
+				{
+					"scenarioId": "flight:incomplete",
+					"contract": "flight",
+					"status": "incomplete_response",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "flight:malformed",
+					"contract": "flight",
+					"status": "malformed_response",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "flight:provider-error",
+					"contract": "flight",
+					"status": "provider_error",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "flight:rate-limited",
+					"contract": "flight",
+					"status": "rate_limited",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "flight:timeout",
+					"contract": "flight",
+					"status": "timeout",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "flight:w61431:2026-09-16",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["w61431:2026-09-16:gdn-bgy"]
+				},
+				{
+					"scenarioId": "flight:w61433:2026-09-23",
+					"contract": "flight",
+					"status": "success",
+					"normalizedIds": ["w61433:2026-09-23:luz-bgy"]
+				},
+				{
+					"scenarioId": "flight:zero-result",
+					"contract": "flight",
+					"status": "zero_result",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "place:duomo:autocomplete",
+					"contract": "places",
+					"status": "success",
+					"normalizedIds": ["fixture:place:duomo"]
+				},
+				{
+					"scenarioId": "place:duomo:details",
+					"contract": "places",
+					"status": "success",
+					"normalizedIds": ["fixture:place:duomo"]
+				},
+				{
+					"scenarioId": "route:ambiguous",
+					"contract": "transit",
+					"status": "ambiguous",
+					"normalizedIds": ["fixture:route:bgy-duomo:day", "fixture:route:bgy-duomo:morning"]
+				},
+				{
+					"scenarioId": "route:bgy-cadorna:day",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-cadorna:day"]
+				},
+				{
+					"scenarioId": "route:bgy-centrale:day",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-centrale:day"]
+				},
+				{
+					"scenarioId": "route:bgy-centrale:late",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-centrale:late"]
+				},
+				{
+					"scenarioId": "route:bgy-centrale:weekend",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-centrale:weekend"]
+				},
+				{
+					"scenarioId": "route:bgy-duomo:day",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-duomo:day"]
+				},
+				{
+					"scenarioId": "route:bgy-duomo:morning",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-duomo:morning"]
+				},
+				{
+					"scenarioId": "route:bgy-navigli:afternoon",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-navigli:afternoon"]
+				},
+				{
+					"scenarioId": "route:bgy-navigli:evening",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-navigli:evening"]
+				},
+				{
+					"scenarioId": "route:bgy-porta-garibaldi:afternoon",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-porta-garibaldi:afternoon"]
+				},
+				{
+					"scenarioId": "route:bgy-porta-garibaldi:morning",
+					"contract": "transit",
+					"status": "success",
+					"normalizedIds": ["fixture:route:bgy-porta-garibaldi:morning"]
+				},
+				{
+					"scenarioId": "route:incomplete",
+					"contract": "transit",
+					"status": "incomplete_response",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "route:malformed",
+					"contract": "transit",
+					"status": "malformed_response",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "route:provider-error",
+					"contract": "transit",
+					"status": "provider_error",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "route:rate-limited",
+					"contract": "transit",
+					"status": "rate_limited",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "route:timeout",
+					"contract": "transit",
+					"status": "timeout",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "route:zero-result",
+					"contract": "transit",
+					"status": "zero_result",
+					"normalizedIds": []
+				},
+				{
+					"scenarioId": "transfer-catalog:seeded",
+					"contract": "transferCatalog",
+					"status": "success",
+					"normalizedIds": ["fixture:transfer:airport-bus-centrale"]
+				}
+			]
+		}
+	},
+	"live": {
+		"status": "not_run_missing_credentials",
+		"missingVariables": [
+			"LANDINGOS_FLIGHT_PROVIDER",
+			"LANDINGOS_PLACES_PROVIDER",
+			"LANDINGOS_TRANSIT_PROVIDER",
+			"AVIATIONSTACK_ACCESS_KEY",
+			"GOOGLE_MAPS_API_KEY"
+		],
+		"resumeCommand": "pnpm run spike:data"
+	},
+	"productionReadiness": {
+		"ready": false,
+		"decision": "not_recorded",
+		"blockers": [
+			"live_provider_measurement_missing",
+			"commercial_licensing_acceptance_missing",
+			"independent_privacy_compliance_approval_missing"
+		]
+	}
+}

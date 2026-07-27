@@ -5,7 +5,11 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..");
 const CLIENT_BUILD_DIR = join(PROJECT_ROOT, "dist", "client");
-const MARKER = "vite-api-token-marker-do-not-bundle-xyz12345";
+const SECRET_MARKERS = {
+	VITE_API_TOKEN: "vite-api-token-marker-do-not-bundle-xyz12345",
+	AVIATIONSTACK_ACCESS_KEY: "aviationstack-marker-do-not-bundle-xyz12345",
+	GOOGLE_MAPS_API_KEY: "google-maps-marker-do-not-bundle-xyz12345",
+} as const;
 
 const RUN = process.env.RUN_BUNDLE_TEST === "1";
 
@@ -13,14 +17,15 @@ describe.skipIf(!RUN)("api token bundle isolation", () => {
 	beforeAll(() => {
 		execSync("pnpm run build", {
 			cwd: PROJECT_ROOT,
-			env: { ...process.env, VITE_API_TOKEN: MARKER },
+			env: { ...process.env, ...SECRET_MARKERS },
 			stdio: "inherit",
 		});
 	}, 300_000);
 
-	it("never embeds VITE_API_TOKEN into the client bundle", () => {
-		const matches = grepRecursive(CLIENT_BUILD_DIR, MARKER);
-		expect(matches).toEqual([]);
+	it("never embeds client or provider secrets into the client bundle", () => {
+		for (const marker of Object.values(SECRET_MARKERS)) {
+			expect(grepRecursive(CLIENT_BUILD_DIR, marker)).toEqual([]);
+		}
 	});
 });
 
