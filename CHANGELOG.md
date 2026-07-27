@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/auditmos/landingos/compare/v1.8.0...v1.9.0) (2026-07-27)
+
+
+### Features
+
+* **lifecycle:** enforce privacy retention and deletion ([#10](https://github.com/auditmos/landingos/issues/10)) ([a4ef0b8](https://github.com/auditmos/landingos/commit/a4ef0b85296de51d98cee84106d3d9e825146731))
+
 # [1.8.0](https://github.com/auditmos/landingos/compare/v1.7.0...v1.8.0) (2026-07-27)
 
 
