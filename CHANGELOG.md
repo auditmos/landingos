@@ -1,3 +1,10 @@
+# 1.0.0 (2026-07-27)
+
+
+### Features
+
+* add provider spike harness ([498d3eb](https://github.com/auditmos/landingos/commit/498d3ebbe551ccd13a04fa84e66a3e015c51bb1d)), closes [#2](https://github.com/auditmos/landingos/issues/2)
+
 ## [1.10.1](https://github.com/auditmos/saas-on-cf/compare/v1.10.0...v1.10.1) (2026-07-22)
 
 
