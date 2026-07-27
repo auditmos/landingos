@@ -43,6 +43,10 @@
 			"types": "./dist/analytics/index.d.ts",
 			"default": "./dist/analytics/index.js"
 		},
+		"./lifecycle": {
+			"types": "./dist/lifecycle/index.d.ts",
+			"default": "./dist/lifecycle/index.js"
+		},
 		"./auth/*": {
 			"types": "./dist/auth/*.d.ts",
 			"default": "./dist/auth/*.js"

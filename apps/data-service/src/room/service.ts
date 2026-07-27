@@ -4,6 +4,7 @@ import type {
 	ConnectionTicketResponse,
 	CreateConnectionTicketInput,
 	JoinFlightRoomResult,
+	PublicRoom,
 	PublicRoomMember,
 	RoomAccessContext,
 	RoomMessageCreateRequest,
@@ -27,8 +28,9 @@ export class FlightRoomServiceError extends Error {
 			| "ROOM_ACCESS_DENIED"
 			| "ROOM_MESSAGE_INVALID"
 			| "ROOM_SELECTION_INVALID"
+			| "room_closed"
 			| "rules_acceptance_required",
-		readonly status: 400 | 403 | 409,
+		readonly status: 400 | 403 | 409 | 410,
 		message: string,
 	) {
 		super(message);
@@ -44,7 +46,9 @@ export interface FlightRoomServiceDependencies {
 	joinFlightRoom(input: {
 		flightInstanceId: string;
 		userId: string;
+		now?: Date;
 	}): Promise<JoinFlightRoomResult>;
+	listActiveRooms(userId: string, now: Date): Promise<PublicRoom[]>;
 	getRoomSnapshot(roomId: string, userId: string): Promise<RoomSnapshot>;
 	getRoomAccessContext(roomId: string, userId: string): Promise<RoomAccessContext | null>;
 	replaceRoomSelection(
@@ -91,7 +95,14 @@ async function accessOrThrow(
 	if (!access) {
 		throw new FlightRoomServiceError("ROOM_ACCESS_DENIED", 403, "Nie należysz do tego pokoju.");
 	}
+	ensureRoomOpen(access.room, dependencies.now());
 	return access;
+}
+
+function ensureRoomOpen(room: PublicRoom, now: Date): void {
+	if (now.getTime() >= new Date(room.closesAt).getTime()) {
+		throw new FlightRoomServiceError("room_closed", 410, "Pokój tego lotu jest już zamknięty.");
+	}
 }
 
 export function createFlightRoomService(dependencies: FlightRoomServiceDependencies) {
@@ -106,7 +117,12 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 					"Ustaw prawidłowy pseudonim przed wejściem do pokoju.",
 				);
 			}
-			const joined = await dependencies.joinFlightRoom({ flightInstanceId, userId });
+			const joined = await dependencies.joinFlightRoom({
+				flightInstanceId,
+				userId,
+				now: dependencies.now(),
+			});
+			ensureRoomOpen(joined.room, dependencies.now());
 			const snapshot = await dependencies.getRoomSnapshot(joined.room.id, userId);
 			if (joined.membershipCreated) {
 				await dependencies.broadcast(
@@ -120,6 +136,13 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 				);
 			}
 			return snapshot;
+		},
+
+		async list(userId: string): Promise<PublicRoom[]> {
+			const now = dependencies.now();
+			return (await dependencies.listActiveRooms(userId, now)).filter(
+				(room) => now.getTime() < new Date(room.closesAt).getTime(),
+			);
 		},
 
 		async getSnapshot(roomId: string, userId: string): Promise<RoomSnapshot> {
@@ -216,11 +239,15 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 				now: dependencies.now(),
 			});
 			if (!consumed) return null;
-			return dependencies.getRoomAccessContext(roomId, consumed.userId);
+			const access = await dependencies.getRoomAccessContext(roomId, consumed.userId);
+			if (access) ensureRoomOpen(access.room, dependencies.now());
+			return access;
 		},
 
 		async authenticateUser(roomId: string, userId: string): Promise<RoomAccessContext | null> {
-			return dependencies.getRoomAccessContext(roomId, userId);
+			const access = await dependencies.getRoomAccessContext(roomId, userId);
+			if (access) ensureRoomOpen(access.room, dependencies.now());
+			return access;
 		},
 
 		async hasAcceptedCurrentRules(userId: string): Promise<boolean> {

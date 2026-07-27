@@ -10,8 +10,15 @@ import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 
 export const ROOM_ID_HEADER = "X-LandingOS-Room-Id";
 export const ROOM_USER_ID_HEADER = "X-LandingOS-User-Id";
+export const ROOM_CLOSES_AT_HEADER = "X-LandingOS-Room-Closes-At";
 export const ROOM_RULES_VERSION_HEADER = "X-LandingOS-Rules-Version";
 const RULES_TAG = `rules:${COMMUNITY_RULES_VERSION}`;
+const ROOM_CLOSED_CODE = 4001;
+const ROOM_CLOSED_MESSAGE = "Pokój tego lotu jest już zamknięty.";
+
+function roomClosedResponse() {
+	return Response.json({ code: "room_closed", error: ROOM_CLOSED_MESSAGE }, { status: 410 });
+}
 
 function errorPayload(
 	code:
@@ -36,10 +43,13 @@ export class FlightRoomDurableObject extends DurableObject<Env> {
 		const attachment = ConnectionAttachmentSchema.safeParse({
 			roomId: request.headers.get(ROOM_ID_HEADER),
 			userId: request.headers.get(ROOM_USER_ID_HEADER),
+			closesAt: request.headers.get(ROOM_CLOSES_AT_HEADER),
 		});
 		if (!attachment.success) {
 			return new Response("Brak prawidłowego kontekstu autoryzacji pokoju.", { status: 403 });
 		}
+		const closesAtMs = new Date(attachment.data.closesAt).getTime();
+		if (Date.now() >= closesAtMs) return roomClosedResponse();
 
 		const pair = new WebSocketPair();
 		const client = pair[0];
@@ -50,7 +60,27 @@ export class FlightRoomDurableObject extends DurableObject<Env> {
 		}
 		this.ctx.acceptWebSocket(server, tags);
 		server.serializeAttachment(attachment.data);
+		await this.ctx.storage.setAlarm(closesAtMs);
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	async closeExpiredSockets(nowMs = Date.now()): Promise<number> {
+		let closed = 0;
+		for (const socket of this.ctx.getWebSockets()) {
+			const attachment = ConnectionAttachmentSchema.safeParse(socket.deserializeAttachment());
+			if (!attachment.success || nowMs < new Date(attachment.data.closesAt).getTime()) {
+				continue;
+			}
+			if (socket.readyState < WebSocket.CLOSING) {
+				socket.close(ROOM_CLOSED_CODE, ROOM_CLOSED_MESSAGE);
+				closed += 1;
+			}
+		}
+		return closed;
+	}
+
+	async alarm(): Promise<void> {
+		await this.closeExpiredSockets();
 	}
 
 	async broadcast(
@@ -60,6 +90,7 @@ export class FlightRoomDurableObject extends DurableObject<Env> {
 	): Promise<void> {
 		const expectedRoomId = RoomIdSchema.parse(roomId);
 		const event = RoomRealtimeEventSchema.parse(rawEvent);
+		await this.closeExpiredSockets();
 		const payload = JSON.stringify(event);
 		const excluded = new Set(excludedUserIds);
 		for (const socket of this.ctx.getWebSockets(expectedRoomId)) {
@@ -79,6 +110,10 @@ export class FlightRoomDurableObject extends DurableObject<Env> {
 		const attachment = ConnectionAttachmentSchema.safeParse(socket.deserializeAttachment());
 		if (!attachment.success) {
 			socket.close(1008, "Nieprawidłowy kontekst autoryzacji.");
+			return;
+		}
+		if (Date.now() >= new Date(attachment.data.closesAt).getTime()) {
+			socket.close(ROOM_CLOSED_CODE, ROOM_CLOSED_MESSAGE);
 			return;
 		}
 		const error =

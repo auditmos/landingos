@@ -12,14 +12,23 @@ import { auth_user } from "@/drizzle/auth-schema";
 import { flightInstances } from "@/flight/table";
 import type { RoomSelection } from "./schema";
 
-export const flightRooms = pgTable("flight_rooms", {
-	id: uuid("id").primaryKey(),
-	flightInstanceId: text("flight_instance_id")
-		.notNull()
-		.unique()
-		.references(() => flightInstances.id, { onDelete: "cascade" }),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-});
+export const flightRooms = pgTable(
+	"flight_rooms",
+	{
+		id: uuid("id").primaryKey(),
+		flightInstanceId: text("flight_instance_id")
+			.notNull()
+			.unique()
+			.references(() => flightInstances.id, { onDelete: "cascade" }),
+		closesAt: timestamp("closes_at", { withTimezone: true, mode: "date" }).notNull(),
+		messagePurgeAt: timestamp("message_purge_at", { withTimezone: true, mode: "date" }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("flight_rooms_closes_at_idx").on(table.closesAt),
+		index("flight_rooms_message_purge_at_idx").on(table.messagePurgeAt),
+	],
+);
 
 export const roomMemberships = pgTable(
 	"room_memberships",
@@ -55,11 +64,14 @@ export const roomMessages = pgTable(
 		roomId: uuid("room_id")
 			.notNull()
 			.references(() => flightRooms.id, { onDelete: "cascade" }),
-		membershipId: uuid("membership_id")
-			.notNull()
-			.references(() => roomMemberships.id, { onDelete: "cascade" }),
+		membershipId: uuid("membership_id").references(() => roomMemberships.id, {
+			onDelete: "set null",
+		}),
 		clientMessageId: uuid("client_message_id").notNull(),
-		content: text("content").notNull(),
+		authorPseudonym: text("author_pseudonym").notNull(),
+		content: text("content"),
+		tombstonedAt: timestamp("tombstoned_at", { withTimezone: true, mode: "date" }),
+		contentPurgedAt: timestamp("content_purged_at", { withTimezone: true, mode: "date" }),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
 	},
 	(table) => [

@@ -1,5 +1,5 @@
 import { type MemoryDB, memoryAdapter } from "@better-auth/memory-adapter";
-import { createBetterAuth } from "./setup";
+import { ACCOUNT_DELETE_FRESH_AGE_SECONDS, createBetterAuth } from "./setup";
 
 type SentOtp = {
 	email: string;
@@ -19,7 +19,11 @@ function createMemoryDb(): MemoryDB {
 	};
 }
 
-function createTestAuth(db: MemoryDB, sent: SentOtp[]) {
+function createTestAuth(
+	db: MemoryDB,
+	sent: SentOtp[],
+	beforeDeleteUser?: (user: { id: string; email: string }) => Promise<void>,
+) {
 	return createBetterAuth({
 		database: memoryAdapter(db),
 		secret: TEST_SECRET,
@@ -27,6 +31,7 @@ function createTestAuth(db: MemoryDB, sent: SentOtp[]) {
 		sendVerificationOTP: async (message) => {
 			sent.push(message);
 		},
+		beforeDeleteUser,
 	});
 }
 
@@ -233,6 +238,68 @@ describe("LandingOS Better Auth email OTP", () => {
 		expect(cookieSession.status).toBe(200);
 		expect(bearerSession.status).toBe(200);
 		expect(await bearerSession.json()).toEqual(await cookieSession.json());
+	});
+
+	it("requires a session newer than five minutes and revokes cookie and Bearer access on deletion", async () => {
+		const db = createMemoryDb();
+		const sent: SentOtp[] = [];
+		const beforeDeleteUser = vi.fn(async () => undefined);
+		const auth = createTestAuth(db, sent, beforeDeleteUser);
+		expect(ACCOUNT_DELETE_FRESH_AGE_SECONDS).toBe(5 * 60);
+		await sendOtp(auth, "delete@example.com");
+		const signedIn = await signIn(auth, "delete@example.com", sent[0]?.otp ?? "");
+		const body = (await signedIn.json()) as { token: string; user: { id: string } };
+		const cookie = signedIn.headers.get("set-cookie")?.split(";")[0] ?? "";
+
+		const deleted = await authRequest(auth, "/delete-user", {
+			body: {},
+			headers: { cookie },
+			ip: "203.0.113.2",
+		});
+		expect(deleted.status).toBe(200);
+		expect(beforeDeleteUser).toHaveBeenCalledWith(
+			expect.objectContaining({ id: body.user.id, email: "delete@example.com" }),
+			expect.anything(),
+		);
+		expect(db.auth_user).toHaveLength(0);
+		expect(db.auth_session).toHaveLength(0);
+		const revokedCookie = await authRequest(auth, "/get-session", {
+			headers: { cookie },
+			ip: "203.0.113.3",
+		});
+		expect(revokedCookie.status).toBe(200);
+		expect(await revokedCookie.json()).toBeNull();
+		expect(
+			await (
+				await authRequest(auth, "/get-session", {
+					headers: { authorization: `Bearer ${body.token}` },
+					ip: "203.0.113.4",
+				})
+			).json(),
+		).toBeNull();
+	});
+
+	it("fails closed at the exact freshness boundary without invoking deletion hooks", async () => {
+		const db = createMemoryDb();
+		const sent: SentOtp[] = [];
+		const beforeDeleteUser = vi.fn(async () => undefined);
+		const auth = createTestAuth(db, sent, beforeDeleteUser);
+		await sendOtp(auth, "stale-delete@example.com");
+		const signedIn = await signIn(auth, "stale-delete@example.com", sent[0]?.otp ?? "");
+		const cookie = signedIn.headers.get("set-cookie")?.split(";")[0] ?? "";
+		const session = db.auth_session?.[0];
+		if (!session) throw new Error("Expected an authenticated session.");
+		session.createdAt = new Date(Date.now() - ACCOUNT_DELETE_FRESH_AGE_SECONDS * 1_000);
+
+		const rejected = await authRequest(auth, "/delete-user", {
+			body: {},
+			headers: { cookie },
+			ip: "203.0.113.2",
+		});
+		expect(rejected.status).toBe(400);
+		expect(beforeDeleteUser).not.toHaveBeenCalled();
+		expect(db.auth_user).toHaveLength(1);
+		expect(db.auth_session).toHaveLength(1);
 	});
 
 	it("enforces send and verify rate limits across fresh auth instances", async () => {

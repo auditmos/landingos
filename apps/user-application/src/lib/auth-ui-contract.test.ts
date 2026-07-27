@@ -34,4 +34,15 @@ describe("LandingOS auth UI contract", () => {
 		expect(component).toContain("Kod ma 6 cyfr");
 		expect(component).toContain("zgodę marketingową");
 	});
+
+	it("exposes deliberate Polish account deletion without a user-selected target", () => {
+		const dialog = readSource("components/auth/account-dialog.tsx");
+		const api = readSource("lib/account-deletion-api.ts");
+		expect(dialog).toContain("ACCOUNT_DELETE_CONFIRMATION");
+		expect(dialog).toContain("Usuń konto bezpowrotnie");
+		expect(dialog).toContain('credentials: "include"');
+		expect(dialog).not.toContain("window.confirm");
+		expect(api).toContain("z.strictObject");
+		expect(api).not.toMatch(/userId|targetUser|targetEmail/);
+	});
 });

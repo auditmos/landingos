@@ -7,6 +7,7 @@ import type { FlightRoomDurableObject } from "./flight-room";
 
 const ROOM_A = "018f4c8e-5697-7df4-8f6e-c7644b137e5b";
 const ROOM_B = "018f51b4-c697-74ab-820f-d9e72852a52c";
+const CLOSES_AT = "2026-09-15T08:20:00.000Z";
 const sockets: WebSocket[] = [];
 
 const joinEvent: RoomRealtimeEvent = {
@@ -40,6 +41,7 @@ async function connect(
 				Upgrade: "websocket",
 				"X-LandingOS-Room-Id": roomId,
 				"X-LandingOS-User-Id": userId,
+				"X-LandingOS-Room-Closes-At": CLOSES_AT,
 				...(rulesAccepted ? { "X-LandingOS-Rules-Version": COMMUNITY_RULES_VERSION } : undefined),
 			},
 		}),
@@ -67,6 +69,12 @@ function receive(socket: WebSocket, timeoutMs = 5_000): Promise<string> {
 	});
 }
 
+function receiveClose(socket: WebSocket): Promise<CloseEvent> {
+	return new Promise((resolve) => {
+		socket.addEventListener("close", resolve, { once: true });
+	});
+}
+
 afterEach(() => {
 	for (const socket of sockets.splice(0)) {
 		if (socket.readyState < WebSocket.CLOSING) socket.close(1000, "Koniec testu");
@@ -74,6 +82,37 @@ afterEach(() => {
 });
 
 describe("FlightRoomDurableObject hibernating WebSockets", () => {
+	it("closes two active clients exactly at closeAt and rejects later connects", async () => {
+		const stub = env.FLIGHT_ROOM.getByName("flight-lifecycle");
+		const first = await connect(stub, ROOM_A, "user-a");
+		const second = await connect(stub, ROOM_A, "user-b");
+		expect(await stub.closeExpiredSockets(new Date(CLOSES_AT).getTime() - 1)).toBe(0);
+		expect(first.readyState).toBe(WebSocket.OPEN);
+		expect(second.readyState).toBe(WebSocket.OPEN);
+
+		const firstClosed = receiveClose(first);
+		const secondClosed = receiveClose(second);
+		expect(await stub.closeExpiredSockets(new Date(CLOSES_AT).getTime())).toBe(2);
+		expect((await firstClosed).code).toBe(4001);
+		expect((await secondClosed).code).toBe(4001);
+
+		const rejected = await stub.fetch(
+			new Request("https://room.internal/connect", {
+				headers: {
+					Upgrade: "websocket",
+					"X-LandingOS-Room-Id": ROOM_A,
+					"X-LandingOS-User-Id": "user-c",
+					"X-LandingOS-Room-Closes-At": "2026-01-01T00:00:00.000Z",
+				},
+			}),
+		);
+		expect(rejected.status).toBe(410);
+		expect(await rejected.json()).toEqual({
+			code: "room_closed",
+			error: "Pokój tego lotu jest już zamknięty.",
+		});
+	});
+
 	it("delivers join, selection, and message events to a second client under 5000 ms", async () => {
 		const stub = env.FLIGHT_ROOM.getByName("flight-a");
 		await connect(stub, ROOM_A, "user-a");

@@ -1,4 +1,3 @@
-import { PseudonymSchema } from "@repo/data-ops/identity";
 import {
 	type PublicRoomMember,
 	type PublicRoomMessage,
@@ -10,7 +9,14 @@ import {
 	type RoomSnapshot,
 } from "@repo/data-ops/room";
 import { MessageCircle, RefreshCw, Send } from "lucide-react";
-import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useState } from "react";
+import {
+	type Dispatch,
+	type FormEvent,
+	type SetStateAction,
+	useCallback,
+	useEffect,
+	useState,
+} from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +30,9 @@ import {
 	sendRoomMessage,
 	updateRoomSelection,
 } from "@/lib/room-api";
-import { loadRoomIntent, type RoomIntent } from "@/lib/room-intent";
+import { clearRoomIntent, loadRoomIntent, type RoomIntent } from "@/lib/room-intent";
+import { ClosedRoom } from "./closed-room";
+import { PseudonymSetup } from "./pseudonym-setup";
 import { RoomSafetyPanel } from "./room-safety-panel";
 import { useRoomSafety } from "./use-room-safety";
 
@@ -56,7 +64,7 @@ async function initializeRoom(intent: RoomIntent): Promise<RoomSnapshot> {
 type RoomSocketHandlers = {
 	open: () => void;
 	message: (event: MessageEvent) => void;
-	close: () => void;
+	close: (event: CloseEvent) => void;
 };
 
 async function openRoomConnection(
@@ -74,6 +82,7 @@ async function openRoomConnection(
 }
 
 function applyRealtimeEvent(setSnapshot: SnapshotSetter, event: RoomRealtimeEvent) {
+	if (event.type === "room_redacted") return;
 	setSnapshot((current) => {
 		if (!current) return current;
 		if (event.type === "message_created") {
@@ -108,61 +117,19 @@ function handleRealtimePayload(
 	}
 }
 
-function PseudonymSetup({ onSaved }: { onSaved: () => void }) {
-	const [pseudonym, setPseudonym] = useState("");
-	const [error, setError] = useState("");
-	const [pending, setPending] = useState(false);
-
-	async function submit(event: FormEvent) {
-		event.preventDefault();
-		const parsed = PseudonymSchema.safeParse(pseudonym);
-		if (!parsed.success) {
-			setError(parsed.error.issues[0]?.message ?? "Wpisz prawidłowy pseudonim.");
-			return;
-		}
-		setPending(true);
-		setError("");
-		try {
-			const response = await fetch("/api/profile", {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				credentials: "include",
-				body: JSON.stringify({ action: "pseudonym", pseudonym: parsed.data }),
-			});
-			if (!response.ok) throw new Error("profile");
-			onSaved();
-		} catch {
-			setError("Nie udało się zapisać pseudonimu. Spróbuj ponownie.");
-		} finally {
-			setPending(false);
-		}
+function handleInitializationError(
+	caught: unknown,
+	setNeedsPseudonym: Dispatch<SetStateAction<boolean>>,
+	setError: Dispatch<SetStateAction<string>>,
+	closeRoomView: () => void,
+) {
+	if (caught instanceof Error && caught.name === "PSEUDONYM_REQUIRED") {
+		setNeedsPseudonym(true);
+	} else if (caught instanceof Error && caught.name === "room_closed") {
+		closeRoomView();
+	} else {
+		setError(caught instanceof Error ? caught.message : "Nie udało się wejść do pokoju.");
 	}
-
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Ustaw pseudonim</CardTitle>
-				<CardDescription>Inne osoby nie zobaczą Twojego adresu e-mail.</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form className="space-y-3" onSubmit={submit}>
-					<label className="block text-sm font-medium" htmlFor="room-pseudonym">
-						Pseudonim
-					</label>
-					<Input
-						id="room-pseudonym"
-						value={pseudonym}
-						onChange={(event) => setPseudonym(event.target.value)}
-						autoComplete="nickname"
-					/>
-					{error ? <p className="text-sm text-destructive">{error}</p> : null}
-					<Button type="submit" disabled={pending}>
-						{pending ? "Zapisywanie…" : "Zapisz i wejdź do pokoju"}
-					</Button>
-				</form>
-			</CardContent>
-		</Card>
-	);
 }
 
 export function FlightRoom() {
@@ -174,6 +141,14 @@ export function FlightRoom() {
 	const [needsPseudonym, setNeedsPseudonym] = useState(false);
 	const [retryKey, setRetryKey] = useState(0);
 	const [connection, setConnection] = useState("Łączenie…");
+	const [closed, setClosed] = useState(false);
+	const closeRoomView = useCallback(() => {
+		clearRoomIntent();
+		setSnapshot(null);
+		setClosed(true);
+		setConnection("Pokój zamknięty");
+		setError("");
+	}, []);
 	const safety = useRoomSafety(snapshot?.room.id, async () => {
 		const roomId = snapshot?.room.id;
 		if (roomId) setSnapshot(await fetchRoomSnapshot(roomId));
@@ -200,11 +175,7 @@ export function FlightRoom() {
 			})
 			.catch((caught: unknown) => {
 				if (!active) return;
-				if (caught instanceof Error && caught.name === "PSEUDONYM_REQUIRED") {
-					setNeedsPseudonym(true);
-				} else {
-					setError(caught instanceof Error ? caught.message : "Nie udało się wejść do pokoju.");
-				}
+				handleInitializationError(caught, setNeedsPseudonym, setError, closeRoomView);
 			})
 			.finally(() => {
 				if (active) setLoading(false);
@@ -212,7 +183,26 @@ export function FlightRoom() {
 		return () => {
 			active = false;
 		};
-	}, [retryKey]);
+	}, [retryKey, closeRoomView]);
+
+	useEffect(() => {
+		const closesAt = snapshot?.room.closesAt;
+		if (!closesAt) return;
+		let timer: ReturnType<typeof setTimeout>;
+		const schedule = () => {
+			const remaining = new Date(closesAt).getTime() - Date.now();
+			if (remaining <= 0) {
+				closeRoomView();
+				return;
+			}
+			timer = setTimeout(
+				remaining > 2_147_000_000 ? schedule : closeRoomView,
+				Math.min(remaining, 2_147_000_000),
+			);
+		};
+		schedule();
+		return () => clearTimeout(timer);
+	}, [snapshot?.room.closesAt, closeRoomView]);
 
 	useEffect(() => {
 		const roomId = snapshot?.room.id;
@@ -228,11 +218,24 @@ export function FlightRoom() {
 
 		function handleMessage(raw: MessageEvent) {
 			if (!active || typeof raw.data !== "string") return;
+			try {
+				const parsed = RoomRealtimeEventSchema.safeParse(JSON.parse(raw.data));
+				if (parsed.success && parsed.data.type === "room_redacted") {
+					void fetchRoomSnapshot(activeRoomId).then(setSnapshot).catch(closeRoomView);
+					return;
+				}
+			} catch {
+				// The shared payload parser below renders the Polish validation error.
+			}
 			handleRealtimePayload(raw.data, setSnapshot, setError);
 		}
 
-		function handleClose() {
+		function handleClose(event: CloseEvent) {
 			if (!active) return;
+			if (event.code === 4001) {
+				closeRoomView();
+				return;
+			}
 			setConnection("Przywracanie połączenia…");
 			reconnectTimer = setTimeout(() => void connect(true), 1_000);
 		}
@@ -264,7 +267,7 @@ export function FlightRoom() {
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 			socket?.close(1000, "Zmiana widoku");
 		};
-	}, [snapshot?.room.id]);
+	}, [snapshot?.room.id, closeRoomView]);
 
 	async function changeSelection(selection: RoomSelection) {
 		if (!snapshot) return;
@@ -281,6 +284,10 @@ export function FlightRoom() {
 					: current,
 			);
 		} catch (caught) {
+			if (caught instanceof Error && caught.name === "room_closed") {
+				closeRoomView();
+				return;
+			}
 			setError(caught instanceof Error ? caught.message : "Nie udało się zmienić deklaracji.");
 		}
 	}
@@ -306,10 +313,15 @@ export function FlightRoom() {
 			);
 			setMessage("");
 		} catch (caught) {
+			if (caught instanceof Error && caught.name === "room_closed") {
+				closeRoomView();
+				return;
+			}
 			setError(caught instanceof Error ? caught.message : "Nie udało się wysłać wiadomości.");
 		}
 	}
 
+	if (closed) return <ClosedRoom />;
 	if (loading) return <p aria-live="polite">Przygotowujemy pokój lotu…</p>;
 	if (needsPseudonym) return <PseudonymSetup onSaved={() => setRetryKey((value) => value + 1)} />;
 

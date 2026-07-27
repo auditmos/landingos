@@ -57,7 +57,11 @@ const recommendations: JourneyRecommendationResult = {
 	explanation: null,
 };
 const snapshot: RoomSnapshot = {
-	room: { id: ROOM_ID, flightInstanceId: "flight-1" },
+	room: {
+		id: ROOM_ID,
+		flightInstanceId: "flight-1",
+		closesAt: "2026-09-15T08:20:00.000Z",
+	},
 	member: { pseudonym: "Alicja BGY", selection: null },
 	members: [{ pseudonym: "Alicja BGY", selection: null }],
 	messages: [],

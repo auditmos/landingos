@@ -103,6 +103,7 @@ export const RoomMessageCreateResponseSchema = z.strictObject({
 export const PublicRoomSchema = z.strictObject({
 	id: RoomIdSchema,
 	flightInstanceId: z.string().min(1),
+	closesAt: z.string().datetime({ offset: true }),
 });
 
 export const RoomSnapshotSchema = z.strictObject({
@@ -120,6 +121,11 @@ export const ConnectionTicketResponseSchema = z.strictObject({
 export const ConnectionAttachmentSchema = z.strictObject({
 	roomId: RoomIdSchema,
 	userId: z.string().min(1),
+	closesAt: z.string().datetime({ offset: true }),
+});
+
+export const RoomRedactedEventSchema = z.strictObject({
+	type: z.literal("room_redacted"),
 });
 
 export const RoomRealtimeEventSchema = z.discriminatedUnion("type", [
@@ -135,6 +141,7 @@ export const RoomRealtimeEventSchema = z.discriminatedUnion("type", [
 		type: z.literal("message_created"),
 		message: PublicRoomMessageSchema,
 	}),
+	RoomRedactedEventSchema,
 ]);
 
 export const RoomRealtimeErrorSchema = z.strictObject({

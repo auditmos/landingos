@@ -10,6 +10,7 @@ const FUNNEL_ID = "00112233445566778899aabbccddeeff";
 const room = {
 	id: "018f4c8e-5697-7df4-8f6e-c7644b137e5b",
 	flightInstanceId: "flight-1",
+	closesAt: "2026-09-15T08:20:00.000Z",
 };
 const member: PublicRoomMember = {
 	pseudonym: "Alicja BGY",
@@ -36,6 +37,7 @@ const access: RoomAccessContext = {
 function buildApp(serviceOverrides: Partial<FlightRoomService> = {}) {
 	const service: FlightRoomService = {
 		join: vi.fn(async () => snapshot),
+		list: vi.fn(async () => [room]),
 		getSnapshot: vi.fn(async () => snapshot),
 		replaceSelection: vi.fn(async (_roomId, _userId, selection) => ({
 			...member,
@@ -91,6 +93,51 @@ const browserHeaders = {
 };
 
 describe("flight room authenticated HTTP API", () => {
+	it("omits closed rooms and returns the typed closed state for history, reconnect, and send", async () => {
+		const closed = new FlightRoomServiceError(
+			"room_closed",
+			410,
+			"Pokój tego lotu jest już zamknięty.",
+		);
+		const { analytics, app, openSocket } = buildApp({
+			list: vi.fn(async () => []),
+			getSnapshot: vi.fn(async () => {
+				throw closed;
+			}),
+			createMessage: vi.fn(async () => {
+				throw closed;
+			}),
+			authenticateTicket: vi.fn(async () => {
+				throw closed;
+			}),
+		});
+		const listed = await app.request("/rooms", { headers: browserHeaders });
+		expect(listed.status).toBe(200);
+		expect(await listed.json()).toEqual([]);
+
+		const history = await app.request(`/rooms/${room.id}`, { headers: browserHeaders });
+		const sent = await app.request(`/rooms/${room.id}/messages`, {
+			method: "POST",
+			headers: browserHeaders,
+			body: JSON.stringify({
+				clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e53",
+				content: "Za późno",
+			}),
+		});
+		const connectUrl = `/rooms/${room.id}/connect?ticket=${"a".repeat(64)}`;
+		const connected = await app.request(connectUrl, { headers: { Upgrade: "websocket" } });
+		const reconnected = await app.request(connectUrl, { headers: { Upgrade: "websocket" } });
+		for (const response of [history, sent, connected, reconnected]) {
+			expect(response.status).toBe(410);
+			expect(await response.json()).toEqual({
+				code: "room_closed",
+				error: "Pokój tego lotu jest już zamknięty.",
+			});
+		}
+		expect(openSocket).not.toHaveBeenCalled();
+		expect(analytics.track).not.toHaveBeenCalled();
+	});
+
 	it("rejects unauthenticated room HTTP calls in Polish", async () => {
 		const { app, service } = buildApp();
 		const response = await app.request("/rooms/join", {

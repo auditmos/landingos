@@ -39,4 +39,12 @@ describe("browser-local opaque funnel continuity", () => {
 		);
 		expect(loadAnalyticsFunnel()).toBe(FUNNEL_B);
 	});
+
+	it("clears the opaque browser identifier after account deletion", () => {
+		captureAnalyticsFunnel(
+			new Response(null, { headers: { [ANALYTICS_FUNNEL_HEADER]: FUNNEL_A } }),
+		);
+		clearAnalyticsFunnel();
+		expect(analyticsFunnelHeaders()).toEqual({});
+	});
 });

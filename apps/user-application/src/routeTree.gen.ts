@@ -14,6 +14,7 @@ import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthDashboardRouteRouteImport } from './routes/_auth/dashboard/route'
+import { Route as ApiAccountRouteImport } from './routes/api/account'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiProfileRouteImport } from './routes/api/profile'
 import { Route as AuthAppIndexRouteImport } from './routes/_auth/app/index'
@@ -65,6 +66,11 @@ const AuthDashboardRouteRoute = AuthDashboardRouteRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthRouteRoute,
+} as any)
+const ApiAccountRoute = ApiAccountRouteImport.update({
+  id: '/api/account',
+  path: '/api/account',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -219,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard': typeof AuthDashboardRouteRouteWithChildren
+  '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
   '/dashboard/api': typeof AuthDashboardApiRouteRouteWithChildren
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
+  '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/_auth/dashboard': typeof AuthDashboardRouteRouteWithChildren
+  '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
   '/_auth/dashboard/api': typeof AuthDashboardApiRouteRouteWithChildren
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/signup'
     | '/dashboard'
+    | '/api/account'
     | '/api/health'
     | '/api/profile'
     | '/dashboard/api'
@@ -350,6 +360,7 @@ export interface FileRouteTypes {
     | '/'
     | '/signin'
     | '/signup'
+    | '/api/account'
     | '/api/health'
     | '/api/profile'
     | '/api/auth/$'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/signup'
     | '/_auth/dashboard'
+    | '/api/account'
     | '/api/health'
     | '/api/profile'
     | '/_auth/dashboard/api'
@@ -415,6 +427,7 @@ export interface RootRouteChildren {
   AuthRouteRoute: typeof AuthRouteRouteWithChildren
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
+  ApiAccountRoute: typeof ApiAccountRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiProfileRoute: typeof ApiProfileRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -456,6 +469,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthDashboardRouteRouteImport
       parentRoute: typeof AuthRouteRoute
+    }
+    '/api/account': {
+      id: '/api/account'
+      path: '/api/account'
+      fullPath: '/api/account'
+      preLoaderRoute: typeof ApiAccountRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/health': {
       id: '/api/health'
@@ -758,6 +778,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRouteRoute: AuthRouteRouteWithChildren,
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
+  ApiAccountRoute: ApiAccountRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiProfileRoute: ApiProfileRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

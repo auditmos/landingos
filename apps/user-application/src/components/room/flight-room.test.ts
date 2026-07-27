@@ -47,7 +47,11 @@ const otherMember = {
 	selection: { kind: "shared_taxi" as const },
 };
 const snapshot: RoomSnapshot = {
-	room: { id: roomId, flightInstanceId: "flight-1" },
+	room: {
+		id: roomId,
+		flightInstanceId: "flight-1",
+		closesAt: "2026-09-15T08:20:00.000Z",
+	},
 	member: { pseudonym: "Alicja BGY", selection: null },
 	members: [{ pseudonym: "Alicja BGY", selection: null }, otherMember],
 	messages: [
@@ -78,8 +82,8 @@ class FakeWebSocket extends EventTarget {
 	emit(data: unknown) {
 		this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(data) }));
 	}
-	disconnect() {
-		this.dispatchEvent(new CloseEvent("close"));
+	disconnect(code = 1006) {
+		this.dispatchEvent(new CloseEvent("close", { code }));
 	}
 }
 
@@ -257,6 +261,20 @@ describe("Polish flight room UI", () => {
 		expect(mocks.refresh).toHaveBeenCalledTimes(2);
 		expect(mocks.ticket).toHaveBeenCalledTimes(2);
 		expect(FakeWebSocket.instances).toHaveLength(2);
+		vi.useRealTimers();
+	});
+
+	it("removes the closed room and does not reconnect after the server closes both clients", async () => {
+		vi.useFakeTimers();
+		FakeWebSocket.instances[0]?.disconnect(4001);
+		await act(async () => {
+			await vi.runAllTimersAsync();
+		});
+		expect(container.textContent).toContain("Pokój został zamknięty");
+		expect(container.textContent).not.toContain("Jestem przy autobusie.");
+		expect(container.querySelector("#room-message")).toBeNull();
+		expect(FakeWebSocket.instances).toHaveLength(1);
+		expect(sessionStorage.getItem("landingos.room-intent")).toBeNull();
 		vi.useRealTimers();
 	});
 

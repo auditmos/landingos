@@ -11,7 +11,11 @@ import {
 
 const roomId = "018f4c8e-5697-7df4-8f6e-c7644b137e5b";
 const snapshot: RoomSnapshot = {
-	room: { id: roomId, flightInstanceId: "flight-1" },
+	room: {
+		id: roomId,
+		flightInstanceId: "flight-1",
+		closesAt: "2026-09-15T08:20:00.000Z",
+	},
 	member: { pseudonym: "Alicja BGY", selection: null },
 	members: [{ pseudonym: "Alicja BGY", selection: null }],
 	messages: [],

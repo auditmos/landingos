@@ -237,15 +237,17 @@ async function messageTarget(
 		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.where(and(eq(roomMessages.roomId, roomId), eq(roomMessages.id, messageId)))
 		.limit(1);
-	if (!message?.pseudonym) throw new SafetyQueryError("SAFETY_TARGET_INVALID");
-	return { ...message, pseudonym: message.pseudonym };
+	if (!message?.pseudonym || message.content === null) {
+		throw new SafetyQueryError("SAFETY_TARGET_INVALID");
+	}
+	return { ...message, pseudonym: message.pseudonym, content: message.content };
 }
 
 function reportFromRow(row: {
 	id: string;
 	roomId: string;
-	reporterId: string;
-	targetUserId: string;
+	reporterId: string | null;
+	targetUserId: string | null;
 	messageId: string | null;
 	reason: SafetyReportRecord["reason"];
 	note: string | null;

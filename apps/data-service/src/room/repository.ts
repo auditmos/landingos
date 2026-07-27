@@ -7,6 +7,7 @@ import {
 	getRoomAccessContext,
 	getRoomSnapshot,
 	joinFlightRoom,
+	listActiveRoomsForUser,
 	replaceRoomSelection,
 } from "@repo/data-ops/room";
 import {
@@ -25,6 +26,7 @@ export function createDatabaseFlightRoomService(env: Env): FlightRoomService {
 			hasCommunityRulesAcceptance(db, userId, rulesVersion),
 		getIdentityProfile: (userId) => getIdentityProfile(db, userId),
 		joinFlightRoom: (input) => joinFlightRoom(db, input),
+		listActiveRooms: (userId, now) => listActiveRoomsForUser(db, userId, now),
 		getRoomSnapshot: (roomId, userId) => getRoomSnapshot(db, roomId, userId),
 		getRoomAccessContext: (roomId, userId) => getRoomAccessContext(db, roomId, userId),
 		replaceRoomSelection: (roomId, userId, selection) =>

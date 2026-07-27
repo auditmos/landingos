@@ -4,7 +4,9 @@
 import { env } from "cloudflare:workers";
 import { setAuth } from "@repo/data-ops/auth/server";
 import { getDb, initDatabase } from "@repo/data-ops/database/setup";
+import { prepareAccountDeletion } from "@repo/data-ops/lifecycle";
 import handler from "@tanstack/react-start/server-entry";
+import { prepareAndBroadcastAccountDeletion } from "./lib/account-deletion-hook";
 import { createCloudflareOtpSender } from "./lib/auth-email";
 import { applySecurityHeaders } from "./lib/security-headers";
 
@@ -27,6 +29,26 @@ export default {
 			baseURL: env.BETTER_AUTH_BASE_URL,
 			crossSubDomainCookieDomain: optionalEnv.BETTER_AUTH_COOKIE_DOMAIN || undefined,
 			sendVerificationOTP: createCloudflareOtpSender(env.AUTH_EMAIL, env.AUTH_EMAIL_FROM),
+			beforeDeleteUser: (user) =>
+				prepareAndBroadcastAccountDeletion(
+					{
+						now: () => new Date(),
+						prepare: (input) => prepareAccountDeletion(getDb(), input),
+						broadcast: (rooms) =>
+							env.DATA_SERVICE.fetch(
+								new Request("https://data-service/internal/lifecycle/redact-rooms", {
+									method: "POST",
+									headers: {
+										"content-type": "application/json",
+										Authorization: `Bearer ${env.DATA_SERVICE_API_TOKEN}`,
+									},
+									body: JSON.stringify({ rooms }),
+								}),
+							),
+					},
+					user.id,
+					user.email,
+				),
 			adapter: {
 				drizzleDb: getDb(),
 				provider: "pg",

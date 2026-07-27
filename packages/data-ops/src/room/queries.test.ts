@@ -11,6 +11,7 @@ import {
 	createRoomMessage,
 	getRoomSnapshot,
 	joinFlightRoom,
+	listActiveRoomsForUser,
 	listRoomMessages,
 	replaceRoomSelection,
 } from "./queries";
@@ -51,6 +52,32 @@ async function createTestDatabase() {
 }
 
 describe("flight room persistence", () => {
+	it("allows direct access at closeAt - 1 ms and rejects it exactly at scheduled arrival +24h", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const closeAt = new Date("2026-09-15T08:20:00.000Z");
+			const beforeClose = new Date(closeAt.getTime() - 1);
+			const joined = await joinFlightRoom(db, {
+				flightInstanceId: FLIGHT_A,
+				userId: USER_A,
+				now: beforeClose,
+			});
+			expect(joined.room.closesAt).toBe(closeAt.toISOString());
+			expect(await listActiveRoomsForUser(db, USER_A, beforeClose)).toEqual([joined.room]);
+			expect(await listActiveRoomsForUser(db, USER_A, closeAt)).toEqual([]);
+			await expect(
+				joinFlightRoom(db, {
+					flightInstanceId: FLIGHT_A,
+					userId: USER_B,
+					now: closeAt,
+				}),
+			).rejects.toMatchObject({ code: "ROOM_CLOSED" });
+			expect(await countRoomMemberships(db, joined.room.id)).toBe(1);
+		} finally {
+			await client.close();
+		}
+	});
+
 	it("creates one room per canonical instance and isolates equal raw numbers on other dates", async () => {
 		const { client, db } = await createTestDatabase();
 		try {

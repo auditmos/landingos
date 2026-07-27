@@ -17,6 +17,7 @@ import {
 	roomOccupancyBucket,
 } from "../../analytics/service";
 import {
+	ROOM_CLOSES_AT_HEADER,
 	ROOM_ID_HEADER,
 	ROOM_RULES_VERSION_HEADER,
 	ROOM_USER_ID_HEADER,
@@ -53,6 +54,7 @@ const defaultDependencies: RoomHandlerDependencies = {
 			Upgrade: "websocket",
 			[ROOM_ID_HEADER]: access.room.id,
 			[ROOM_USER_ID_HEADER]: access.userId,
+			[ROOM_CLOSES_AT_HEADER]: access.room.closesAt,
 		});
 		if (rulesAccepted) {
 			headers.set(ROOM_RULES_VERSION_HEADER, COMMUNITY_RULES_VERSION);
@@ -89,6 +91,12 @@ function invalidRoom(c: Context) {
 
 export function createRoomHandlers(dependencies: RoomHandlerDependencies = defaultDependencies) {
 	const rooms = new Hono<{ Bindings: Env }>();
+
+	rooms.get("/", async (c) => {
+		const userId = await currentUserId(c.req.raw, dependencies);
+		if (!userId) return unauthorized(c);
+		return c.json(await dependencies.createService(c.env).list(userId));
+	});
 
 	rooms.post("/join", async (c) => {
 		const userId = await currentUserId(c.req.raw, dependencies);
@@ -214,20 +222,24 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		}
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
 		if (!roomId.success) return invalidRoom(c);
-		const service = dependencies.createService(c.env);
-		const ticket = c.req.query("ticket");
-		let access: RoomAccessContext | null = null;
-		if (ticket) {
-			access = await service.authenticateTicket(roomId.data, ticket);
-		} else {
-			if (!c.req.header("Authorization")?.startsWith("Bearer ")) return unauthorized(c);
-			const userId = await currentUserId(c.req.raw, dependencies);
-			if (!userId) return unauthorized(c);
-			access = await service.authenticateUser(roomId.data, userId);
+		try {
+			const service = dependencies.createService(c.env);
+			const ticket = c.req.query("ticket");
+			let access: RoomAccessContext | null = null;
+			if (ticket) {
+				access = await service.authenticateTicket(roomId.data, ticket);
+			} else {
+				if (!c.req.header("Authorization")?.startsWith("Bearer ")) return unauthorized(c);
+				const userId = await currentUserId(c.req.raw, dependencies);
+				if (!userId) return unauthorized(c);
+				access = await service.authenticateUser(roomId.data, userId);
+			}
+			if (!access) return unauthorized(c);
+			const rulesAccepted = await service.hasAcceptedCurrentRules(access.userId);
+			return dependencies.openSocket(access, c.req.raw, rulesAccepted, c.env);
+		} catch (error) {
+			return serviceError(c, error);
 		}
-		if (!access) return unauthorized(c);
-		const rulesAccepted = await service.hasAcceptedCurrentRules(access.userId);
-		return dependencies.openSocket(access, c.req.raw, rulesAccepted, c.env);
 	});
 
 	return rooms;

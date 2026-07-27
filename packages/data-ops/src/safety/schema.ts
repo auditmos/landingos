@@ -96,8 +96,8 @@ export const SafetyReportEvidenceSchema = z.strictObject({
 export const SafetyReportRecordSchema = z.strictObject({
 	id: z.string().uuid(),
 	roomId: z.string().uuid(),
-	reporterId: z.string().min(1),
-	targetUserId: z.string().min(1),
+	reporterId: z.string().min(1).nullable(),
+	targetUserId: z.string().min(1).nullable(),
 	messageId: z.string().uuid().nullable(),
 	reason: SafetyReportReasonSchema,
 	note: SafetyReportNoteSchema.nullable(),

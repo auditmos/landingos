@@ -34,12 +34,15 @@ describe("flight room privacy and scope boundary", () => {
 		expect(source).not.toContain("Math.random");
 	});
 
-	it("keeps Durable Object storage out of the authoritative room path", () => {
+	it("uses Durable Object storage only to schedule room closure", () => {
 		const durableObject = readFileSync(
 			"apps/data-service/src/durable-objects/flight-room.ts",
 			"utf8",
 		);
-		expect(durableObject).not.toMatch(/\b(?:ctx|this\.ctx)\.storage\b/);
+		expect(durableObject.match(/\bthis\.ctx\.storage\.setAlarm\(/g)).toHaveLength(1);
+		expect(durableObject.replace("this.ctx.storage.setAlarm(", "")).not.toMatch(
+			/\b(?:ctx|this\.ctx)\.storage\b/,
+		);
 		expect(durableObject).toContain("acceptWebSocket");
 		expect(durableObject).toContain("serializeAttachment");
 		expect(durableObject).toContain("deserializeAttachment");

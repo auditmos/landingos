@@ -1,6 +1,8 @@
 import { and, asc, count, eq, gt, isNotNull, isNull, lte, notExists, or } from "drizzle-orm";
 import type { getDb } from "@/database/setup";
 import { auth_user } from "@/drizzle/auth-schema";
+import { flightInstances } from "@/flight/table";
+import { MESSAGE_RETENTION_MS, ROOM_ACCESS_WINDOW_MS } from "@/lifecycle/constants";
 import { userBlocks } from "@/safety/table";
 import {
 	type PublicRoom,
@@ -29,6 +31,7 @@ export type RoomDatabase = Pick<ReturnType<typeof getDb>, "insert" | "select" | 
 export interface JoinFlightRoomInput {
 	flightInstanceId: string;
 	userId: string;
+	now?: Date;
 }
 
 export interface JoinFlightRoomResult {
@@ -44,6 +47,17 @@ export interface RoomAccessContext {
 	coordinatorKey: string;
 }
 
+export class RoomQueryError extends Error {
+	constructor(readonly code: "FLIGHT_NOT_FOUND" | "ROOM_CLOSED") {
+		super(
+			code === "ROOM_CLOSED"
+				? "Pokój tego lotu jest już zamknięty."
+				: "Nie znaleziono rozpoznanego lotu.",
+		);
+		this.name = "RoomQueryError";
+	}
+}
+
 export interface CreateConnectionTicketInput {
 	tokenHash: string;
 	roomId: string;
@@ -52,8 +66,8 @@ export interface CreateConnectionTicketInput {
 	createdAt?: Date;
 }
 
-function roomFromRow(row: { id: string; flightInstanceId: string }): PublicRoom {
-	return PublicRoomSchema.parse(row);
+function roomFromRow(row: { id: string; flightInstanceId: string; closesAt: Date }): PublicRoom {
+	return PublicRoomSchema.parse({ ...row, closesAt: row.closesAt.toISOString() });
 }
 
 function memberFromRow(row: { pseudonym: string | null; selection: unknown }): PublicRoomMember {
@@ -69,16 +83,16 @@ function memberFromRow(row: { pseudonym: string | null; selection: unknown }): P
 function messageFromRow(row: {
 	id: string;
 	clientMessageId: string;
-	pseudonym: string | null;
-	content: string;
+	authorPseudonym: string;
+	content: string | null;
 	createdAt: Date;
-}): PublicRoomMessage {
-	if (!row.pseudonym) {
-		throw new Error("Autor wiadomości nie ma prawidłowego pseudonimu.");
-	}
+}): PublicRoomMessage | null {
+	if (row.content === null) return null;
 	return PublicRoomMessageSchema.parse({
-		...row,
-		pseudonym: row.pseudonym,
+		id: row.id,
+		clientMessageId: row.clientMessageId,
+		pseudonym: row.authorPseudonym,
+		content: row.content,
 		createdAt: row.createdAt.toISOString(),
 	});
 }
@@ -88,7 +102,11 @@ async function findRoomByFlightInstance(
 	flightInstanceId: string,
 ): Promise<PublicRoom | null> {
 	const [row] = await db
-		.select({ id: flightRooms.id, flightInstanceId: flightRooms.flightInstanceId })
+		.select({
+			id: flightRooms.id,
+			flightInstanceId: flightRooms.flightInstanceId,
+			closesAt: flightRooms.closesAt,
+		})
 		.from(flightRooms)
 		.where(eq(flightRooms.flightInstanceId, flightInstanceId))
 		.limit(1);
@@ -97,7 +115,11 @@ async function findRoomByFlightInstance(
 
 export async function getRoomById(db: RoomDatabase, roomId: string): Promise<PublicRoom | null> {
 	const [row] = await db
-		.select({ id: flightRooms.id, flightInstanceId: flightRooms.flightInstanceId })
+		.select({
+			id: flightRooms.id,
+			flightInstanceId: flightRooms.flightInstanceId,
+			closesAt: flightRooms.closesAt,
+		})
 		.from(flightRooms)
 		.where(eq(flightRooms.id, roomId))
 		.limit(1);
@@ -108,10 +130,15 @@ async function getMembership(
 	db: RoomDatabase,
 	roomId: string,
 	userId: string,
-): Promise<{ id: string; userId: string } | null> {
+): Promise<{ id: string; userId: string; pseudonym: string | null } | null> {
 	const [row] = await db
-		.select({ id: roomMemberships.id, userId: roomMemberships.userId })
+		.select({
+			id: roomMemberships.id,
+			userId: roomMemberships.userId,
+			pseudonym: auth_user.pseudonym,
+		})
 		.from(roomMemberships)
+		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
 		.limit(1);
 	return row ?? null;
@@ -121,14 +148,31 @@ export async function joinFlightRoom(
 	db: RoomDatabase,
 	input: JoinFlightRoomInput,
 ): Promise<JoinFlightRoomResult> {
+	const [flight] = await db
+		.select({ scheduledArrivalUtc: flightInstances.scheduledArrivalUtc })
+		.from(flightInstances)
+		.where(eq(flightInstances.id, input.flightInstanceId))
+		.limit(1);
+	if (!flight) throw new RoomQueryError("FLIGHT_NOT_FOUND");
+	const closesAt = new Date(flight.scheduledArrivalUtc.getTime() + ROOM_ACCESS_WINDOW_MS);
+	if ((input.now ?? new Date()).getTime() >= closesAt.getTime()) {
+		throw new RoomQueryError("ROOM_CLOSED");
+	}
+	const messagePurgeAt = new Date(closesAt.getTime() + MESSAGE_RETENTION_MS);
 	const [insertedRoom] = await db
 		.insert(flightRooms)
 		.values({
 			id: crypto.randomUUID(),
 			flightInstanceId: input.flightInstanceId,
+			closesAt,
+			messagePurgeAt,
 		})
 		.onConflictDoNothing({ target: flightRooms.flightInstanceId })
-		.returning({ id: flightRooms.id, flightInstanceId: flightRooms.flightInstanceId });
+		.returning({
+			id: flightRooms.id,
+			flightInstanceId: flightRooms.flightInstanceId,
+			closesAt: flightRooms.closesAt,
+		});
 	const room =
 		(insertedRoom ? roomFromRow(insertedRoom) : null) ??
 		(await findRoomByFlightInstance(db, input.flightInstanceId));
@@ -169,6 +213,7 @@ export async function getRoomAccessContext(
 			flightInstanceId: flightRooms.flightInstanceId,
 			membershipId: roomMemberships.id,
 			userId: roomMemberships.userId,
+			closesAt: flightRooms.closesAt,
 		})
 		.from(roomMemberships)
 		.innerJoin(flightRooms, eq(roomMemberships.roomId, flightRooms.id))
@@ -176,7 +221,11 @@ export async function getRoomAccessContext(
 		.limit(1);
 	if (!row) return null;
 	return {
-		room: roomFromRow({ id: row.roomId, flightInstanceId: row.flightInstanceId }),
+		room: roomFromRow({
+			id: row.roomId,
+			flightInstanceId: row.flightInstanceId,
+			closesAt: row.closesAt,
+		}),
 		membershipId: row.membershipId,
 		userId: row.userId,
 		coordinatorKey: row.flightInstanceId,
@@ -272,16 +321,18 @@ export async function listRoomMessages(
 		.select({
 			id: roomMessages.id,
 			clientMessageId: roomMessages.clientMessageId,
-			pseudonym: auth_user.pseudonym,
+			authorPseudonym: roomMessages.authorPseudonym,
 			content: roomMessages.content,
 			createdAt: roomMessages.createdAt,
 		})
 		.from(roomMessages)
-		.innerJoin(roomMemberships, eq(roomMessages.membershipId, roomMemberships.id))
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
-		.where(and(eq(roomMessages.roomId, roomId), hiddenByBlock))
+		.leftJoin(roomMemberships, eq(roomMessages.membershipId, roomMemberships.id))
+		.where(and(eq(roomMessages.roomId, roomId), isNotNull(roomMessages.content), hiddenByBlock))
 		.orderBy(asc(roomMessages.sequence));
-	return rows.map(messageFromRow);
+	return rows.flatMap((row) => {
+		const message = messageFromRow(row);
+		return message ? [message] : [];
+	});
 }
 
 async function getRoomMessageByClientId(
@@ -293,13 +344,11 @@ async function getRoomMessageByClientId(
 		.select({
 			id: roomMessages.id,
 			clientMessageId: roomMessages.clientMessageId,
-			pseudonym: auth_user.pseudonym,
+			authorPseudonym: roomMessages.authorPseudonym,
 			content: roomMessages.content,
 			createdAt: roomMessages.createdAt,
 		})
 		.from(roomMessages)
-		.innerJoin(roomMemberships, eq(roomMessages.membershipId, roomMemberships.id))
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.where(and(eq(roomMessages.roomId, roomId), eq(roomMessages.clientMessageId, clientMessageId)))
 		.limit(1);
 	return row ? messageFromRow(row) : null;
@@ -317,6 +366,9 @@ export async function createRoomMessage(
 	if (!membership) {
 		throw new Error("Nie należysz do tego pokoju.");
 	}
+	if (!membership.pseudonym) {
+		throw new Error("Autor wiadomości nie ma prawidłowego pseudonimu.");
+	}
 	const [inserted] = await db
 		.insert(roomMessages)
 		.values({
@@ -324,6 +376,7 @@ export async function createRoomMessage(
 			roomId,
 			membershipId: membership.id,
 			clientMessageId: messageInput.clientMessageId,
+			authorPseudonym: membership.pseudonym,
 			content: messageInput.content,
 			createdAt,
 		})
@@ -336,6 +389,24 @@ export async function createRoomMessage(
 		throw new Error("Nie udało się zapisać wiadomości.");
 	}
 	return { message, created: Boolean(inserted) };
+}
+
+export async function listActiveRoomsForUser(
+	db: RoomDatabase,
+	userId: string,
+	now = new Date(),
+): Promise<PublicRoom[]> {
+	const rows = await db
+		.select({
+			id: flightRooms.id,
+			flightInstanceId: flightRooms.flightInstanceId,
+			closesAt: flightRooms.closesAt,
+		})
+		.from(roomMemberships)
+		.innerJoin(flightRooms, eq(roomMemberships.roomId, flightRooms.id))
+		.where(and(eq(roomMemberships.userId, userId), gt(flightRooms.closesAt, now)))
+		.orderBy(asc(flightRooms.closesAt), asc(flightRooms.id));
+	return rows.map(roomFromRow);
 }
 
 export async function getRoomSnapshot(

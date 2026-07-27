@@ -66,12 +66,8 @@ export const safetyReports = pgTable(
 		roomId: uuid("room_id")
 			.notNull()
 			.references(() => flightRooms.id, { onDelete: "cascade" }),
-		reporterId: text("reporter_id")
-			.notNull()
-			.references(() => auth_user.id),
-		targetUserId: text("target_user_id")
-			.notNull()
-			.references(() => auth_user.id),
+		reporterId: text("reporter_id").references(() => auth_user.id, { onDelete: "set null" }),
+		targetUserId: text("target_user_id").references(() => auth_user.id, { onDelete: "set null" }),
 		messageId: uuid("message_id").references(() => roomMessages.id, { onDelete: "set null" }),
 		reason: safetyReportReason("reason").notNull(),
 		note: text("note"),

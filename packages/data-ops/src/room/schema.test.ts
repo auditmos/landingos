@@ -54,12 +54,13 @@ describe("flight room public contracts", () => {
 		).toBe(false);
 	});
 
-	it("keeps hibernation attachments to the minimum room/user authorization context", () => {
+	it("keeps hibernation attachments to room, user, and the direct close boundary", () => {
 		const attachment = ConnectionAttachmentSchema.parse({
 			roomId: "018f4c8e-5697-7df4-8f6e-c7644b137e5b",
 			userId: "user-1",
+			closesAt: "2026-09-15T08:20:00.000Z",
 		});
-		expect(Object.keys(attachment)).toEqual(["roomId", "userId"]);
+		expect(Object.keys(attachment)).toEqual(["roomId", "userId", "closesAt"]);
 		expect(
 			ConnectionAttachmentSchema.safeParse({
 				...attachment,
