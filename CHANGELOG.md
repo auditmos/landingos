@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/auditmos/landingos/compare/v1.0.0...v1.1.0) (2026-07-27)
+
+
+### Features
+
+* **auth:** add passwordless OTP identity flow ([3493ce7](https://github.com/auditmos/landingos/commit/3493ce74572a9485f4e247419e0d8df40b23cdf8)), closes [#3](https://github.com/auditmos/landingos/issues/3)
+
 # 1.0.0 (2026-07-27)
 
 
