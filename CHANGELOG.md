@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/auditmos/landingos/compare/v1.12.0...v1.13.0) (2026-07-28)
+
+
+### Features
+
+* **user-application:** genericize corridor copy and auto-scroll to lookup results ([08633fb](https://github.com/auditmos/landingos/commit/08633fb346136eabceb490fa2241dbf93f6467a6))
+
 # [1.12.0](https://github.com/auditmos/landingos/compare/v1.11.0...v1.12.0) (2026-07-28)
 
 
