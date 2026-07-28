@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useRef, useState } from "react";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -6,12 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
+import { completeAuthenticationNavigation } from "@/lib/auth-navigation";
 
 const MARKETING_POLICY_VERSION = "2026-07";
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
-export function EmailAuth() {
-	const navigate = useNavigate();
+export function EmailAuth({
+	onAuthenticated = completeAuthenticationNavigation,
+}: {
+	onAuthenticated?: () => void;
+}) {
 	const [step, setStep] = useState<"email" | "otp">("email");
 	const [email, setEmail] = useState("");
 	const [otp, setOtp] = useState("");
@@ -85,9 +88,7 @@ export function EmailAuth() {
 					}),
 				});
 			}
-			await navigate({
-				to: sessionStorage.getItem("landingos.room-intent") ? "/app" : "/",
-			});
+			onAuthenticated();
 		} catch {
 			setError("Kod jest nieprawidłowy albo wygasł. Poproś o nowy kod.");
 		} finally {

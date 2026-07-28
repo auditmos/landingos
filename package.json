@@ -42,6 +42,7 @@
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"test:e2e": "pnpm run build:data-ops && node --import tsx scripts/e2e-runner.ts",
+		"test:e2e:auth": "pnpm run build:data-ops && LANDINGOS_E2E_AUTH_ONLY=true node --import tsx scripts/e2e-runner.ts",
 		"smoke:native-api": "pnpm run build:data-ops && node --import tsx scripts/native-api-smoke.ts",
 		"spike:data:fixtures": "node --import tsx scripts/provider-spike.ts fixture",
 		"spike:data": "node --import tsx scripts/provider-spike.ts live",

@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmailAuth } from "@/components/auth/email-auth";
+import { SigninGate } from "@/components/auth/signin-gate";
 
 export const Route = createFileRoute("/signin")({
 	component: SigninPage,
 });
 
 function SigninPage() {
-	return <EmailAuth />;
+	return <SigninGate />;
 }

@@ -1,6 +1,6 @@
 # CRITICAL — poprawne logowanie OTP odsyła podróżnego z powrotem do logowania
 
-**Status:** potwierdzone, 3/3 powtórzenia<br>
+**Status:** naprawione i zweryfikowane 2026-07-28<br>
 **Priorytet:** critical<br>
 **Obszar:** mobilne logowanie OTP → wejście do pokoju lotu<br>
 **Środowisko:** rzeczywisty TanStack Start + Better Auth + Hono w domyślnym trybie fixture, viewport 390×844
@@ -43,11 +43,12 @@ frontend nie dopuszcza świeżo zalogowanego użytkownika do chronionej trasy.
    [ekranie planera](./evidence/screenshots/actual-duomo-recommendations-full.png).
 3. Na `/signin` wpisz nowy adres e-mail i naciśnij **„Wyślij kod”**:
    [ekran e-mail](./evidence/screenshots/issue-001-step-2-email.png).
-4. Odczytaj kod z lokalnej wiadomości Email Service. Formularz prawidłowo przechodzi do
+4. Formularz prawidłowo przechodzi do
    [kroku OTP](./evidence/screenshots/issue-001-step-3-otp-prompt.png).
-5. Wpisz poprawny, aktualny kod:
+5. Przełącz się do aplikacji pocztowej, odczytaj kod i wróć do przeglądarki.
+6. Wpisz poprawny, aktualny kod:
    [kod gotowy do wysłania](./evidence/screenshots/issue-001-step-4-code-entered.png).
-6. Naciśnij **„Zaloguj się”**.
+7. Naciśnij **„Zaloguj się”**.
 
 ## Wynik oczekiwany i rzeczywisty
 
@@ -59,6 +60,9 @@ zachowana.
 użytkownik zostaje na `/signin`. Formularz bez komunikatu sukcesu lub błędu wraca do
 pierwszego kroku **„Wyślij kod”**:
 [wynik po poprawnym OTP](./evidence/screenshots/issue-001-result-stuck-signin.png).
+Ten sam reset występuje wcześniej po powrocie z aplikacji pocztowej: wznowienie karty
+odświeża sesję Better Auth, a krok OTP znika. Ponowne wysłanie kodu unieważnia kod
+odczytany z poprzedniej wiadomości.
 
 Zredagowany [HAR](./evidence/issue-001-auth-navigation.har) potwierdza:
 
@@ -99,6 +103,12 @@ odświeżeniem cache sesji Better Auth. `/app` widzi jeszcze poprzednie `null`, 
 przekierowuje już zalogowanego użytkownika dalej, więc remount `EmailAuth` resetuje krok do
 `email`.
 
+Drugi wyścig występuje przed wpisaniem OTP. Better Auth domyślnie odświeża sesję po
+`visibilitychange`. Dla niezalogowanego użytkownika ustawia wtedy ponownie
+`isPending=true`, a `SigninGate` traktuje każdy taki stan jak pierwszy odczyt sesji i
+odmontowuje `EmailAuth`. Stan formularza (`email` → `otp`) zostaje przez to utracony
+dokładnie wtedy, gdy podróżny wraca z aplikacji pocztowej.
+
 Obecne E2E nie wykrywa problemu, ponieważ aliasuje prawdziwy klient auth na
 `e2e/mock-auth-client.ts`. Mock zapisuje sesję do `localStorage` i synchronicznie wywołuje
 `notify()` przed zwrotem sukcesu (`apps/user-application/e2e/mock-auth-client.ts:56`);
@@ -117,27 +127,33 @@ chronioną trasę:
   niepustą sesję przed klientowym `navigate()`;
 - dodatkowo `/signin` powinno odzyskiwać tę sytuację: ważna sesja + intencja pokoju
   przekierowuje do `/app`, zamiast ponownie pokazywać wysyłanie OTP.
+- po pierwszym potwierdzeniu braku sesji późniejsze odświeżenie sesji przy aktywacji karty
+  nie może odmontować formularza OTP ani ponownie wysłać kodu.
 
 Nie należy zapisywać tokenu w `localStorage` ani rozszerzać intencji o e-mail lub prywatny
 cel.
 
 ## Kryteria akceptacji regresji
 
-- [ ] W teście z **prawdziwym klientem Better Auth** i lokalnym/fake Email Service:
+- [x] W teście z **prawdziwym klientem Better Auth** i lokalnym/fake Email Service:
       planer → wybór wariantu → OTP → pseudonim kończy się na `/app` przy 390×844 i
       1440×900.
-- [ ] Po `POST /api/auth/sign-in/email-otp` = 200 interfejs ani przez jedną klatkę nie
+- [x] Po `POST /api/auth/sign-in/email-otp` = 200 interfejs ani przez jedną klatkę nie
       wraca do pierwszego kroku `/signin`; nie wysyła też drugiego kodu.
-- [ ] Chroniona trasa czeka na świeży stan sesji i nie odsyła poprawnie zalogowanego
+- [x] Po przełączeniu do aplikacji pocztowej i powrocie `visibilitychange` odświeża sesję,
+      ale nie odmontowuje kroku OTP, nie usuwa e-maila i nie wysyła drugiego kodu.
+- [x] Chroniona trasa czeka na świeży stan sesji i nie odsyła poprawnie zalogowanego
       użytkownika na podstawie cache sprzed logowania.
-- [ ] Wejście na `/signin` z ważną sesją i `landingos.room-intent` odzyskuje `/app`;
+- [x] Wejście na `/signin` z ważną sesją i `landingos.room-intent` odzyskuje `/app`;
       z ważną sesją bez intencji prowadzi do `/`.
-- [ ] Intencja po logowaniu nadal zawiera wyłącznie kanoniczny identyfikator lotu oraz
+- [x] Intencja po logowaniu nadal zawiera wyłącznie kanoniczny identyfikator lotu oraz
       zredagowany wybór publiczny; brak adresu, place ID, współrzędnych i e-maila.
-- [ ] Błędny lub wygasły OTP nadal pozostawia użytkownika na kroku kodu z polskim
+- [x] Błędny lub wygasły OTP nadal pozostawia użytkownika na kroku kodu z polskim
       komunikatem, bez utworzenia sesji.
-- [ ] Test regresji nie używa `e2e/mock-auth-client.ts` dla tego scenariusza i pozostaje
+- [x] Test regresji nie używa `e2e/mock-auth-client.ts` dla tego scenariusza i pozostaje
       deterministyczny oraz bez zewnętrznych sekretów.
+
+Automatyczna regresja jest dostępna przez `pnpm run test:e2e:auth`.
 
 ## Sprawdzenie duplikatów
 

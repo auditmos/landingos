@@ -7,7 +7,7 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { EmailAuth } from "@/components/auth/email-auth";
+import { SigninGate } from "@/components/auth/signin-gate";
 import { FlightPlanner } from "@/components/flight/flight-planner";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -70,7 +70,7 @@ const indexRoute = createRoute({
 const signinRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/signin",
-	component: EmailAuth,
+	component: SigninGate,
 });
 const authenticatedRoute = createRoute({
 	getParentRoute: () => rootRoute,

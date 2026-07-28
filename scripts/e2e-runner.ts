@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { runRealAuthOtpRegression } from "./e2e-auth-regression.ts";
 import { startFixtureServer } from "./e2e-fixture-server.ts";
 import { type BrowserViewport, runViewportScenarios } from "./e2e-scenarios.ts";
 
@@ -40,30 +41,64 @@ async function stopChild(child: ChildProcess) {
 	]);
 }
 
-async function main() {
-	const fixture = await startFixtureServer(8789);
-	const viteOutput: string[] = [];
-	const vite = spawn("pnpm", ["run", "e2e:serve"], {
+function startVite(useRealAuthClient: boolean) {
+	const output: string[] = [];
+	const child = spawn("pnpm", ["run", "e2e:serve"], {
 		cwd: USER_APP,
 		env: {
 			...process.env,
 			CLOUDFLARE_ENV: "development",
 			VITE_DATA_SERVICE_URL: FIXTURE_ORIGIN,
+			...(useRealAuthClient ? { LANDINGOS_E2E_REAL_AUTH: "true" } : {}),
 		},
 		stdio: ["ignore", "pipe", "pipe"],
 	});
-	for (const stream of [vite.stdout, vite.stderr]) {
+	for (const stream of [child.stdout, child.stderr]) {
 		stream?.on("data", (chunk) => {
-			viteOutput.push(String(chunk));
-			if (viteOutput.length > 20) viteOutput.shift();
+			output.push(String(chunk));
+			if (output.length > 20) output.shift();
 		});
 	}
+	return { child, output };
+}
+
+async function main() {
+	const fixture = await startFixtureServer(8789);
+	let activeVite: ChildProcess | undefined;
+	let viteOutput: string[] = [];
 	const heartbeat = setInterval(
 		() => process.stdout.write("E2E heartbeat: agent-browser suite is still running.\n"),
 		60_000,
 	);
 	try {
-		await waitForUrl(`${BASE_URL}/`, vite);
+		const realAuthVite = startVite(true);
+		activeVite = realAuthVite.child;
+		viteOutput = realAuthVite.output;
+		await waitForUrl(`${BASE_URL}/`, activeVite);
+		for (const viewport of VIEWPORTS) {
+			await fetch(`${FIXTURE_ORIGIN}/test-control/reset`, { method: "POST" });
+			process.stdout.write(
+				`Running real Better Auth OTP regression at ${viewport.width}x${viewport.height} (${viewport.name}).\n`,
+			);
+			await runRealAuthOtpRegression({
+				baseUrl: BASE_URL,
+				fixtureOrigin: FIXTURE_ORIGIN,
+				namespace: `landingos-real-auth-e2e-${process.pid}`,
+				initScript: TOUCH_INIT,
+				viewport,
+			});
+		}
+		await stopChild(activeVite);
+		activeVite = undefined;
+		if (process.env.LANDINGOS_E2E_AUTH_ONLY === "true") {
+			process.stdout.write("Real Better Auth OTP regression passed at both viewports.\n");
+			return;
+		}
+
+		const fixtureVite = startVite(false);
+		activeVite = fixtureVite.child;
+		viteOutput = fixtureVite.output;
+		await waitForUrl(`${BASE_URL}/`, activeVite);
 		for (const viewport of VIEWPORTS) {
 			await fetch(`${FIXTURE_ORIGIN}/test-control/reset`, { method: "POST" });
 			process.stdout.write(
@@ -103,7 +138,7 @@ async function main() {
 		throw error;
 	} finally {
 		clearInterval(heartbeat);
-		await stopChild(vite);
+		if (activeVite) await stopChild(activeVite);
 		await fixture.close();
 	}
 }

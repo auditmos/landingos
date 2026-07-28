@@ -18,3 +18,14 @@ console.error = (...values) => {
 	window.__landingosE2eErrors.push(values.map(String).join(" "));
 	originalConsoleError(...values);
 };
+
+function observeOtpEmailStep() {
+	if (
+		sessionStorage.getItem("landingos.e2e.observe-otp-completion") === "true" &&
+		document.querySelector("#auth-email")
+	) {
+		sessionStorage.setItem("landingos.e2e.otp-email-step-flashed", "true");
+	}
+	requestAnimationFrame(observeOtpEmailStep);
+}
+requestAnimationFrame(observeOtpEmailStep);

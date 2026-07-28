@@ -4,6 +4,7 @@ import {
 	COMMUNITY_RULES_TOPICS,
 	COMMUNITY_RULES_VERSION,
 } from "../packages/data-ops/dist/safety/index.js";
+import { authenticateFixtureRequest, handleAuthFixtureRequest } from "./e2e-auth-fixture.ts";
 import { fixtureFlight, fixtureJourneyVariant } from "./e2e-fixture-data.ts";
 import { FixtureStore, type FixtureUser } from "./e2e-fixture-store.ts";
 import { readJsonBody as body, applyFixtureCors as cors, sendJson as json } from "./e2e-http.ts";
@@ -32,11 +33,7 @@ type ConnectionRecord = {
 };
 
 function authenticate(store: FixtureStore, request: IncomingMessage) {
-	const authorization = request.headers.authorization;
-	if (authorization?.startsWith("Bearer ")) {
-		return store.userByToken(authorization.slice("Bearer ".length));
-	}
-	return store.userByCookie(request.headers.cookie);
+	return authenticateFixtureRequest(store, request);
 }
 
 function requireUser(
@@ -47,13 +44,6 @@ function requireUser(
 	const user = authenticate(store, request);
 	if (!user) json(response, 401, { code: "UNAUTHORIZED", error: "Zaloguj się ponownie." });
 	return user;
-}
-
-function publicSession(user: FixtureUser) {
-	return {
-		user: { id: user.id, email: user.email, name: user.pseudonym, image: null, role: user.role },
-		session: { token: user.token },
-	};
 }
 
 export async function startFixtureServer(port = DEFAULT_PORT) {
@@ -110,47 +100,7 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				closeRoomConnections(closeMatch[1] ?? "");
 				return json(response, 200, { closed: true });
 			}
-			if (url.pathname === "/test-auth/request" && request.method === "POST") {
-				const input = await body(request);
-				store.requestOtp(
-					String(input.email ?? "")
-						.trim()
-						.toLowerCase(),
-				);
-				return json(response, 200, { sent: true });
-			}
-			if (url.pathname === "/test-auth/verify" && request.method === "POST") {
-				const input = await body(request);
-				const user = store.verifyOtp(
-					String(input.email ?? "")
-						.trim()
-						.toLowerCase(),
-					String(input.otp ?? ""),
-				);
-				if (!user) return json(response, 401, { error: "invalid_otp" });
-				return json(
-					response,
-					200,
-					{ token: user.token, ...publicSession(user) },
-					{
-						"set-cookie": `landingos_e2e_session=${encodeURIComponent(user.token)}; Path=/; HttpOnly; SameSite=Lax`,
-					},
-				);
-			}
-			if (url.pathname === "/test-auth/session") {
-				const user = authenticate(store, request);
-				return json(response, 200, user ? publicSession(user) : null);
-			}
-			if (url.pathname === "/test-auth/signout" && request.method === "POST") {
-				return json(
-					response,
-					200,
-					{ signedOut: true },
-					{
-						"set-cookie": "landingos_e2e_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax",
-					},
-				);
-			}
+			if (await handleAuthFixtureRequest(store, request, response, url)) return;
 			if (url.pathname === "/api/profile" && request.method === "PATCH") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
