@@ -1,3 +1,11 @@
+## [1.10.3](https://github.com/auditmos/landingos/compare/v1.10.2...v1.10.3) (2026-07-28)
+
+
+### Bug Fixes
+
+* **data-ops:** prevent OTP crash when generateOTP override is absent ([00d5536](https://github.com/auditmos/landingos/commit/00d5536423fa273b0a336cd1cd055067d3df573b))
+* **user-application:** correct operator catalog collection-root URL ([638acf8](https://github.com/auditmos/landingos/commit/638acf829425710a4a695e2c08e24b96af0c06d7))
+
 ## [1.10.2](https://github.com/auditmos/landingos/compare/v1.10.1...v1.10.2) (2026-07-27)
 
 
