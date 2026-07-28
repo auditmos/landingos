@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/auditmos/landingos/compare/v1.14.1...v1.14.2) (2026-07-28)
+
+
+### Bug Fixes
+
+* **auth:** stabilize OTP room-entry flow ([96e05d0](https://github.com/auditmos/landingos/commit/96e05d01e714f64112115200c9b55b110c6afd86))
+
 ## [1.14.1](https://github.com/auditmos/landingos/compare/v1.14.0...v1.14.1) (2026-07-28)
 
 
