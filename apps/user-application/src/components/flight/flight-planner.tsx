@@ -5,7 +5,7 @@ import {
 	type FlightResolveResult,
 } from "@repo/data-ops/flight";
 import { ArrowRight, CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { DestinationPlanner } from "@/components/destination/destination-planner";
 import { JourneyPlanner } from "@/components/journey/journey-planner";
@@ -52,14 +52,14 @@ export function FlightSummary({ flight }: { flight: FlightInstance }) {
 					</div>
 					<div>
 						<dt className="text-sm text-muted-foreground">Przylot</dt>
-						<dd className="mt-1 text-lg font-semibold">BGY</dd>
+						<dd className="mt-1 text-lg font-semibold">{flight.destinationIata}</dd>
 					</div>
 					<div>
 						<dt className="text-sm text-muted-foreground">Planowany przylot</dt>
 						<dd className="mt-1 text-lg font-semibold">
 							{formatArrivalInRome(flight.scheduledArrivalUtc)}
 						</dd>
-						<p className="text-xs text-muted-foreground">czas lokalny w Bergamo</p>
+						<p className="text-xs text-muted-foreground">czas lokalny w miejscu przylotu</p>
 					</div>
 				</dl>
 			</CardContent>
@@ -79,6 +79,18 @@ export function FlightPlanner() {
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 	const captchaRef = useRef<TurnstileHandle>(null);
 	const captchaRequired = Boolean(TURNSTILE_SITE_KEY);
+	const resultsRef = useRef<HTMLElement>(null);
+
+	// Once a lookup resolves (or errors), bring the results into view so the answer
+	// is visible without scrolling — on mobile the form fills the first screen.
+	useEffect(() => {
+		if (!result && !error) return;
+		const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+		resultsRef.current?.scrollIntoView?.({
+			behavior: reduceMotion ? "auto" : "smooth",
+			block: "start",
+		});
+	}, [result, error]);
 
 	// Turnstile tokens are single-use — drop the current one and re-run the widget
 	// so the next lookup has a fresh token ready. No-op when the challenge is off.
@@ -161,7 +173,7 @@ export function FlightPlanner() {
 						<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
 							<span>Polska</span>
 							<ArrowRight className="size-4" aria-hidden="true" />
-							<span className="text-foreground">BGY</span>
+							<span className="text-foreground">Mediolan</span>
 						</div>
 						<ThemeToggle />
 					</div>
@@ -182,7 +194,7 @@ export function FlightPlanner() {
 								Zacznij od lotu
 							</p>
 							<h1 className="mt-6 max-w-xl text-balance text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
-								Z Bergamo prosto do celu w Mediolanie
+								Z lotniska prosto do celu w Mediolanie
 							</h1>
 							<p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-muted-foreground">
 								Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy
@@ -311,7 +323,11 @@ export function FlightPlanner() {
 					</section>
 				</div>
 
-				<section className="mx-auto mt-6 max-w-4xl space-y-5" aria-label="Wynik planowania lotu">
+				<section
+					ref={resultsRef}
+					className="mx-auto mt-6 max-w-4xl space-y-5 scroll-mt-6"
+					aria-label="Wynik planowania lotu"
+				>
 					{error ? (
 						<Alert variant="destructive">
 							<AlertTitle>Nie udało się wykonać operacji</AlertTitle>
@@ -332,9 +348,9 @@ export function FlightPlanner() {
 								<form className="space-y-4" onSubmit={submitManual}>
 									<div>
 										<label className="mb-1.5 block text-sm font-medium" htmlFor="airport">
-											Lotnisko przylotu
+											Miejsce przylotu
 										</label>
-										<Input id="airport" value="BGY — Mediolan-Bergamo" readOnly />
+										<Input id="airport" value="Mediolan" readOnly />
 									</div>
 									<div>
 										<label className="mb-1.5 block text-sm font-medium" htmlFor="arrival">

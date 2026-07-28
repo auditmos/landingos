@@ -24,9 +24,9 @@ export const Route = createRootRouteWithContext<{
 				content: "width=device-width, initial-scale=1",
 			},
 			...seo({
-				title: "LandingOS | Z Bergamo do Mediolanu",
+				title: "LandingOS | Zaplanuj przejazd do Mediolanu",
 				description:
-					"Zaplanuj przejazd z lotniska Mediolan-Bergamo i skontaktuj się z osobami z tego samego lotu.",
+					"Zaplanuj przejazd z lotniska do celu w Mediolanie i skontaktuj się z osobami z tego samego lotu.",
 			}),
 		],
 		links: [

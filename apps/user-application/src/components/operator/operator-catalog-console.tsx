@@ -352,10 +352,10 @@ export function OperatorCatalogConsole() {
 						id="operator-catalog-title"
 						className="text-3xl font-semibold tracking-tight text-balance"
 					>
-						Katalog transferów z BGY
+						Katalog transferów
 					</h1>
 					<p className="mt-2 max-w-2xl text-muted-foreground text-pretty">
-						Zarządzaj zweryfikowanymi połączeniami z lotniska Bergamo do Mediolanu.
+						Zarządzaj zweryfikowanymi połączeniami z lotniska do Mediolanu.
 					</p>
 				</div>
 				<Button type="button" variant="outline" onClick={() => setSelectedId(null)}>

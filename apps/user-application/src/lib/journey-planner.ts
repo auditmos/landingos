@@ -16,7 +16,7 @@ type JourneyUnavailableResult = Extract<
 
 const OFFICIAL_BGY_MANUAL_ALTERNATIVE = {
 	kind: "source" as const,
-	label: "Sprawdź połączenia z lotniska BGY",
+	label: "Sprawdź połączenia z lotniska",
 	url: "https://www.milanbergamoairport.it/en/bus/",
 };
 
