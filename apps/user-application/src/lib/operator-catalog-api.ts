@@ -43,14 +43,16 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 }
 
 export async function listCatalogEntries(): Promise<TransferCatalogRecord[]> {
-	const response = await request("/");
+	// Collection root maps to the mounted route `/operator/catalog` (no trailing
+	// slash) — Hono does not match a trailing slash, so use "" not "/".
+	const response = await request("");
 	return CatalogListSchema.parse(await response.json()).entries;
 }
 
 export async function createCatalogDraft(
 	input: TransferCatalogDraftInput,
 ): Promise<TransferCatalogRecord> {
-	const response = await request("/", { method: "POST", body: JSON.stringify(input) });
+	const response = await request("", { method: "POST", body: JSON.stringify(input) });
 	return TransferCatalogRecordSchema.parse(await response.json());
 }
 
