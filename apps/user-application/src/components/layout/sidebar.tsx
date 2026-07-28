@@ -1,5 +1,5 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bus, Globe, Home, Menu } from "lucide-react";
+import { Bus, Home, Menu } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,11 +17,6 @@ const navigationItems: NavigationItem[] = [
 		name: "Start",
 		icon: Home,
 		href: "/",
-	},
-	{
-		name: "Panel przykładowy",
-		icon: Globe,
-		href: "/dashboard",
 	},
 	{
 		name: "Katalog transferów",

@@ -71,7 +71,7 @@ export function EmailAuth() {
 				});
 			}
 			await navigate({
-				to: sessionStorage.getItem("landingos.room-intent") ? "/app" : "/dashboard",
+				to: sessionStorage.getItem("landingos.room-intent") ? "/app" : "/",
 			});
 		} catch {
 			setError("Kod jest nieprawidłowy albo wygasł. Poproś o nowy kod.");
