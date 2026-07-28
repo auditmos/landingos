@@ -12,26 +12,31 @@ export const createBetterAuth = (config: {
 	generateOTP?: EmailOTPOptions["generateOTP"];
 	beforeDeleteUser?: (user: { id: string; email: string }, request?: Request) => Promise<void>;
 }) => {
+	const emailOTPOptions: EmailOTPOptions = {
+		sendVerificationOTP: config.sendVerificationOTP,
+		otpLength: 6,
+		expiresIn: 5 * 60,
+		allowedAttempts: 3,
+		storeOTP: "hashed",
+		resendStrategy: "rotate",
+		rateLimit: {
+			window: 60,
+			max: 3,
+		},
+	};
+	// Better Auth spreads caller options over its built-in defaults, so an
+	// explicit `generateOTP: undefined` would clobber the default generator and
+	// crash at runtime ("opts.generateOTP is not a function"). Only set the key
+	// when a real override function is provided.
+	if (config.generateOTP) {
+		emailOTPOptions.generateOTP = config.generateOTP;
+	}
+
 	return betterAuth({
 		database: config.database,
 		secret: config.secret,
 		baseURL: config.baseURL,
-		plugins: [
-			emailOTP({
-				sendVerificationOTP: config.sendVerificationOTP,
-				generateOTP: config.generateOTP,
-				otpLength: 6,
-				expiresIn: 5 * 60,
-				allowedAttempts: 3,
-				storeOTP: "hashed",
-				resendStrategy: "rotate",
-				rateLimit: {
-					window: 60,
-					max: 3,
-				},
-			}),
-			bearer(),
-		],
+		plugins: [emailOTP(emailOTPOptions), bearer()],
 		rateLimit: {
 			enabled: true,
 			storage: "database",

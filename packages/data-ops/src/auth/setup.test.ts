@@ -81,6 +81,25 @@ async function signIn(
 }
 
 describe("LandingOS Better Auth email OTP", () => {
+	it("sends a valid OTP when no generateOTP override is provided (production path)", async () => {
+		const db = createMemoryDb();
+		const sent: SentOtp[] = [];
+		const auth = createBetterAuth({
+			database: memoryAdapter(db),
+			secret: TEST_SECRET,
+			baseURL: "http://localhost:3000",
+			sendVerificationOTP: async (message) => {
+				sent.push(message);
+			},
+			// No generateOTP: exercises the built-in default generator.
+		});
+
+		const response = await sendOtp(auth, "default-otp@example.com");
+		expect(response.status).toBe(200);
+		expect(sent).toHaveLength(1);
+		expect(sent[0]?.otp).toMatch(/^\d{6}$/);
+	});
+
 	it("uses enumeration-safe sends for new and normalized existing emails", async () => {
 		const db = createMemoryDb();
 		const sent: SentOtp[] = [];
