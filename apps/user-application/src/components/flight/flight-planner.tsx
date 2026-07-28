@@ -5,7 +5,8 @@ import {
 	type FlightResolveResult,
 } from "@repo/data-ops/flight";
 import { ArrowRight, CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { DestinationPlanner } from "@/components/destination/destination-planner";
 import { JourneyPlanner } from "@/components/journey/journey-planner";
 import { ThemeToggle } from "@/components/theme";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/flight-planner";
 
 type FieldErrors = Partial<Record<"flightNumber" | "departureLocalDate", string>>;
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
 export function FlightSummary({ flight }: { flight: FlightInstance }) {
 	const flightLabel = `${flight.marketingCarrierCode}${flight.marketingFlightNumber}`;
@@ -74,6 +76,23 @@ export function FlightPlanner() {
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [destination, setDestination] = useState<PrivateDestination>();
+	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+	const captchaRef = useRef<TurnstileHandle>(null);
+	const captchaRequired = Boolean(TURNSTILE_SITE_KEY);
+
+	// Turnstile tokens are single-use — drop the current one and re-run the widget
+	// so the next lookup has a fresh token ready. No-op when the challenge is off.
+	function refreshCaptcha() {
+		setCaptchaToken(null);
+		captchaRef.current?.reset();
+	}
+
+	function applyLookupResult(next: FlightResolveResult) {
+		setResult(next);
+		if (next.status === "manual_required" && !manualArrival) {
+			setManualArrival(`${next.departureLocalDate}T12:00`);
+		}
+	}
 
 	async function submitLookup(event?: FormEvent) {
 		event?.preventDefault();
@@ -87,21 +106,22 @@ export function FlightPlanner() {
 			});
 			return;
 		}
+		if (captchaRequired && !captchaToken) {
+			setError("Potwierdź, że nie jesteś robotem.");
+			return;
+		}
 		setFieldErrors({});
 		setDestination(undefined);
 		setFlightNumber(parsed.data.flightNumber);
 		setDepartureLocalDate(parsed.data.departureLocalDate);
 		setLoading(true);
 		try {
-			const next = await resolveFlightApi(parsed.data);
-			setResult(next);
-			if (next.status === "manual_required" && !manualArrival) {
-				setManualArrival(`${next.departureLocalDate}T12:00`);
-			}
+			applyLookupResult(await resolveFlightApi(parsed.data, fetch, captchaToken ?? undefined));
 		} catch (caught) {
 			setError(caught instanceof Error ? caught.message : "Nie udało się sprawdzić lotu.");
 		} finally {
 			setLoading(false);
+			refreshCaptcha();
 		}
 	}
 
@@ -264,7 +284,22 @@ export function FlightPlanner() {
 										</p>
 									)}
 								</div>
-								<Button className="h-12 w-full" size="lg" type="submit" disabled={loading}>
+								{TURNSTILE_SITE_KEY ? (
+									<Turnstile
+										ref={captchaRef}
+										siteKey={TURNSTILE_SITE_KEY}
+										action="flight-lookup"
+										onVerify={setCaptchaToken}
+										onExpire={() => setCaptchaToken(null)}
+										onError={() => setCaptchaToken(null)}
+									/>
+								) : null}
+								<Button
+									className="h-12 w-full"
+									size="lg"
+									type="submit"
+									disabled={loading || (captchaRequired && !captchaToken)}
+								>
 									{loading ? "Sprawdzamy lot…" : "Sprawdź lot"}
 									{loading ? null : <ArrowRight className="size-4" aria-hidden="true" />}
 								</Button>

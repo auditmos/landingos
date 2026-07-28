@@ -26,3 +26,8 @@ API_TOKEN=
 
 # Comma-separated list of allowed origins for CORS. Leave empty for dev (allows all).
 ALLOWED_ORIGINS=
+
+# Cloudflare Turnstile secret key — verifies the flight-lookup challenge on /flights/resolve.
+# Leave blank for local dev (challenge disabled). Required in staging/production, or the
+# endpoint fails closed. Same secret as user-application's TURNSTILE_SECRET_KEY.
+TURNSTILE_SECRET_KEY=

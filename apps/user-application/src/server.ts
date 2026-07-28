@@ -24,10 +24,20 @@ export default {
 		});
 
 		const optionalEnv = env as unknown as Record<string, string | undefined>;
+		// Turnstile bot protection for the sign-in / sign-up OTP flow. Local dev may
+		// run without a secret (challenge disabled); staging/production must supply
+		// one, or we fail closed rather than silently accept unprotected sign-ins.
+		const turnstileSecret = optionalEnv.TURNSTILE_SECRET_KEY;
+		if (!turnstileSecret && env.CLOUDFLARE_ENV !== "dev") {
+			throw new Error(
+				"TURNSTILE_SECRET_KEY is required outside dev — set it as a secret for this Worker",
+			);
+		}
 		setAuth({
 			secret: env.BETTER_AUTH_SECRET,
 			baseURL: env.BETTER_AUTH_BASE_URL,
 			crossSubDomainCookieDomain: optionalEnv.BETTER_AUTH_COOKIE_DOMAIN || undefined,
+			captcha: turnstileSecret ? { secretKey: turnstileSecret } : undefined,
 			sendVerificationOTP: createCloudflareOtpSender(env.AUTH_EMAIL, env.AUTH_EMAIL_FROM),
 			beforeDeleteUser: (user) =>
 				prepareAndBroadcastAccountDeletion(

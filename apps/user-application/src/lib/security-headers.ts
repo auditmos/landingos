@@ -1,3 +1,7 @@
+// Cloudflare Turnstile loads its script and renders its challenge inside an
+// iframe from this origin, so it must be allowlisted in script-src + frame-src.
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 const connectSources = (dataServiceUrl?: string): string[] => {
 	const sources = ["'self'", "https:"];
 	if (!dataServiceUrl) return sources;
@@ -25,11 +29,12 @@ export const applySecurityHeaders = (response: Response, dataServiceUrl?: string
 		"Content-Security-Policy",
 		[
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+			`script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_ORIGIN}`,
 			"style-src 'self' 'unsafe-inline'",
 			"img-src 'self' data: https:",
 			"font-src 'self' data:",
 			`connect-src ${connectSources(dataServiceUrl).join(" ")}`,
+			`frame-src 'self' ${TURNSTILE_ORIGIN}`,
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",

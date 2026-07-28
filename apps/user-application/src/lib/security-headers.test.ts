@@ -41,6 +41,13 @@ describe("applySecurityHeaders", () => {
 		expect(csp).toContain("frame-ancestors 'none'");
 	});
 
+	it("allowlists Cloudflare Turnstile in script-src and frame-src", () => {
+		const res = applySecurityHeaders(new Response("<html></html>"));
+		const csp = res.headers.get("Content-Security-Policy");
+		expect(csp).toMatch(/script-src [^;]*https:\/\/challenges\.cloudflare\.com/);
+		expect(csp).toMatch(/frame-src [^;]*https:\/\/challenges\.cloudflare\.com/);
+	});
+
 	it("allows only the configured local data-service origin in connect-src", () => {
 		const res = applySecurityHeaders(new Response("<html></html>"), "http://localhost:8788");
 		const csp = res.headers.get("Content-Security-Policy");

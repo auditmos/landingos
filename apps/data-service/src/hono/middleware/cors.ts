@@ -5,7 +5,13 @@ const DEV_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
 
 const CORS_OPTIONS = {
 	allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-	allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-LandingOS-Funnel-Id"],
+	allowHeaders: [
+		"Content-Type",
+		"Authorization",
+		"X-Requested-With",
+		"X-LandingOS-Funnel-Id",
+		"X-Captcha-Response",
+	],
 	exposeHeaders: ["X-Total-Count", "X-Request-Id", "X-LandingOS-Funnel-Id"],
 	credentials: true,
 	maxAge: 86400,

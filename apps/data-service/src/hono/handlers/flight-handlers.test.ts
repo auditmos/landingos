@@ -47,6 +47,8 @@ function buildApp(service: FlightHandlerOperations, analytics = tracker()) {
 		app: createFlightHandlers(
 			() => service,
 			() => analytics,
+			// Bypass Turnstile here — the guard has its own test (turnstile.test.ts).
+			async (_c, next) => next(),
 		),
 	};
 }

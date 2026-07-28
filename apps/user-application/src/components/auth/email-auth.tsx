@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
 const MARKETING_POLICY_VERSION = "2026-07";
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
 export function EmailAuth() {
 	const navigate = useNavigate();
@@ -16,8 +18,11 @@ export function EmailAuth() {
 	const [marketingConsent, setMarketingConsent] = useState(false);
 	const [isPending, setIsPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+	const captchaRef = useRef<TurnstileHandle>(null);
 
 	const normalizedEmail = email.trim().toLowerCase();
+	const captchaRequired = Boolean(TURNSTILE_SITE_KEY);
 
 	async function requestCode(event: FormEvent) {
 		event.preventDefault();
@@ -26,11 +31,18 @@ export function EmailAuth() {
 			setError("Wpisz prawidłowy adres e-mail.");
 			return;
 		}
+		if (captchaRequired && !captchaToken) {
+			setError("Potwierdź, że nie jesteś robotem.");
+			return;
+		}
 		setIsPending(true);
 		try {
 			const result = await authClient.emailOtp.sendVerificationOtp({
 				email: normalizedEmail,
 				type: "sign-in",
+				fetchOptions: captchaToken
+					? { headers: { "x-captcha-response": captchaToken } }
+					: undefined,
 			});
 			if (result.error) {
 				throw new Error("send_failed");
@@ -38,6 +50,9 @@ export function EmailAuth() {
 			setStep("otp");
 		} catch {
 			setError("Nie udało się wysłać kodu. Spróbuj ponownie za chwilę.");
+			// Turnstile tokens are single-use — drop it and re-run before any retry.
+			setCaptchaToken(null);
+			captchaRef.current?.reset();
 		} finally {
 			setIsPending(false);
 		}
@@ -113,7 +128,22 @@ export function EmailAuth() {
 									onChange={(event) => setEmail(event.target.value)}
 								/>
 							</div>
-							<Button type="submit" className="w-full h-12" disabled={isPending}>
+							{TURNSTILE_SITE_KEY ? (
+								<Turnstile
+									ref={captchaRef}
+									siteKey={TURNSTILE_SITE_KEY}
+									action="email-otp"
+									className="flex justify-center"
+									onVerify={setCaptchaToken}
+									onExpire={() => setCaptchaToken(null)}
+									onError={() => setCaptchaToken(null)}
+								/>
+							) : null}
+							<Button
+								type="submit"
+								className="w-full h-12"
+								disabled={isPending || (captchaRequired && !captchaToken)}
+							>
 								{isPending ? "Wysyłanie…" : "Wyślij kod"}
 							</Button>
 						</form>

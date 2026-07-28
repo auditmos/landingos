@@ -14,12 +14,17 @@ async function requestFlight(
 	path: string,
 	body: FlightLookupRequest | ManualFlightRequest,
 	fetchImpl: typeof fetch,
+	captchaToken?: string,
 ): Promise<FlightResolveResult> {
 	let response: Response;
 	try {
 		response = await fetchImpl(`${API_URL}${path}`, {
 			method: "POST",
-			headers: { "content-type": "application/json", ...analyticsFunnelHeaders() },
+			headers: {
+				"content-type": "application/json",
+				...analyticsFunnelHeaders(),
+				...(captchaToken ? { "x-captcha-response": captchaToken } : {}),
+			},
 			body: JSON.stringify(body),
 		});
 	} catch {
@@ -29,7 +34,10 @@ async function requestFlight(
 	}
 	captureAnalyticsFunnel(response);
 	if (!response.ok) {
-		const payload = await response.json().catch(() => null);
+		const payload = (await response.json().catch(() => null)) as { status?: string } | null;
+		if (payload?.status === "captcha_required" || payload?.status === "captcha_failed") {
+			throw new Error("Potwierdź, że nie jesteś robotem i spróbuj ponownie.");
+		}
 		throw new Error(
 			response.status === 400 && payload
 				? "Sprawdź poprawność danych lotu."
@@ -42,9 +50,10 @@ async function requestFlight(
 export function resolveFlightApi(
 	rawInput: FlightLookupRequest,
 	fetchImpl: typeof fetch = fetch,
+	captchaToken?: string,
 ): Promise<FlightResolveResult> {
 	const input = FlightLookupRequestSchema.parse(rawInput);
-	return requestFlight("/flights/resolve", input, fetchImpl);
+	return requestFlight("/flights/resolve", input, fetchImpl, captchaToken);
 }
 
 export function completeManualFlightApi(

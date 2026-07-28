@@ -8,7 +8,7 @@ import {
 	type ManualFlightRequest,
 	ManualFlightRequestSchema,
 } from "@repo/data-ops/flight";
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { createDatabaseAnalyticsTracker } from "../../analytics/repository";
 import {
 	ANALYTICS_FUNNEL_HEADER,
@@ -22,6 +22,7 @@ import {
 	type FlightProvider,
 	resolveProviderConfig,
 } from "../../providers";
+import { turnstileGuard } from "../middleware/turnstile";
 
 export interface FlightHandlerOperations {
 	resolve(input: FlightLookupRequest): Promise<FlightResolveResult>;
@@ -96,10 +97,13 @@ function validationResponse(error: {
 export function createFlightHandlers(
 	operationsFactory: FlightOperationsFactory = defaultOperations,
 	analyticsFactory: FlightAnalyticsFactory = createDatabaseAnalyticsTracker,
+	// Turnstile guard on the public lookup entry point. `/manual` is only reachable
+	// after a successful (already-challenged) `/resolve`, so it stays ungated.
+	captchaGuard: MiddlewareHandler<{ Bindings: Env }> = turnstileGuard(),
 ) {
 	const flights = new Hono<{ Bindings: Env }>();
 
-	flights.post("/resolve", async (c) => {
+	flights.post("/resolve", captchaGuard, async (c) => {
 		const body = await c.req.json().catch(() => ({}));
 		const parsed = FlightLookupRequestSchema.safeParse(body);
 		if (!parsed.success) {
