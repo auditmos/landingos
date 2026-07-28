@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/auditmos/landingos/compare/v1.13.1...v1.14.0) (2026-07-28)
+
+
+### Features
+
+* **user-application:** overhaul flight room UX, gate operator nav, fix transport switch ([0a427ff](https://github.com/auditmos/landingos/commit/0a427ffb95e21d3ff34bf939f7701bbadc27a999))
+
 ## [1.13.1](https://github.com/auditmos/landingos/compare/v1.13.0...v1.13.1) (2026-07-28)
 
 
