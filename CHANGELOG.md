@@ -1,3 +1,10 @@
+## [1.14.1](https://github.com/auditmos/landingos/compare/v1.14.0...v1.14.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **auth:** protect server fns from CSRF and resolve client IP for rate limiting ([c6787fe](https://github.com/auditmos/landingos/commit/c6787fee887f020b299062449bd6bbe75e27da08))
+
 # [1.14.0](https://github.com/auditmos/landingos/compare/v1.13.1...v1.14.0) (2026-07-28)
 
 
