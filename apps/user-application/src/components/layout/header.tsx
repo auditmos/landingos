@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import { AccountDialog } from "@/components/auth/account-dialog";
+import { ThemeToggle } from "@/components/theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
@@ -62,6 +63,7 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 
 			{/* Right side - User menu */}
 			<div className="flex items-center gap-2">
+				<ThemeToggle />
 				<AccountDialog>
 					<Button variant="ghost" className="flex items-center gap-2 px-3">
 						<Avatar className="h-8 w-8">

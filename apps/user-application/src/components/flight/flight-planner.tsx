@@ -8,6 +8,7 @@ import { ArrowRight, CheckCircle2, MapPin, Plane, RotateCcw } from "lucide-react
 import { type FormEvent, useState } from "react";
 import { DestinationPlanner } from "@/components/destination/destination-planner";
 import { JourneyPlanner } from "@/components/journey/journey-planner";
+import { ThemeToggle } from "@/components/theme";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,10 +137,13 @@ export function FlightPlanner() {
 						</span>
 						<span className="text-xl font-bold">LandingOS</span>
 					</a>
-					<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-						<span>Polska</span>
-						<ArrowRight className="size-4" aria-hidden="true" />
-						<span className="text-foreground">BGY</span>
+					<div className="flex items-center gap-3">
+						<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+							<span>Polska</span>
+							<ArrowRight className="size-4" aria-hidden="true" />
+							<span className="text-foreground">BGY</span>
+						</div>
+						<ThemeToggle />
 					</div>
 				</div>
 			</header>

@@ -61,23 +61,26 @@ export function ThemeToggle({
 	const themeOptions = [
 		{
 			value: "light",
-			label: "Light",
+			label: "Jasny",
 			icon: Sun,
-			description: "Use light theme",
+			description: "Użyj jasnego motywu",
 		},
 		{
 			value: "dark",
-			label: "Dark",
+			label: "Ciemny",
 			icon: Moon,
-			description: "Use dark theme",
+			description: "Użyj ciemnego motywu",
 		},
 		{
 			value: "system",
-			label: "System",
+			label: "Systemowy",
 			icon: Monitor,
-			description: "Use system theme",
+			description: "Użyj motywu systemowego",
 		},
 	] as const;
+
+	// Polish label for the currently resolved appearance ("light" | "dark").
+	const resolvedThemeLabel = resolvedTheme === "dark" ? "ciemny" : "jasny";
 
 	const handleThemeSelect = (newTheme: typeof theme) => {
 		setTheme(newTheme);
@@ -95,7 +98,7 @@ export function ThemeToggle({
             focus:ring-2 focus:ring-ring focus:ring-offset-2
             ${showLabel ? "gap-2" : "aspect-square"}
           `}
-					aria-label="Toggle theme"
+					aria-label="Przełącz motyw"
 				>
 					<div className="relative flex items-center justify-center">{getCurrentIcon()}</div>
 					{showLabel && (
@@ -104,7 +107,10 @@ export function ThemeToggle({
 						</span>
 					)}
 					<span className="sr-only">
-						Current theme: {theme === "system" ? `System (${resolvedTheme})` : theme}
+						Aktualny motyw:{" "}
+						{theme === "system"
+							? `Systemowy (${resolvedThemeLabel})`
+							: themeOptions.find((option) => option.value === theme)?.label}
 					</span>
 				</Button>
 			</DropdownMenuTrigger>
@@ -171,7 +177,7 @@ export function ThemeToggle({
                 ${resolvedTheme === "dark" ? "bg-blue-500" : "bg-amber-500"}
               `}
 							/>
-							Currently using {resolvedTheme} theme
+							Aktualnie używany motyw: {resolvedThemeLabel}
 						</div>
 					</div>
 				)}
