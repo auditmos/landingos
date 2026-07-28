@@ -1,3 +1,10 @@
+## [1.13.1](https://github.com/auditmos/landingos/compare/v1.13.0...v1.13.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **user-application:** allow room WebSocket origin in CSP and fix journey alert wrapping ([1681bd0](https://github.com/auditmos/landingos/commit/1681bd04e0dc5ba6ace95740b4e7626483b612da))
+
 # [1.13.0](https://github.com/auditmos/landingos/compare/v1.12.0...v1.13.0) (2026-07-28)
 
 
