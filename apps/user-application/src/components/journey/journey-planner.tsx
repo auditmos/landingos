@@ -210,7 +210,7 @@ export function JourneyPlanner({
 	const { latitude, longitude } = destination.coordinates;
 
 	function continueToRoom(selection: ReturnType<typeof publicSelectionFromJourneyVariant>) {
-		saveRoomIntent({ flightInstanceId: flight.id, selection });
+		saveRoomIntent({ flightInstanceId: flight.id, selection, publicOption: selection });
 		window.location.assign("/app");
 	}
 
@@ -313,9 +313,13 @@ export function JourneyPlanner({
 								type="button"
 								variant="outline"
 								onClick={() => {
+									const topVariant = result.variants[0];
 									saveRoomIntent({
 										flightInstanceId: flight.id,
 										selection: { kind: "shared_taxi" },
+										...(topVariant
+											? { publicOption: publicSelectionFromJourneyVariant(topVariant) }
+											: {}),
 									});
 									window.location.assign("/app");
 								}}

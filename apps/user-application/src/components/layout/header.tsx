@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { useViewerContext } from "@/lib/use-viewer";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -14,6 +15,7 @@ interface HeaderProps {
 
 export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 	const { data: session } = authClient.useSession();
+	const { isOperator } = useViewerContext();
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
 	const user = session?.user;
@@ -55,9 +57,11 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 					<Button asChild variant="ghost" className="justify-start">
 						<a href="/app">Pokój lotu</a>
 					</Button>
-					<Button asChild variant="ghost" className="justify-start">
-						<a href="/operator">Katalog transferów</a>
-					</Button>
+					{isOperator ? (
+						<Button asChild variant="ghost" className="justify-start">
+							<a href="/operator">Katalog transferów</a>
+						</Button>
+					) : null}
 				</nav>
 			) : null}
 

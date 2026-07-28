@@ -108,4 +108,16 @@ describe("public room intent", () => {
 		});
 		expect(loadRoomIntent()?.selection).toEqual({ kind: "shared_taxi" });
 	});
+
+	it("keeps a public-transport option alongside a shared-taxi choice so the room can switch back (US-19)", () => {
+		const publicOption = publicSelectionFromJourneyVariant(variant);
+		saveRoomIntent({
+			flightInstanceId: "flight-1",
+			selection: { kind: "shared_taxi" },
+			publicOption,
+		});
+		const loaded = loadRoomIntent();
+		expect(loaded?.selection).toEqual({ kind: "shared_taxi" });
+		expect(loaded?.publicOption).toEqual(publicOption);
+	});
 });

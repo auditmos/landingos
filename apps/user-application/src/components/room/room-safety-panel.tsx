@@ -1,10 +1,14 @@
 import type { PublicRoomMember } from "@repo/data-ops/room";
 import { SafetyReportReasonSchema } from "@repo/data-ops/safety";
-import { ShieldCheck, Users } from "lucide-react";
+import { ChevronDown, ShieldCheck, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
+import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
 import type { RoomSafetyController } from "./use-room-safety";
 
 const reasonCopy = {
@@ -25,41 +29,175 @@ function selectionLabel(member: PublicRoomMember) {
 		: member.selection.modes.join(", ");
 }
 
-function CommunityRules({ safety }: { safety: RoomSafetyController }) {
-	if (!safety.rules) return null;
+function MemberAvatar({ pseudonym }: { pseudonym: string }) {
 	return (
-		<Card>
+		<Avatar className="size-9">
+			<AvatarFallback className={cn("text-xs font-semibold text-white", pseudonymColor(pseudonym))}>
+				{pseudonymInitials(pseudonym)}
+			</AvatarFallback>
+		</Avatar>
+	);
+}
+
+/**
+ * Pre-acceptance gate: the community rules are the single interactive surface
+ * until the traveler accepts. Rendered on its own so the rest of the room can
+ * be dimmed behind it.
+ */
+export function CommunityRulesGate({ safety }: { safety: RoomSafetyController }) {
+	if (!safety.rules || safety.rules.accepted) return null;
+	return (
+		<Card className="border-primary/40 shadow-lg ring-1 ring-primary/20">
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2 text-xl">
-					<ShieldCheck className="size-5" />
+					<ShieldCheck className="size-5 text-primary" />
 					Zasady społeczności
 				</CardTitle>
-				<CardDescription>Przeczytaj je przed wysłaniem pierwszej wiadomości.</CardDescription>
+				<CardDescription>Zaakceptuj zasady, aby odblokować czat i resztę pokoju.</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<ol className="list-decimal space-y-2 pl-5 text-sm">
+				<ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
 					{safety.rules.topics.map((topic) => (
 						<li key={topic}>{topic}</li>
 					))}
 				</ol>
-				{safety.rules.accepted ? (
-					<Badge variant="secondary">Zaakceptowano aktualną wersję</Badge>
-				) : (
-					<Button type="button" disabled={safety.pending} onClick={() => void safety.acceptRules()}>
-						Akceptuję zasady
-					</Button>
-				)}
+				<Button
+					type="button"
+					size="lg"
+					className="w-full"
+					disabled={safety.pending}
+					onClick={() => void safety.acceptRules()}
+				>
+					Akceptuję zasady
+				</Button>
 			</CardContent>
 		</Card>
 	);
 }
 
-function ReportForm({ safety }: { safety: RoomSafetyController }) {
-	if (!safety.reportTarget) return null;
+/**
+ * Post-acceptance disclosure: once accepted the rules collapse away and are
+ * only shown when the traveler asks for them.
+ */
+export function CommunityRulesDisclosure({ safety }: { safety: RoomSafetyController }) {
+	if (!safety.rules || !safety.rules.accepted) return null;
+	return (
+		<Collapsible className="rounded-lg border bg-card">
+			<CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-4 py-3 text-sm font-medium">
+				<span className="flex items-center gap-2 text-muted-foreground">
+					<ShieldCheck className="size-4" />
+					Zasady społeczności
+				</span>
+				<ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+				<ol className="list-decimal space-y-2 px-4 pb-4 pl-9 text-sm text-muted-foreground">
+					{safety.rules.topics.map((topic) => (
+						<li key={topic}>{topic}</li>
+					))}
+				</ol>
+			</CollapsibleContent>
+		</Collapsible>
+	);
+}
+
+export function SafetyNotices({ safety }: { safety: RoomSafetyController }) {
+	return (
+		<>
+			{safety.error ? (
+				<Alert variant="destructive">
+					<AlertDescription>{safety.error}</AlertDescription>
+				</Alert>
+			) : null}
+			{safety.notice ? (
+				<Alert>
+					<AlertDescription>{safety.notice}</AlertDescription>
+				</Alert>
+			) : null}
+		</>
+	);
+}
+
+export function RoomMembers({
+	members,
+	currentPseudonym,
+	safety,
+}: {
+	members: PublicRoomMember[];
+	currentPseudonym: string;
+	safety: RoomSafetyController;
+}) {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-xl">Zgłoś problem</CardTitle>
+				<CardTitle className="flex items-center gap-2 text-lg">
+					<Users className="size-5" />
+					Osoby w pokoju
+					<Badge variant="secondary">{members.length}</Badge>
+				</CardTitle>
+				<CardDescription>Widoczne są wyłącznie pseudonimy i publiczne deklaracje.</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<ul className="space-y-2">
+					{members.map((member, index) => {
+						const own = member.pseudonym === currentPseudonym;
+						const blocked = safety.blockedPseudonyms.includes(member.pseudonym);
+						return (
+							<li
+								key={`${member.pseudonym}:${index}`}
+								className={cn(
+									"flex flex-wrap items-center gap-3 rounded-md border p-3",
+									own && "border-primary/40 bg-primary/5",
+								)}
+							>
+								<MemberAvatar pseudonym={member.pseudonym} />
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<span className="truncate font-medium">{member.pseudonym}</span>
+										{own ? <Badge variant="outline">Ty</Badge> : null}
+									</div>
+									<span className="text-xs text-muted-foreground">{selectionLabel(member)}</span>
+								</div>
+								{own ? null : (
+									<div className="flex gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											disabled={safety.pending}
+											onClick={() =>
+												void (blocked
+													? safety.unblock(member.pseudonym)
+													: safety.block(member.pseudonym))
+											}
+										>
+											{blocked ? "Odblokuj" : "Zablokuj"}
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="ghost"
+											onClick={() => safety.startMemberReport(member.pseudonym)}
+										>
+											Zgłoś osobę
+										</Button>
+									</div>
+								)}
+							</li>
+						);
+					})}
+				</ul>
+			</CardContent>
+		</Card>
+	);
+}
+
+export function ReportForm({ safety }: { safety: RoomSafetyController }) {
+	if (!safety.reportTarget) return null;
+	return (
+		<Card className="border-primary/40">
+			<CardHeader>
+				<CardTitle className="text-lg">Zgłoś problem</CardTitle>
 				<CardDescription>
 					Zgłoszenie trafi do ograniczonego magazynu bezpieczeństwa.
 				</CardDescription>
@@ -107,84 +245,5 @@ function ReportForm({ safety }: { safety: RoomSafetyController }) {
 				</div>
 			</CardContent>
 		</Card>
-	);
-}
-
-export function RoomSafetyPanel({
-	members,
-	currentPseudonym,
-	safety,
-}: {
-	members: PublicRoomMember[];
-	currentPseudonym: string;
-	safety: RoomSafetyController;
-}) {
-	return (
-		<div className="space-y-5">
-			<CommunityRules safety={safety} />
-			{safety.error ? (
-				<Alert variant="destructive">
-					<AlertDescription>{safety.error}</AlertDescription>
-				</Alert>
-			) : null}
-			{safety.notice ? (
-				<Alert>
-					<AlertDescription>{safety.notice}</AlertDescription>
-				</Alert>
-			) : null}
-			<Card>
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2 text-xl">
-						<Users className="size-5" />
-						Osoby w pokoju
-					</CardTitle>
-					<CardDescription>
-						Widoczne są wyłącznie pseudonimy i publiczne deklaracje.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<ul className="space-y-2">
-						{members.map((member, index) => {
-							const own = member.pseudonym === currentPseudonym;
-							const blocked = safety.blockedPseudonyms.includes(member.pseudonym);
-							return (
-								<li key={`${member.pseudonym}:${index}`} className="rounded-md border p-3">
-									<div className="flex flex-wrap items-center justify-between gap-2">
-										<span className="font-medium">{member.pseudonym}</span>
-										<Badge variant="secondary">{selectionLabel(member)}</Badge>
-									</div>
-									{own ? null : (
-										<div className="mt-3 flex flex-wrap gap-2">
-											<Button
-												type="button"
-												size="sm"
-												variant="outline"
-												disabled={safety.pending}
-												onClick={() =>
-													void (blocked
-														? safety.unblock(member.pseudonym)
-														: safety.block(member.pseudonym))
-												}
-											>
-												{blocked ? "Odblokuj" : "Zablokuj"}
-											</Button>
-											<Button
-												type="button"
-												size="sm"
-												variant="ghost"
-												onClick={() => safety.startMemberReport(member.pseudonym)}
-											>
-												Zgłoś osobę
-											</Button>
-										</div>
-									)}
-								</li>
-							);
-						})}
-					</ul>
-				</CardContent>
-			</Card>
-			<ReportForm safety={safety} />
-		</div>
 	);
 }

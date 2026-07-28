@@ -1,8 +1,9 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bus, Home, Menu } from "lucide-react";
+import { Bus, Home, Menu, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useViewerContext } from "@/lib/use-viewer";
 import { cn } from "@/lib/utils";
 
 interface NavigationItem {
@@ -10,6 +11,7 @@ interface NavigationItem {
 	icon: React.ComponentType<{ className?: string }>;
 	href: string;
 	badge?: string | number;
+	operatorOnly?: boolean;
 }
 
 const navigationItems: NavigationItem[] = [
@@ -19,9 +21,15 @@ const navigationItems: NavigationItem[] = [
 		href: "/",
 	},
 	{
+		name: "Pokój lotu",
+		icon: MessageCircle,
+		href: "/app",
+	},
+	{
 		name: "Katalog transferów",
 		icon: Bus,
 		href: "/operator",
+		operatorOnly: true,
 	},
 ];
 
@@ -34,6 +42,8 @@ export function Sidebar({ className }: SidebarProps) {
 	const routerState = useRouterState();
 	const currentPath = routerState.location.pathname;
 	const [isCollapsed, setIsCollapsed] = useState(false);
+	const { isOperator } = useViewerContext();
+	const visibleItems = navigationItems.filter((item) => !item.operatorOnly || isOperator);
 
 	return (
 		<>
@@ -61,7 +71,7 @@ export function Sidebar({ className }: SidebarProps) {
 
 				<ScrollArea className="flex-1 px-3 py-4">
 					<nav className="space-y-2">
-						{navigationItems.map((item) => {
+						{visibleItems.map((item) => {
 							const isActive =
 								currentPath === item.href ||
 								(item.href !== "/" && currentPath.startsWith(`${item.href}/`));

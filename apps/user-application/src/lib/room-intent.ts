@@ -1,6 +1,7 @@
 import type { JourneyVariant } from "@repo/data-ops/journey";
 import {
 	type PublicTransportSelection,
+	PublicTransportSelectionSchema,
 	type RoomSelection,
 	RoomSelectionSchema,
 } from "@repo/data-ops/room";
@@ -11,6 +12,10 @@ const ROOM_INTENT_KEY = "landingos.room-intent";
 const RoomIntentSchema = z.strictObject({
 	flightInstanceId: z.string().min(1),
 	selection: RoomSelectionSchema,
+	// The recommended public-transport declaration for this flight, kept so the
+	// room can offer switching to it even when the traveler entered via the
+	// shared-taxi path (US-19: change the transport declaration at any time).
+	publicOption: PublicTransportSelectionSchema.optional(),
 });
 
 export type RoomIntent = z.infer<typeof RoomIntentSchema>;
@@ -42,6 +47,7 @@ export function publicSelectionFromJourneyVariant(
 export function saveRoomIntent(intent: {
 	flightInstanceId: string;
 	selection: RoomSelection;
+	publicOption?: PublicTransportSelection;
 }): void {
 	const storage = browserStorage();
 	if (!storage) return;

@@ -8,16 +8,18 @@ import {
 	type RoomSelection,
 	type RoomSnapshot,
 } from "@repo/data-ops/room";
-import { MessageCircle, RefreshCw, Send } from "lucide-react";
+import { Bus, Car, MessageCircle, RefreshCw, Send } from "lucide-react";
 import {
 	type Dispatch,
 	type FormEvent,
 	type SetStateAction,
 	useCallback,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,9 +33,17 @@ import {
 	updateRoomSelection,
 } from "@/lib/room-api";
 import { clearRoomIntent, loadRoomIntent, type RoomIntent } from "@/lib/room-intent";
+import { cn } from "@/lib/utils";
 import { ClosedRoom } from "./closed-room";
 import { PseudonymSetup } from "./pseudonym-setup";
-import { RoomSafetyPanel } from "./room-safety-panel";
+import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
+import {
+	CommunityRulesDisclosure,
+	CommunityRulesGate,
+	ReportForm,
+	RoomMembers,
+	SafetyNotices,
+} from "./room-safety-panel";
 import { useRoomSafety } from "./use-room-safety";
 
 function upsertMember(members: PublicRoomMember[], member: PublicRoomMember): PublicRoomMember[] {
@@ -132,6 +142,112 @@ function handleInitializationError(
 	}
 }
 
+function formatMessageTime(iso: string): string {
+	const date = new Date(iso);
+	if (Number.isNaN(date.getTime())) return "";
+	return date.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+}
+
+function ChatMessageItem({
+	message,
+	own,
+	onReport,
+}: {
+	message: PublicRoomMessage;
+	own: boolean;
+	onReport: () => void;
+}) {
+	return (
+		<div className={cn("flex items-end gap-2", own && "flex-row-reverse")}>
+			{own ? null : (
+				<Avatar className="size-8 shrink-0">
+					<AvatarFallback
+						className={cn("text-xs font-semibold text-white", pseudonymColor(message.pseudonym))}
+					>
+						{pseudonymInitials(message.pseudonym)}
+					</AvatarFallback>
+				</Avatar>
+			)}
+			<div
+				className={cn(
+					"max-w-[78%] rounded-2xl px-3 py-2",
+					own
+						? "rounded-br-sm bg-primary text-primary-foreground"
+						: "rounded-bl-sm bg-muted text-foreground",
+				)}
+			>
+				{own ? null : <p className="text-xs font-semibold">{message.pseudonym}</p>}
+				<p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
+				<div className={cn("mt-1 flex", own ? "justify-end" : "justify-start")}>
+					<span
+						className={cn(
+							"text-[10px]",
+							own ? "text-primary-foreground/70" : "text-muted-foreground",
+						)}
+					>
+						{formatMessageTime(message.createdAt)}
+					</span>
+				</div>
+				{own ? null : (
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						className="mt-1 h-7 px-2 text-xs"
+						onClick={onReport}
+					>
+						Zgłoś wiadomość
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function SelectionPanel({
+	selectedKind,
+	intent,
+	onChange,
+}: {
+	selectedKind: RoomSelection["kind"] | undefined;
+	intent: RoomIntent | null;
+	onChange: (selection: RoomSelection) => void;
+}) {
+	const publicOption =
+		intent?.selection.kind === "public_transport"
+			? intent.selection
+			: (intent?.publicOption ?? null);
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-lg">Twoja deklaracja</CardTitle>
+				<CardDescription>Możesz zmienić ją w dowolnym momencie.</CardDescription>
+			</CardHeader>
+			<CardContent className="grid gap-2">
+				<Button
+					type="button"
+					className="justify-start"
+					variant={selectedKind === "public_transport" ? "default" : "outline"}
+					disabled={!publicOption}
+					onClick={() => publicOption && onChange(publicOption)}
+				>
+					<Bus className="size-4" />
+					Transport publiczny
+				</Button>
+				<Button
+					type="button"
+					className="justify-start"
+					variant={selectedKind === "shared_taxi" ? "default" : "outline"}
+					onClick={() => onChange({ kind: "shared_taxi" })}
+				>
+					<Car className="size-4" />
+					Dzielona taksówka
+				</Button>
+			</CardContent>
+		</Card>
+	);
+}
+
 export function FlightRoom() {
 	const [intent, setIntent] = useState<RoomIntent | null>(null);
 	const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
@@ -142,6 +258,7 @@ export function FlightRoom() {
 	const [retryKey, setRetryKey] = useState(0);
 	const [connection, setConnection] = useState("Łączenie…");
 	const [closed, setClosed] = useState(false);
+	const messagesRef = useRef<HTMLDivElement>(null);
 	const closeRoomView = useCallback(() => {
 		clearRoomIntent();
 		setSnapshot(null);
@@ -153,6 +270,12 @@ export function FlightRoom() {
 		const roomId = snapshot?.room.id;
 		if (roomId) setSnapshot(await fetchRoomSnapshot(roomId));
 	});
+
+	useEffect(() => {
+		const container = messagesRef.current;
+		const count = snapshot?.messages.length ?? 0;
+		if (container && count > 0) container.scrollTop = container.scrollHeight;
+	}, [snapshot?.messages.length]);
 
 	useEffect(() => {
 		void retryKey;
@@ -325,15 +448,11 @@ export function FlightRoom() {
 	if (loading) return <p aria-live="polite">Przygotowujemy pokój lotu…</p>;
 	if (needsPseudonym) return <PseudonymSetup onSaved={() => setRetryKey((value) => value + 1)} />;
 
+	const gated = !!snapshot && !!safety.rules && !safety.rules.accepted;
+
 	return (
-		<section className="mx-auto max-w-5xl space-y-5">
-			<div>
-				<Badge variant="secondary">{connection}</Badge>
-				<h1 className="mt-3 text-3xl font-bold tracking-tight">Pokój lotu</h1>
-				<p className="mt-2 text-muted-foreground">
-					LandingOS nie sprawdza karty pokładowej. Do pokoju wchodzą osoby deklarujące ten sam lot.
-				</p>
-			</div>
+		<section className="mx-auto max-w-3xl space-y-5">
+			{snapshot ? <CommunityRulesGate safety={safety} /> : null}
 
 			{error ? (
 				<Alert variant="destructive">
@@ -342,124 +461,118 @@ export function FlightRoom() {
 				</Alert>
 			) : null}
 
-			{!snapshot ? (
-				<Button asChild>
-					<a href="/">Wróć do planera</a>
-				</Button>
-			) : (
-				<div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-					<div className="space-y-5">
-						<RoomSafetyPanel
-							members={snapshot.members}
-							currentPseudonym={snapshot.member.pseudonym}
-							safety={safety}
-						/>
+			<SafetyNotices safety={safety} />
+			{snapshot ? <ReportForm safety={safety} /> : null}
+
+			<div
+				className={cn(
+					"space-y-5 transition-opacity",
+					gated && "pointer-events-none select-none opacity-40 blur-[1px]",
+				)}
+				inert={gated || undefined}
+			>
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Pokój lotu</h1>
+						<p className="mt-1 text-sm text-muted-foreground">
+							LandingOS nie sprawdza karty pokładowej. Do pokoju wchodzą osoby deklarujące ten sam
+							lot.
+						</p>
+					</div>
+					<Badge variant="secondary">{connection}</Badge>
+				</div>
+
+				{!snapshot ? (
+					<Button asChild>
+						<a href="/">Wróć do planera</a>
+					</Button>
+				) : (
+					<>
+						<div className="grid gap-4 sm:grid-cols-2">
+							<SelectionPanel
+								selectedKind={snapshot.member.selection?.kind}
+								intent={intent}
+								onChange={changeSelection}
+							/>
+
+							<RoomMembers
+								members={snapshot.members}
+								currentPseudonym={snapshot.member.pseudonym}
+								safety={safety}
+							/>
+						</div>
+
 						<Card>
 							<CardHeader>
-								<CardTitle className="text-xl">Twoja deklaracja</CardTitle>
-								<CardDescription>Możesz zmienić ją w dowolnym momencie.</CardDescription>
+								<CardTitle className="flex items-center gap-2 text-xl">
+									<MessageCircle className="size-5" />
+									Wspólny czat
+								</CardTitle>
+								<CardDescription>Jedna rozmowa dla osób z tego lotu.</CardDescription>
 							</CardHeader>
-							<CardContent className="grid gap-2">
-								<Button
-									type="button"
-									variant={
-										snapshot.member.selection?.kind === "public_transport" ? "default" : "outline"
-									}
-									disabled={!intent || intent.selection.kind !== "public_transport"}
-									onClick={() =>
-										intent?.selection.kind === "public_transport" &&
-										changeSelection(intent.selection)
-									}
+							<CardContent className="space-y-4">
+								<div
+									ref={messagesRef}
+									className="max-h-[55vh] min-h-40 space-y-3 overflow-y-auto pr-1"
+									aria-live="polite"
 								>
-									Transport publiczny
-								</Button>
-								<Button
-									type="button"
-									variant={
-										snapshot.member.selection?.kind === "shared_taxi" ? "default" : "outline"
-									}
-									onClick={() => changeSelection({ kind: "shared_taxi" })}
-								>
-									Dzielona taksówka
-								</Button>
-							</CardContent>
-						</Card>
-					</div>
-
-					<Card>
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2 text-xl">
-								<MessageCircle className="size-5" />
-								Wspólny czat
-							</CardTitle>
-							<CardDescription>Jedna rozmowa dla osób z tego lotu.</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="max-h-96 space-y-3 overflow-y-auto" aria-live="polite">
-								{snapshot.messages.length === 0 ? (
-									<p className="text-sm text-muted-foreground">Nie ma jeszcze wiadomości.</p>
-								) : (
-									snapshot.messages.map((item) => (
-										<article key={item.id} className="rounded-md border p-3">
-											<p className="text-sm font-semibold">{item.pseudonym}</p>
-											<p className="whitespace-pre-wrap break-words">{item.content}</p>
-											{item.pseudonym === snapshot.member.pseudonym ? null : (
-												<Button
-													type="button"
-													size="sm"
-													variant="ghost"
-													className="mt-2"
-													onClick={() => safety.startMessageReport(item.id)}
-												>
-													Zgłoś wiadomość
-												</Button>
-											)}
-										</article>
-									))
-								)}
-							</div>
-							<form className="space-y-2" onSubmit={submitMessage}>
-								<label className="text-sm font-medium" htmlFor="room-message">
-									Wiadomość
-								</label>
-								<Input
-									id="room-message"
-									value={message}
-									onChange={(event) => setMessage(event.target.value)}
-									autoComplete="off"
-								/>
-								<div className="flex items-center justify-between gap-3">
+									{snapshot.messages.length === 0 ? (
+										<p className="text-sm text-muted-foreground">Nie ma jeszcze wiadomości.</p>
+									) : (
+										snapshot.messages.map((item) => (
+											<ChatMessageItem
+												key={item.id}
+												message={item}
+												own={item.pseudonym === snapshot.member.pseudonym}
+												onReport={() => safety.startMessageReport(item.id)}
+											/>
+										))
+									)}
+								</div>
+								<form className="space-y-2" onSubmit={submitMessage}>
+									<label className="text-sm font-medium" htmlFor="room-message">
+										Wiadomość
+									</label>
+									<div className="flex items-end gap-2">
+										<Input
+											id="room-message"
+											value={message}
+											onChange={(event) => setMessage(event.target.value)}
+											autoComplete="off"
+										/>
+										<Button
+											type="submit"
+											disabled={
+												!safety.rules?.accepted ||
+												Array.from(message.trim()).length < 1 ||
+												Array.from(message.trim()).length > 1_000
+											}
+										>
+											<Send className="size-4" />
+											Wyślij
+										</Button>
+									</div>
 									<span className="text-xs text-muted-foreground">
 										{Array.from(message.trim()).length}/1000
 									</span>
-									<Button
-										type="submit"
-										disabled={
-											!safety.rules?.accepted ||
-											Array.from(message.trim()).length < 1 ||
-											Array.from(message.trim()).length > 1_000
-										}
-									>
-										<Send className="size-4" />
-										Wyślij
-									</Button>
-								</div>
-							</form>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+								</form>
+							</CardContent>
+						</Card>
 
-			{snapshot ? (
-				<Button
-					type="button"
-					variant="ghost"
-					onClick={() => void fetchRoomSnapshot(snapshot.room.id).then(setSnapshot)}
-				>
-					<RefreshCw className="size-4" />
-					Odśwież historię
-				</Button>
-			) : null}
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<CommunityRulesDisclosure safety={safety} />
+							<Button
+								type="button"
+								variant="ghost"
+								onClick={() => void fetchRoomSnapshot(snapshot.room.id).then(setSnapshot)}
+							>
+								<RefreshCw className="size-4" />
+								Odśwież historię
+							</Button>
+						</div>
+					</>
+				)}
+			</div>
 		</section>
 	);
 }
