@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/auditmos/landingos/compare/v1.10.3...v1.11.0) (2026-07-28)
+
+
+### Features
+
+* **user-application:** expose theme switcher in headers ([4c56495](https://github.com/auditmos/landingos/commit/4c564959cec347bc516c322ac7402d7fe0f2ece3))
+
 ## [1.10.3](https://github.com/auditmos/landingos/compare/v1.10.2...v1.10.3) (2026-07-28)
 
 
