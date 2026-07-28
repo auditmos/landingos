@@ -8,8 +8,15 @@ const connectSources = (dataServiceUrl?: string): string[] => {
 
 	try {
 		const url = new URL(dataServiceUrl);
-		if ((url.protocol === "http:" || url.protocol === "https:") && !sources.includes(url.origin)) {
-			sources.push(url.origin);
+		if (url.protocol === "http:" || url.protocol === "https:") {
+			// The Flight Room chat opens a WebSocket to the same origin. CSP treats
+			// ws:/wss: as distinct schemes from http:/https:, so the HTTP origin alone
+			// does not authorize the socket — the ws(s): origin must be listed too, or
+			// the browser blocks the connection and realtime messages never arrive.
+			const socketOrigin = url.origin.replace(/^http/, "ws");
+			for (const source of [url.origin, socketOrigin]) {
+				if (!sources.includes(source)) sources.push(source);
+			}
 		}
 	} catch {
 		// Keep the restrictive default when configuration is invalid.

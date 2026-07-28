@@ -286,7 +286,11 @@ export function JourneyPlanner({
 			) : null}
 			{result?.status === "recommendations" ? (
 				<>
-					{result.explanation ? <Alert>{result.explanation}</Alert> : null}
+					{result.explanation ? (
+						<Alert>
+							<AlertDescription>{result.explanation}</AlertDescription>
+						</Alert>
+					) : null}
 					{result.variants.map((variant) => (
 						<JourneyVariantCard
 							key={variant.id}

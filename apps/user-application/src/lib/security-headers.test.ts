@@ -48,13 +48,45 @@ describe("applySecurityHeaders", () => {
 		expect(csp).toMatch(/frame-src [^;]*https:\/\/challenges\.cloudflare\.com/);
 	});
 
-	it("allows only the configured local data-service origin in connect-src", () => {
+	it("allows the local data-service HTTP and WebSocket origins in connect-src", () => {
 		const res = applySecurityHeaders(new Response("<html></html>"), "http://localhost:8788");
 		const csp = res.headers.get("Content-Security-Policy");
 		const connectSrc = csp?.split("; ").find((directive) => directive.startsWith("connect-src"));
 
-		expect(connectSrc).toBe("connect-src 'self' https: http://localhost:8788");
+		// ws:/wss: are distinct CSP schemes from http:/https:, so the Flight Room
+		// socket origin must be listed alongside the REST origin.
+		expect(connectSrc).toBe("connect-src 'self' https: http://localhost:8788 ws://localhost:8788");
 		expect(connectSrc?.split(" ")).not.toContain("http:");
+	});
+
+	it("adds the wss: origin for an https data-service (staging/production)", () => {
+		const res = applySecurityHeaders(new Response("<html></html>"), "https://api.example.com");
+		const csp = res.headers.get("Content-Security-Policy");
+		const connectSrc = csp?.split("; ").find((directive) => directive.startsWith("connect-src"));
+
+		expect(connectSrc).toBe(
+			"connect-src 'self' https: https://api.example.com wss://api.example.com",
+		);
+	});
+
+	it.each([
+		"http://localhost:8788",
+		"https://api.example.com",
+		"https://api-staging.landingos.app",
+	])("never lists an http(s) data-service origin without its ws(s) counterpart (%s)", (dataServiceUrl) => {
+		const res = applySecurityHeaders(new Response("<html></html>"), dataServiceUrl);
+		const csp = res.headers.get("Content-Security-Policy");
+		const connectSrc = csp?.split("; ").find((directive) => directive.startsWith("connect-src"));
+		const sources = connectSrc?.split(" ") ?? [];
+
+		// Any concrete http(s):// origin (not the bare `https:` scheme token) must be
+		// accompanied by its ws(s):// equivalent, or browsers block the Flight Room
+		// socket while REST still works — the "messages only on refresh" bug.
+		for (const source of sources) {
+			if (source === "https:" || !/^https?:\/\//.test(source)) continue;
+			const socketOrigin = source.replace(/^http/, "ws");
+			expect(sources).toContain(socketOrigin);
+		}
 	});
 
 	it("preserves original status, body, and existing response headers", async () => {

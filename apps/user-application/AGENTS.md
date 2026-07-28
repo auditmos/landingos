@@ -72,6 +72,22 @@ const data = await response.json();
 - Health check: `GET /api/health` verifies binding, DB, and env
 </important>
 
+<important if="the Flight Room chat is not delivering messages in real time (only after a page refresh)">
+## Flight Room realtime / WebSocket CSP gotcha
+
+The browser opens the room WebSocket **directly** to the data-service origin
+(`ws://localhost:8788` in dev, `wss://<api-host>` in prod) — see `roomWebSocketUrl()`
+in `lib/room-api.ts`. It does NOT go through the `DATA_SERVICE` service binding.
+
+The most common "messages only appear on refresh" cause is the page CSP: `connect-src`
+in `lib/security-headers.ts` must list the **ws:/wss: origin**, not just the http:/https:
+one. CSP treats `ws:`/`wss:` as distinct schemes, so `http://localhost:8788` does NOT
+authorize `ws://localhost:8788` — the socket is blocked while REST still works (hence
+refresh loads messages but live delivery is silent). Confirm in DevTools → Console for a
+`connect-src` violation. The server-side Hono middleware in data-service does NOT strip
+the 101 upgrade (verified in real workerd) — don't chase that.
+</important>
+
 ## Don't
 
 - Import `env` from 'cloudflare:workers' in client code (server only)
