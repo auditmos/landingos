@@ -57,6 +57,24 @@ export const createBetterAuth = (config: {
 		);
 	}
 
+	// Cloudflare sets `CF-Connecting-IP` at the edge with the real client IP and
+	// the client cannot spoof it, so trust that header first to resolve the
+	// address; `x-forwarded-for` is the fallback for non-Cloudflare runtimes
+	// (local dev, tests). Without a resolvable IP Better Auth cannot key rate
+	// limits per-IP and falls back to a single shared per-path bucket (one abuser
+	// throttles everyone).
+	const advanced: NonNullable<BetterAuthOptions["advanced"]> = {
+		ipAddress: {
+			ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+		},
+	};
+	if (config.crossSubDomainCookieDomain) {
+		advanced.crossSubDomainCookies = {
+			enabled: true,
+			domain: config.crossSubDomainCookieDomain,
+		};
+	}
+
 	return betterAuth({
 		database: config.database,
 		secret: config.secret,
@@ -67,14 +85,7 @@ export const createBetterAuth = (config: {
 			storage: "database",
 			modelName: "auth_rate_limit",
 		},
-		advanced: config.crossSubDomainCookieDomain
-			? {
-					crossSubDomainCookies: {
-						enabled: true,
-						domain: config.crossSubDomainCookieDomain,
-					},
-				}
-			: undefined,
+		advanced,
 		user: {
 			modelName: "auth_user",
 			deleteUser: {

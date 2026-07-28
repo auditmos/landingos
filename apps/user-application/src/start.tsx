@@ -1,4 +1,4 @@
-import { createStart } from "@tanstack/react-start";
+import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
 
 declare module "@tanstack/react-start" {
 	interface Register {
@@ -10,9 +10,16 @@ declare module "@tanstack/react-start" {
 	}
 }
 
+// Server functions are same-origin RPC endpoints; reject cross-site requests so
+// a malicious page cannot invoke them with the user's cookies (CSRF).
+const csrfMiddleware = createCsrfMiddleware({
+	filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
 export const startInstance = createStart(() => {
 	return {
 		defaultSsr: true,
+		requestMiddleware: [csrfMiddleware],
 	};
 });
 
