@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/auditmos/landingos/compare/v1.11.0...v1.12.0) (2026-07-28)
+
+
+### Features
+
+* gate sign-in and flight lookup with Cloudflare Turnstile ([f8b14f8](https://github.com/auditmos/landingos/commit/f8b14f84e857a7fd6ecec985d87317fb9029f6e3))
+
 # [1.11.0](https://github.com/auditmos/landingos/compare/v1.10.3...v1.11.0) (2026-07-28)
 
 
