@@ -1,8 +1,10 @@
 import type { FlightResolveResult } from "@repo/data-ops/flight";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FlightSummary } from "@/components/flight/flight-planner";
+import { FlightPlanner, FlightSummary } from "@/components/flight/flight-planner";
+import { PlannerResults } from "@/components/flight/flight-planner-results";
 import { completeManualFlightApi, formatArrivalInRome, resolveFlightApi } from "./flight-planner";
+import { currentDateInPoland, formatPolishDateInput } from "./polish-date";
 
 const response: FlightResolveResult = {
 	status: "recognized",
@@ -23,6 +25,43 @@ const response: FlightResolveResult = {
 };
 
 describe("anonymous flight planner UI integration", () => {
+	it("renders a selectable departure calendar with today in Polish notation", () => {
+		const html = renderToStaticMarkup(createElement(FlightPlanner));
+		const today = currentDateInPoland();
+		expect(html).toContain('type="date"');
+		expect(html).toContain(`value="${today}"`);
+		expect(html).toContain(formatPolishDateInput(today));
+		expect(html).toContain("Format: DD.MM.RRRR, np. 04.08.2026.");
+		expect(html).toContain("Format: dwuznakowy kod przewoźnika i od 1 do 4 cyfr, np. FR1234.");
+	});
+
+	it("renders manual arrival using Polish date order and 24-hour time", () => {
+		const html = renderToStaticMarkup(
+			createElement(PlannerResults, {
+				error: "",
+				result: {
+					status: "manual_required",
+					reason: "not_found",
+					flightNumber: "FR1234",
+					departureLocalDate: "2026-09-14",
+				},
+				manualArrival: "2026-09-14T12:00",
+				manualArrivalError: "",
+				loading: false,
+				onManualArrivalChange: () => undefined,
+				onManualSubmit: () => undefined,
+				onRetry: () => undefined,
+				onDestinationChange: () => undefined,
+			}),
+		);
+		expect(html).toContain('type="datetime-local"');
+		expect(html).toContain('value="2026-09-14T12:00"');
+		expect(html).toContain("14.09.2026, 12:00");
+		expect(html).toContain("Format: DD.MM.RRRR, GG:MM (24 godz.)");
+		expect(html).not.toContain("AM");
+		expect(html).not.toContain("PM");
+	});
+
 	it("calls the public resolver without credentials and renders all recognized fields in Rome time", async () => {
 		const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
 			expect(init).not.toHaveProperty("credentials");

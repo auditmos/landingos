@@ -24,16 +24,18 @@ describe("landing page visual baseline", () => {
 		const page = container.firstElementChild;
 		const heading = container.querySelector("h1");
 		const introduction = heading?.nextElementSibling;
-		const inputs = Array.from(container.querySelectorAll("input"));
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		const departurePicker = container.querySelector<HTMLButtonElement>("#departure-date");
+		const nativeDateInput = container.querySelector<HTMLInputElement>("#departure-date-native");
 
 		expect(page?.className).toContain("min-h-dvh");
 		expect(page?.className).not.toContain("gradient");
 		expect(heading?.className).toContain("text-balance");
 		expect(introduction?.className).toContain("text-pretty");
-		expect(inputs).toHaveLength(2);
-		for (const input of inputs) {
-			expect(input.className).toContain("h-12");
-		}
+		expect(flightNumber?.className).toContain("h-12");
+		expect(departurePicker?.className).toContain("h-12");
+		expect(nativeDateInput?.type).toBe("date");
+		expect(nativeDateInput?.className).toContain("sr-only");
 
 		await act(async () => root.unmount());
 		container.remove();

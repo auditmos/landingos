@@ -142,3 +142,6 @@ vite.config.ts.timestamp-*
 
 # Codex CLI per-developer config
 .codex/
+
+# Wrangler local state and generated deployment metadata
+.wrangler/

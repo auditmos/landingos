@@ -80,7 +80,7 @@ describe("anonymous flight-to-destination flow", () => {
 
 		await act(async () => root.render(createElement(FlightPlanner)));
 		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
-		const departureDate = container.querySelector<HTMLInputElement>("#departure-date");
+		const departureDate = container.querySelector<HTMLInputElement>("#departure-date-native");
 		expect(flightNumber).not.toBeNull();
 		expect(departureDate).not.toBeNull();
 		await act(async () => {
@@ -232,7 +232,7 @@ describe("anonymous flight-to-destination flow", () => {
 				"FR1234",
 			);
 			setInputValue(
-				container.querySelector<HTMLInputElement>("#departure-date") as HTMLInputElement,
+				container.querySelector<HTMLInputElement>("#departure-date-native") as HTMLInputElement,
 				"2026-09-14",
 			);
 			container
