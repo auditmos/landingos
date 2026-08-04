@@ -117,11 +117,21 @@ non-interactive, use deterministic in-memory fixtures, and require no live-provi
 ## Deployment
 
 ```bash
+pnpm run deploy:holding-page
 pnpm run deploy:staging:user-application
 pnpm run deploy:staging:data-service
 pnpm run deploy:production:user-application
 pnpm run deploy:production:data-service
 ```
+
+`apps/holding-page` is the temporary, static public site for `landingos.app`. It has no
+application bindings, analytics, forms, or link to staging. Preview it locally with
+`pnpm run dev:holding-page` (port 3001), and validate its bundle without publishing with
+`pnpm run deploy:dry-run:holding-page`.
+
+Before the first production user-application deployment, detach the `landingos.app` Custom
+Domain from the `landingos-holding` Worker and deploy `landingos-ua-production` immediately.
+Do not remove or alter the `staging.landingos.app` Custom Domain during that cutover.
 
 Secrets sync: `bash apps/{app}/sync-secrets.sh {env}`. Fixture provider data must never render
 in `staging`/`production`. See [`.claude/rules/cloudflare-deployment.md`](./.claude/rules/cloudflare-deployment.md) for hostname/SSL/redirect rules.

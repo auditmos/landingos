@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 680" role="img" aria-labelledby="title description">
+  <title id="title">Trasa z Polski przez Bergamo do Mediolanu</title>
+  <desc id="description">Edytorialna ilustracja samolotu, punktów podróży i panoramy Mediolanu.</desc>
+  <rect width="760" height="680" fill="#e9e0d0"/>
+  <rect x="42" y="42" width="676" height="596" fill="#f8f4eb" stroke="#11203b" stroke-width="2"/>
+  <circle cx="598" cy="153" r="78" fill="#f0b84c"/>
+  <path d="M42 455 151 386l81 50 112-120 76 66 118-116 180 126v246H42Z" fill="#dce7ec"/>
+  <path d="m42 505 118-87 79 49 111-111 75 65 116-111 177 128" fill="none" stroke="#11203b" stroke-width="3"/>
+  <path d="M170 169C273 86 413 98 474 193c42 67 6 133-71 184-53 35-61 84-30 133" fill="none" stroke="#2456d6" stroke-width="5" stroke-dasharray="12 12"/>
+  <circle cx="170" cy="169" r="13" fill="#fffdf8" stroke="#2456d6" stroke-width="6"/>
+  <circle cx="403" cy="377" r="13" fill="#fffdf8" stroke="#2456d6" stroke-width="6"/>
+  <circle cx="373" cy="510" r="13" fill="#2456d6" stroke="#fffdf8" stroke-width="6"/>
+  <g transform="translate(327 164) rotate(18)">
+    <path d="m0 35 64-25 18 9-50 38 47 31-15 9L0 73l-24 17-11-5 13-30-13-30 11-5Z" fill="#11203b"/>
+  </g>
+  <g fill="#11203b" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+    <text x="105" y="140" font-size="17" font-weight="700">POLSKA</text>
+    <text x="421" y="371" font-size="17" font-weight="700">BGY</text>
+    <text x="398" y="541" font-size="17" font-weight="700">MEDIOLAN</text>
+  </g>
+  <g transform="translate(498 447)" fill="#11203b">
+    <rect x="0" y="82" width="164" height="12"/>
+    <path d="M14 82V35h18v47Zm31 0V20h18v62Zm31 0V43h18v39Zm31 0V29h18v53Zm31 0V51h18v31Z"/>
+    <path d="m36 20 18-20 18 20Zm62 9 18-24 18 24Z"/>
+  </g>
+  <g transform="translate(91 474)" fill="none" stroke="#11203b" stroke-width="3">
+    <rect x="0" y="0" width="111" height="74"/>
+    <path d="M18 74V43h25v31m18 0V28h32v46M0 16h111"/>
+  </g>
+  <path d="M65 77h170" stroke="#11203b" stroke-width="2"/>
+  <text x="65" y="109" fill="#11203b" font-family="Georgia, Times New Roman, serif" font-size="28">Od przylotu do celu</text>
+</svg>

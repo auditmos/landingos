@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">LandingOS — spokojniejszy start w Mediolanie</title>
+  <desc id="description">Zapowiedź LandingOS dla podróżujących z Polski do Mediolanu przez lotnisko Bergamo.</desc>
+  <rect width="1200" height="630" fill="#f4efe5"/>
+  <rect x="48" y="48" width="1104" height="534" fill="#fffdf8" stroke="#11203b" stroke-width="3"/>
+  <rect x="48" y="48" width="430" height="534" fill="#2456d6"/>
+  <circle cx="892" cy="165" r="92" fill="#f0b84c"/>
+  <path d="M695 152c107-72 226-40 255 48 20 60-31 101-94 142-48 31-69 72-54 122" fill="none" stroke="#2456d6" stroke-width="8" stroke-dasharray="18 16"/>
+  <circle cx="695" cy="152" r="18" fill="#fffdf8" stroke="#2456d6" stroke-width="8"/>
+  <circle cx="802" cy="464" r="18" fill="#2456d6" stroke="#fffdf8" stroke-width="8"/>
+  <g transform="translate(829 233) rotate(22)">
+    <path d="m0 35 64-25 18 9-50 38 47 31-15 9L0 73l-24 17-11-5 13-30-13-30 11-5Z" fill="#11203b"/>
+  </g>
+  <g fill="#fffdf8" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+    <text x="92" y="118" font-size="28" font-weight="800">LandingOS</text>
+    <text x="92" y="196" font-size="18" font-weight="700">POLSKA → BGY → MEDIOLAN</text>
+  </g>
+  <g fill="#fffdf8" font-family="Georgia, Times New Roman, serif">
+    <text x="92" y="332" font-size="61">Spokojniejszy</text>
+    <text x="92" y="400" font-size="61">start w</text>
+    <text x="92" y="468" font-size="61">Mediolanie.</text>
+  </g>
+  <text x="550" y="526" fill="#11203b" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="24" font-weight="700">PREMIERA WKRÓTCE</text>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="LandingOS">
+  <rect width="512" height="512" rx="112" fill="#2456d6"/>
+  <path d="m132 321 204-153 19 25-204 153Z" fill="#9bd6ff"/>
+  <circle cx="132" cy="337" r="26" fill="#fffdf8"/>
+  <path d="m350 111 29 83 74 43-16 28-82-28-55 68-27-16 39-78-55-72 20-25 70 48 3-51Z" fill="#fffdf8" stroke="#17377f" stroke-width="8" stroke-linejoin="round"/>
+</svg>
