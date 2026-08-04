@@ -1,3 +1,10 @@
+## [1.14.3](https://github.com/auditmos/landingos/compare/v1.14.2...v1.14.3) (2026-08-04)
+
+
+### Bug Fixes
+
+* **planner:** stabilize localized staging flow ([4f6f417](https://github.com/auditmos/landingos/commit/4f6f417f8c20ef332b97165cecfd2d9aefd645e9))
+
 ## [1.14.2](https://github.com/auditmos/landingos/compare/v1.14.1...v1.14.2) (2026-07-28)
 
 
