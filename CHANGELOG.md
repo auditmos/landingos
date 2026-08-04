@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/auditmos/landingos/compare/v1.14.3...v1.15.0) (2026-08-04)
+
+
+### Features
+
+* **landing:** add temporary apex holding page ([0d9c377](https://github.com/auditmos/landingos/commit/0d9c37799777327e094943a7d7fe319e01f74adb))
+
 ## [1.14.3](https://github.com/auditmos/landingos/compare/v1.14.2...v1.14.3) (2026-08-04)
 
 
