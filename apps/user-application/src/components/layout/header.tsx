@@ -30,8 +30,8 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 				className,
 			)}
 		>
-			{/* Left side - Mobile menu button */}
-			<div className="flex items-center">
+			{/* Left side - mobile menu + brand (mobile), corridor (desktop) */}
+			<div className="flex items-center gap-2">
 				<Button
 					variant="ghost"
 					size="icon"
@@ -45,6 +45,25 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 				>
 					<Menu className="h-5 w-5 text-foreground" />
 				</Button>
+				<a
+					className="flex items-center gap-2 lg:hidden"
+					href="/"
+					aria-label="LandingOS — strona główna"
+				>
+					<img src="/landingos-icon.svg" alt="" className="size-7" width="28" height="28" />
+					<span className="text-base font-bold text-foreground">LandingOS</span>
+				</a>
+				<p className="hidden text-xs font-bold uppercase text-muted-foreground lg:block">
+					Polska
+					<span className="px-1.5 text-primary" aria-hidden="true">
+						→
+					</span>
+					BGY
+					<span className="px-1.5 text-primary" aria-hidden="true">
+						→
+					</span>
+					Mediolan
+				</p>
 			</div>
 			{isMobileMenuOpen ? (
 				<nav
@@ -76,11 +95,15 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 								{fallbackText}
 							</AvatarFallback>
 						</Avatar>
-						<div className="hidden sm:flex flex-col items-start">
-							<span className="text-sm font-medium text-foreground">
+						<div className="hidden sm:flex max-w-44 flex-col items-start">
+							<span className="w-full truncate text-left text-sm font-medium text-foreground">
 								{user?.name || "Użytkownik"}
 							</span>
-							<span className="text-xs text-muted-foreground">Aktywny</span>
+							{user?.email ? (
+								<span className="w-full truncate text-left text-xs text-muted-foreground">
+									{user.email}
+								</span>
+							) : null}
 						</div>
 					</Button>
 				</AccountDialog>

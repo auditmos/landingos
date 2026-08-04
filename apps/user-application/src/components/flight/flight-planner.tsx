@@ -4,7 +4,7 @@ import {
 	FlightLookupRequestSchema,
 	type FlightResolveResult,
 } from "@repo/data-ops/flight";
-import { ArrowRight, CheckCircle2, Plane } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { PlannerResults } from "@/components/flight/flight-planner-results";
@@ -134,179 +134,188 @@ export function FlightPlanner() {
 	}
 
 	return (
-		<div className="min-h-dvh bg-muted/30 text-foreground">
-			<header className="border-b bg-background">
-				<div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+		<div className="flex min-h-dvh flex-col bg-background text-foreground">
+			<header className="border-b border-border">
+				<div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
 					<a className="flex items-center gap-3" href="/" aria-label="LandingOS — strona główna">
-						<span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-							<Plane className="size-5" />
-						</span>
-						<span className="text-xl font-bold">LandingOS</span>
+						<img src="/landingos-icon.svg" alt="" className="size-9" width="36" height="36" />
+						<span className="text-lg font-bold text-foreground">LandingOS</span>
 					</a>
-					<div className="flex items-center gap-3">
-						<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-							<span>Polska</span>
-							<ArrowRight className="size-4" aria-hidden="true" />
-							<span className="text-foreground">Mediolan</span>
-						</div>
+					<div className="flex items-center gap-4">
+						<p className="hidden text-xs font-bold uppercase text-muted-foreground md:block">
+							Polska
+							<span className="px-1.5 text-primary" aria-hidden="true">
+								→
+							</span>
+							BGY
+							<span className="px-1.5 text-primary" aria-hidden="true">
+								→
+							</span>
+							Mediolan
+						</p>
 						<ThemeToggle />
 					</div>
 				</div>
 			</header>
 
-			<main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
-				<div className="grid overflow-hidden rounded-3xl border bg-card shadow-xl lg:grid-cols-[1.05fr_0.95fr]">
-					<section className="flex flex-col justify-between bg-primary/5 p-6 sm:p-10 lg:p-14">
-						<div>
-							<p className="flex items-center gap-3 text-sm font-semibold text-primary">
-								<span
-									className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
-									aria-hidden="true"
-								>
-									1
-								</span>
-								Zacznij od lotu
-							</p>
-							<h1 className="mt-6 max-w-xl text-balance text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
-								Z lotniska prosto do celu w Mediolanie
-							</h1>
-							<p className="mt-6 max-w-xl text-pretty text-lg leading-8 text-muted-foreground">
-								Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy
-								maksymalnie trzy sensowne warianty przejazdu.
-							</p>
-						</div>
+			<main className="mx-auto w-full max-w-6xl flex-1 px-4 sm:px-6">
+				<div className="grid items-start gap-10 py-10 sm:py-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-20">
+					<section aria-labelledby="hero-title">
+						<p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-bold uppercase text-foreground">
+							<span className="size-2 rounded-full bg-primary" aria-hidden="true" />
+							Lot · przejazd · pokój lotu
+						</p>
+						<h1
+							id="hero-title"
+							className="mt-6 max-w-xl text-balance font-serif text-5xl font-medium leading-[0.95] text-foreground sm:text-6xl lg:text-7xl"
+						>
+							Z lotniska prosto do celu w Mediolanie
+						</h1>
+						<p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+							Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy maksymalnie
+							trzy sensowne warianty przejazdu.
+						</p>
 
-						<ul className="mt-10 hidden gap-5 lg:grid">
-							<li className="flex gap-3">
-								<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-								<div>
-									<p className="font-semibold">Start bez konta</p>
-									<p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
-										Najpierw sprawdzasz lot. Logowanie jest potrzebne dopiero do pokoju.
-									</p>
-								</div>
+						<ol
+							className="mt-10 grid list-none border-t border-border sm:mt-12 sm:grid-cols-3"
+							aria-label="Jak działa LandingOS"
+						>
+							<li className="flex items-baseline gap-4 border-b border-border py-4 sm:block sm:border-b-0 sm:py-0 sm:pt-4 sm:pr-5">
+								<span className="text-xs font-extrabold tabular-nums text-primary">01</span>
+								<p className="text-pretty text-sm font-semibold leading-snug text-foreground sm:mt-2">
+									Wpisujesz lot i cel w Mediolanie.
+								</p>
 							</li>
-							<li className="flex gap-3">
-								<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-								<div>
-									<p className="font-semibold">Do 3 konkretnych opcji</p>
-									<p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
-										Porównasz czas przejazdu, przesiadki i odcinki piesze.
-									</p>
-								</div>
+							<li className="flex items-baseline gap-4 border-b border-border py-4 sm:block sm:border-b-0 sm:border-l sm:px-5 sm:py-0 sm:pt-4">
+								<span className="text-xs font-extrabold tabular-nums text-primary">02</span>
+								<p className="text-pretty text-sm font-semibold leading-snug text-foreground sm:mt-2">
+									Porównujesz czytelne warianty dojazdu.
+								</p>
 							</li>
-							<li className="flex gap-3">
-								<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-								<div>
-									<p className="font-semibold">Cel pozostaje prywatny</p>
-									<p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
-										Dokładny adres nigdy nie trafia do pokoju wspólnego lotu.
-									</p>
-								</div>
+							<li className="flex items-baseline gap-4 py-4 sm:block sm:border-l sm:border-border sm:py-0 sm:pt-4 sm:pl-5">
+								<span className="text-xs font-extrabold tabular-nums text-primary">03</span>
+								<p className="text-pretty text-sm font-semibold leading-snug text-foreground sm:mt-2">
+									Łączysz się z osobami z tego samego lotu.
+								</p>
 							</li>
-						</ul>
+						</ol>
 					</section>
 
-					<section
-						className="flex items-center border-t bg-card p-6 sm:p-10 lg:border-l lg:border-t-0 lg:p-14"
-						aria-labelledby="flight-lookup-title"
-					>
-						<div className="mx-auto w-full max-w-md">
-							<p className="text-sm font-semibold text-primary">Etap 1 z 3</p>
-							<h2 id="flight-lookup-title" className="mt-2 text-balance text-3xl font-bold">
-								Znajdź swój lot
-							</h2>
-							<p className="mt-3 text-pretty leading-7 text-muted-foreground">
-								Numer lotu znajdziesz na bilecie lub karcie pokładowej.
-							</p>
-
-							<form className="mt-8 space-y-5" onSubmit={submitLookup} noValidate>
-								<div>
-									<div className="mb-2 flex items-center gap-1">
-										<label className="text-sm font-semibold" htmlFor="flight-number">
-											Numer lotu
-										</label>
-										<FieldInfo label="format numeru lotu">
-											Format: dwuznakowy kod przewoźnika i od 1 do 4 cyfr, np. FR1234.
-										</FieldInfo>
-									</div>
-									<Input
-										id="flight-number"
-										name="flightNumber"
-										placeholder="np. FR1234"
-										autoComplete="off"
-										value={flightNumber}
-										onChange={(event) => setFlightNumber(event.target.value)}
-										aria-invalid={Boolean(fieldErrors.flightNumber)}
-										aria-describedby={fieldErrors.flightNumber ? "flight-number-error" : undefined}
-										className="h-12 bg-background px-4 text-base"
-									/>
-									{fieldErrors.flightNumber ? (
-										<p id="flight-number-error" className="mt-2 text-sm text-destructive">
-											{fieldErrors.flightNumber}
-										</p>
-									) : null}
-								</div>
-								<div>
-									<div className="mb-2 flex items-center gap-1">
-										<label className="text-sm font-semibold" htmlFor="departure-date">
-											Data wylotu
-										</label>
-										<FieldInfo label="format daty wylotu">
-											Format: DD.MM.RRRR, np. 04.08.2026.
-										</FieldInfo>
-									</div>
-									<PolishPicker
-										id="departure-date"
-										name="departureLocalDate"
-										label="Data wylotu"
-										type="date"
-										value={departureDateInput}
-										onChange={(value) => {
-											setDepartureDateInput(value);
-											setFieldErrors((current) => ({ ...current, departureLocalDate: undefined }));
-										}}
-										invalid={Boolean(fieldErrors.departureLocalDate)}
-										describedBy={
-											fieldErrors.departureLocalDate ? "departure-date-error" : undefined
-										}
-									/>
-									{fieldErrors.departureLocalDate ? (
-										<p id="departure-date-error" className="mt-2 text-sm text-destructive">
-											{fieldErrors.departureLocalDate}
-										</p>
-									) : null}
-								</div>
-								{TURNSTILE_SITE_KEY ? (
-									<Turnstile
-										ref={captchaRef}
-										siteKey={TURNSTILE_SITE_KEY}
-										action="flight-lookup"
-										onVerify={setCaptchaToken}
-										onExpire={() => setCaptchaToken(null)}
-										onError={() => setCaptchaToken(null)}
-									/>
-								) : null}
-								<Button
-									className="h-12 w-full"
-									size="lg"
-									type="submit"
-									disabled={loading || (captchaRequired && !captchaToken)}
+					<section aria-labelledby="flight-lookup-title">
+						<div className="border border-foreground bg-card shadow-press">
+							<div className="flex items-center justify-between gap-4 border-b border-foreground px-5 py-4 sm:px-7">
+								<h2
+									id="flight-lookup-title"
+									className="text-balance text-lg font-bold text-foreground"
 								>
-									{loading ? "Sprawdzamy lot…" : "Sprawdź lot"}
-									{loading ? null : <ArrowRight className="size-4" aria-hidden="true" />}
-								</Button>
-							</form>
-							<p className="mt-5 text-pretty text-center text-xs leading-5 text-muted-foreground">
-								Na tym etapie nie potrzebujemy Twojego adresu ani konta.
-							</p>
+									Znajdź swój lot
+								</h2>
+								<p className="text-xs font-bold uppercase text-muted-foreground">Etap 1 z 3</p>
+							</div>
+							<div className="px-5 py-6 sm:px-7 sm:py-7">
+								<p className="text-pretty text-sm leading-relaxed text-muted-foreground">
+									Numer lotu znajdziesz na bilecie lub karcie pokładowej.
+								</p>
+
+								<form className="mt-6 space-y-5" onSubmit={submitLookup} noValidate>
+									<div>
+										<div className="mb-2 flex items-center gap-1">
+											<label
+												className="text-sm font-semibold text-foreground"
+												htmlFor="flight-number"
+											>
+												Numer lotu
+											</label>
+											<FieldInfo label="format numeru lotu">
+												Format: dwuznakowy kod przewoźnika i od 1 do 4 cyfr, np. FR1234.
+											</FieldInfo>
+										</div>
+										<Input
+											id="flight-number"
+											name="flightNumber"
+											placeholder="np. FR1234"
+											autoComplete="off"
+											value={flightNumber}
+											onChange={(event) => setFlightNumber(event.target.value)}
+											aria-invalid={Boolean(fieldErrors.flightNumber)}
+											aria-describedby={
+												fieldErrors.flightNumber ? "flight-number-error" : undefined
+											}
+											className="h-12 bg-background px-4 text-base"
+										/>
+										{fieldErrors.flightNumber ? (
+											<p id="flight-number-error" className="mt-2 text-sm text-destructive">
+												{fieldErrors.flightNumber}
+											</p>
+										) : null}
+									</div>
+									<div>
+										<div className="mb-2 flex items-center gap-1">
+											<label
+												className="text-sm font-semibold text-foreground"
+												htmlFor="departure-date"
+											>
+												Data wylotu
+											</label>
+											<FieldInfo label="format daty wylotu">
+												Format: DD.MM.RRRR, np. 04.08.2026.
+											</FieldInfo>
+										</div>
+										<PolishPicker
+											id="departure-date"
+											name="departureLocalDate"
+											label="Data wylotu"
+											type="date"
+											value={departureDateInput}
+											onChange={(value) => {
+												setDepartureDateInput(value);
+												setFieldErrors((current) => ({
+													...current,
+													departureLocalDate: undefined,
+												}));
+											}}
+											invalid={Boolean(fieldErrors.departureLocalDate)}
+											describedBy={
+												fieldErrors.departureLocalDate ? "departure-date-error" : undefined
+											}
+										/>
+										{fieldErrors.departureLocalDate ? (
+											<p id="departure-date-error" className="mt-2 text-sm text-destructive">
+												{fieldErrors.departureLocalDate}
+											</p>
+										) : null}
+									</div>
+									{TURNSTILE_SITE_KEY ? (
+										<Turnstile
+											ref={captchaRef}
+											siteKey={TURNSTILE_SITE_KEY}
+											action="flight-lookup"
+											onVerify={setCaptchaToken}
+											onExpire={() => setCaptchaToken(null)}
+											onError={() => setCaptchaToken(null)}
+										/>
+									) : null}
+									<Button
+										className="h-12 w-full text-base font-bold"
+										size="lg"
+										type="submit"
+										disabled={loading || (captchaRequired && !captchaToken)}
+									>
+										{loading ? "Sprawdzamy lot…" : "Sprawdź lot"}
+										{loading ? null : <ArrowRight className="size-4" aria-hidden="true" />}
+									</Button>
+								</form>
+								<p className="mt-5 text-pretty text-center text-xs leading-5 text-muted-foreground">
+									Bez konta i bez adresu — dokładny cel nigdy nie trafia do pokoju lotu.
+								</p>
+							</div>
 						</div>
 					</section>
 				</div>
 
 				<section
 					ref={resultsRef}
-					className="mx-auto mt-6 max-w-4xl space-y-5 scroll-mt-6"
+					className="mx-auto max-w-4xl scroll-mt-6 space-y-5 pb-12"
 					aria-label="Wynik planowania lotu"
 				>
 					<PlannerResults
@@ -325,11 +334,16 @@ export function FlightPlanner() {
 						onDestinationChange={setDestination}
 					/>
 				</section>
-
-				<p className="mt-8 text-center text-pretty text-sm text-muted-foreground">
-					Lot → cel w Mediolanie → maksymalnie 3 warianty przejazdu
-				</p>
 			</main>
+
+			<footer className="border-t border-border">
+				<div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+					<p className="font-bold text-foreground">
+						LandingOS <span aria-hidden="true">·</span> lot, przejazd, pokój lotu
+					</p>
+					<p>Stworzone dla podróżujących z Polski do Mediolanu.</p>
+				</div>
+			</footer>
 		</div>
 	);
 }

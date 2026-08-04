@@ -7,6 +7,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-provider";
 
 interface ThemeToggleProps {
@@ -16,6 +17,27 @@ interface ThemeToggleProps {
 	align?: "start" | "center" | "end";
 }
 
+const themeOptions = [
+	{
+		value: "light",
+		label: "Jasny",
+		icon: Sun,
+		description: "Użyj jasnego motywu",
+	},
+	{
+		value: "dark",
+		label: "Ciemny",
+		icon: Moon,
+		description: "Użyj ciemnego motywu",
+	},
+	{
+		value: "system",
+		label: "Systemowy",
+		icon: Monitor,
+		description: "Użyj motywu systemowego",
+	},
+] as const;
+
 export function ThemeToggle({
 	variant = "ghost",
 	size = "default",
@@ -24,67 +46,10 @@ export function ThemeToggle({
 }: ThemeToggleProps) {
 	const { theme, setTheme, resolvedTheme } = useTheme();
 
-	// Animation variants for icons
-	const iconVariants = {
-		sun: "transition-all duration-500 ease-in-out",
-		moon: "transition-all duration-500 ease-in-out",
-		system: "transition-all duration-300 ease-in-out",
-	};
-
-	const getCurrentIcon = () => {
-		if (theme === "system") {
-			return (
-				<Monitor
-					className={`h-4 w-4 text-foreground ${iconVariants.system} rotate-0 scale-100`}
-					aria-hidden="true"
-				/>
-			);
-		}
-
-		if (resolvedTheme === "dark") {
-			return (
-				<Moon
-					className={`h-4 w-4 text-foreground ${iconVariants.moon} rotate-0 scale-100`}
-					aria-hidden="true"
-				/>
-			);
-		}
-
-		return (
-			<Sun
-				className={`h-4 w-4 text-foreground ${iconVariants.sun} rotate-0 scale-100`}
-				aria-hidden="true"
-			/>
-		);
-	};
-
-	const themeOptions = [
-		{
-			value: "light",
-			label: "Jasny",
-			icon: Sun,
-			description: "Użyj jasnego motywu",
-		},
-		{
-			value: "dark",
-			label: "Ciemny",
-			icon: Moon,
-			description: "Użyj ciemnego motywu",
-		},
-		{
-			value: "system",
-			label: "Systemowy",
-			icon: Monitor,
-			description: "Użyj motywu systemowego",
-		},
-	] as const;
-
 	// Polish label for the currently resolved appearance ("light" | "dark").
 	const resolvedThemeLabel = resolvedTheme === "dark" ? "ciemny" : "jasny";
-
-	const handleThemeSelect = (newTheme: typeof theme) => {
-		setTheme(newTheme);
-	};
+	const CurrentIcon = theme === "system" ? Monitor : resolvedTheme === "dark" ? Moon : Sun;
+	const currentLabel = themeOptions.find((option) => option.value === theme)?.label;
 
 	return (
 		<DropdownMenu>
@@ -92,33 +57,19 @@ export function ThemeToggle({
 				<Button
 					variant={variant}
 					size={size}
-					className={`
-            relative overflow-hidden transition-all duration-200 ease-in-out
-            hover:scale-105 active:scale-95
-            focus:ring-2 focus:ring-ring focus:ring-offset-2
-            ${showLabel ? "gap-2" : "aspect-square"}
-          `}
+					className={showLabel ? "gap-2" : "aspect-square"}
 					aria-label="Przełącz motyw"
 				>
-					<div className="relative flex items-center justify-center">{getCurrentIcon()}</div>
-					{showLabel && (
-						<span className="text-sm font-medium">
-							{themeOptions.find((option) => option.value === theme)?.label}
-						</span>
-					)}
+					<CurrentIcon className="size-4 text-foreground" aria-hidden="true" />
+					{showLabel && <span className="text-sm font-medium">{currentLabel}</span>}
 					<span className="sr-only">
 						Aktualny motyw:{" "}
-						{theme === "system"
-							? `Systemowy (${resolvedThemeLabel})`
-							: themeOptions.find((option) => option.value === theme)?.label}
+						{theme === "system" ? `Systemowy (${resolvedThemeLabel})` : currentLabel}
 					</span>
 				</Button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent
-				align={align}
-				className="w-56 p-2 bg-popover/95 backdrop-blur-sm border border-border/50 shadow-lg"
-			>
+			<DropdownMenuContent align={align} className="w-56 p-2">
 				<div className="grid gap-1">
 					{themeOptions.map((option) => {
 						const Icon = option.icon;
@@ -127,58 +78,37 @@ export function ThemeToggle({
 						return (
 							<DropdownMenuItem
 								key={option.value}
-								onClick={() => handleThemeSelect(option.value)}
-								className={`
-                  flex items-center gap-3 px-3 py-2.5 cursor-pointer
-                  transition-all duration-200 ease-in-out
-                  hover:bg-accent/80 focus:bg-accent/80
-                  rounded-md group
-                  ${isSelected ? "bg-accent/60 text-accent-foreground" : ""}
-                `}
+								onClick={() => setTheme(option.value)}
+								className={cn(
+									"flex cursor-pointer items-center gap-3 px-3 py-2.5",
+									isSelected && "bg-accent text-accent-foreground",
+								)}
 							>
-								<div className="flex items-center justify-center w-5 h-5">
-									<Icon
-										className={`
-                      h-4 w-4 transition-all duration-200
-                      ${isSelected ? "text-accent-foreground scale-110" : "text-muted-foreground"}
-                      group-hover:scale-105
-                    `}
-									/>
-								</div>
-
-								<div className="flex flex-col flex-1 min-w-0">
-									<span
-										className={`
-                    text-sm font-medium leading-none
-                    ${isSelected ? "text-accent-foreground" : "text-foreground"}
-                  `}
-									>
-										{option.label}
-									</span>
-									<span className="text-xs text-muted-foreground mt-0.5 leading-none">
+								<Icon
+									className={cn(
+										"size-4",
+										isSelected ? "text-accent-foreground" : "text-muted-foreground",
+									)}
+									aria-hidden="true"
+								/>
+								<div className="flex min-w-0 flex-1 flex-col">
+									<span className="text-sm font-medium leading-none">{option.label}</span>
+									<span className="mt-0.5 text-xs leading-none text-muted-foreground">
 										{option.description}
 									</span>
 								</div>
-
-								{isSelected && (
-									<Check className="h-4 w-4 text-accent-foreground animate-in fade-in-0 zoom-in-75 duration-150" />
-								)}
+								{isSelected && <Check className="size-4" aria-hidden="true" />}
 							</DropdownMenuItem>
 						);
 					})}
 				</div>
 
 				{resolvedTheme && (
-					<div className="border-t border-border/50 mt-2 pt-2">
-						<div className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground">
-							<div
-								className={`
-                w-2 h-2 rounded-full transition-colors duration-200
-                ${resolvedTheme === "dark" ? "bg-blue-500" : "bg-amber-500"}
-              `}
-							/>
+					<div className="mt-2 border-t border-border pt-2">
+						<p className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground">
+							<span className="size-2 rounded-full bg-primary" aria-hidden="true" />
 							Aktualnie używany motyw: {resolvedThemeLabel}
-						</div>
+						</p>
 					</div>
 				)}
 			</DropdownMenuContent>

@@ -97,10 +97,16 @@ export function EmailAuth({
 	}
 
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-background p-4">
-			<Card className="w-full max-w-md">
+		<div className="min-h-dvh flex flex-col items-center justify-center gap-8 bg-background p-4">
+			<a className="flex items-center gap-3" href="/" aria-label="LandingOS — strona główna">
+				<img src="/landingos-icon.svg" alt="" className="size-10" width="40" height="40" />
+				<span className="text-xl font-bold text-foreground">LandingOS</span>
+			</a>
+			<Card className="w-full max-w-md rounded-none border-foreground shadow-press">
 				<CardHeader className="text-center">
-					<CardTitle className="text-2xl font-bold text-foreground">Zaloguj się kodem</CardTitle>
+					<CardTitle className="text-balance font-serif text-3xl font-medium text-foreground">
+						Zaloguj się kodem
+					</CardTitle>
 					<CardDescription>
 						{step === "email"
 							? "Wyślemy jednorazowy kod na Twój adres e-mail."
@@ -168,7 +174,7 @@ export function EmailAuth({
 							<label className="flex items-start gap-3 text-sm text-muted-foreground">
 								<input
 									type="checkbox"
-									className="mt-1"
+									className="mt-1 accent-primary"
 									checked={marketingConsent}
 									onChange={(event) => setMarketingConsent(event.target.checked)}
 								/>
@@ -198,6 +204,17 @@ export function EmailAuth({
 					</p>
 				</CardContent>
 			</Card>
+			<p className="text-xs font-bold uppercase text-muted-foreground">
+				Polska
+				<span className="px-1.5 text-primary" aria-hidden="true">
+					→
+				</span>
+				BGY
+				<span className="px-1.5 text-primary" aria-hidden="true">
+					→
+				</span>
+				Mediolan
+			</p>
 		</div>
 	);
 }

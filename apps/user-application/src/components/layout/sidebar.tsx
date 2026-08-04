@@ -49,14 +49,21 @@ export function Sidebar({ className }: SidebarProps) {
 		<>
 			<div
 				className={cn(
-					"hidden lg:flex lg:flex-col lg:border-r lg:border-border lg:bg-background",
+					"hidden lg:flex lg:flex-col lg:border-r lg:border-border lg:bg-sidebar",
 					isCollapsed ? "lg:w-16" : "lg:w-64",
 					className,
 				)}
 			>
-				<div className="flex h-16 items-center justify-between px-6 border-b border-border">
+				<div className="flex h-16 items-center justify-between border-b border-border px-4">
 					{!isCollapsed && (
-						<h1 className="text-xl font-semibold tracking-tight text-foreground">LandingOS</h1>
+						<a
+							className="flex items-center gap-2.5"
+							href="/"
+							aria-label="LandingOS — strona główna"
+						>
+							<img src="/landingos-icon.svg" alt="" className="size-8" width="32" height="32" />
+							<span className="text-lg font-bold text-foreground">LandingOS</span>
+						</a>
 					)}
 					<Button
 						variant="ghost"

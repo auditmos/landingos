@@ -22,7 +22,7 @@ function RouteComponent() {
 	if (session.isPending) {
 		return (
 			<output
-				className="min-h-screen flex items-center justify-center bg-background"
+				className="min-h-dvh flex items-center justify-center bg-background"
 				aria-label="Ładowanie sesji"
 			>
 				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -35,7 +35,7 @@ function RouteComponent() {
 	}
 
 	return (
-		<div className="flex h-screen bg-background overflow-hidden">
+		<div className="flex h-dvh bg-background overflow-hidden">
 			<Sidebar className="flex-shrink-0" />
 
 			<div className="flex flex-1 flex-col overflow-hidden">

@@ -20,7 +20,7 @@ export function SigninGate({
 	if ((!hasResolvedWithoutSession && session.isPending) || session.data) {
 		return (
 			<output
-				className="min-h-screen flex items-center justify-center bg-background"
+				className="min-h-dvh flex items-center justify-center bg-background"
 				aria-label="Ładowanie sesji"
 			>
 				Ładowanie sesji…
