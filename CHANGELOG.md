@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/auditmos/landingos/compare/v1.15.0...v1.16.0) (2026-08-04)
+
+
+### Features
+
+* **user-application:** adopt holding-page brand identity across UI ([ad29b66](https://github.com/auditmos/landingos/commit/ad29b668e7caa3dc3d105e2e6f4539a0e59e293b))
+
 # [1.15.0](https://github.com/auditmos/landingos/compare/v1.14.3...v1.15.0) (2026-08-04)
 
 
