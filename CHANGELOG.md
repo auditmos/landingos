@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/auditmos/landingos/compare/v1.25.0...v1.26.0) (2026-08-05)
+
+
+### Features
+
+* **room:** Moje loty as a nav page with room deep links ([a4219e6](https://github.com/auditmos/landingos/commit/a4219e6429b0001b1e2e9656e3c00022f350e5d7))
+
 # [1.25.0](https://github.com/auditmos/landingos/compare/v1.24.0...v1.25.0) (2026-08-05)
 
 
