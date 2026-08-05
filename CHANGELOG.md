@@ -1,3 +1,10 @@
+## [1.20.1](https://github.com/auditmos/landingos/compare/v1.20.0...v1.20.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **room:** use the planner's exact navigation link, drop route steps ([a4f9600](https://github.com/auditmos/landingos/commit/a4f96008e95828c1d6f894572cb6fcaf54e80675))
+
 # [1.20.0](https://github.com/auditmos/landingos/compare/v1.19.0...v1.20.0) (2026-08-05)
 
 
