@@ -34,7 +34,7 @@ export function upsertMessage(
 		: [...messages, message];
 }
 
-export type EnteredRoom = {
+type EnteredRoom = {
 	snapshot: RoomSnapshot;
 	publicOption: PublicTransportSelection | null;
 };
@@ -66,7 +66,7 @@ async function enterFromIntent(intent: RoomIntent): Promise<RoomSnapshot> {
 	return { ...joined, member, members: upsertMember(joined.members, member) };
 }
 
-export async function enterListedRoom(roomId: string): Promise<EnteredRoom> {
+async function enterListedRoom(roomId: string): Promise<EnteredRoom> {
 	const snapshot = await fetchRoomSnapshot(roomId);
 	return { snapshot, publicOption: publicOptionFrom(null, snapshot) };
 }
