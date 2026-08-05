@@ -178,8 +178,8 @@ async function plannerErrorAndRoomJourney(
 	await main.waitForText("Duomo di Milano");
 	await main.clickContaining("Duomo di Milano");
 	await main.waitForText("Airport Bus Express");
-	await main.assertScreen("Wybierz i przejdź do pokoju", context.viewport.mobile);
-	await main.clickText("Wybierz i przejdź do pokoju");
+	await main.assertScreen("Jadę tym wariantem — do pokoju", context.viewport.mobile);
+	await main.clickText("Jadę tym wariantem — do pokoju");
 	await main.waitForText("Zaloguj się kodem");
 	await main.fill("#auth-email", `traveler-${userSuffix}@example.test`);
 	await main.clickText("Wyślij kod");
@@ -287,7 +287,7 @@ async function publishedRecommendation(context: ScenarioContext, userSuffix: str
 		await agent.waitForText("Duomo di Milano");
 		await agent.clickContaining("Duomo di Milano");
 		await agent.waitForText("E2E Express poprawiony");
-		await agent.assertScreen("Wybierz i przejdź do pokoju", context.viewport.mobile);
+		await agent.assertScreen("Jadę tym wariantem — do pokoju", context.viewport.mobile);
 		await assertRuntimeClean(agent);
 	} finally {
 		await agent.close();

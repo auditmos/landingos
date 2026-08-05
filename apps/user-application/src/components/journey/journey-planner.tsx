@@ -143,7 +143,7 @@ export function JourneyVariantCard({
 					{onChoose ? (
 						<Button type="button" variant="secondary" onClick={() => onChoose(variant)}>
 							<Users className="size-4" />
-							Wybierz i przejdź do pokoju
+							Jadę tym wariantem — do pokoju
 						</Button>
 					) : null}
 				</div>
@@ -438,7 +438,7 @@ export function JourneyPlanner({
 									window.location.assign("/app");
 								}}
 							>
-								Przejdź do pokoju lotu
+								Szukam taksówki — do pokoju
 							</Button>
 						</CardContent>
 					</Card>

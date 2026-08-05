@@ -29,7 +29,7 @@ export async function runRealAuthOtpRegression(context: AuthRegressionContext) {
 		await agent.waitForText("Duomo di Milano");
 		await agent.clickContaining("Duomo di Milano");
 		await agent.waitForText("Airport Bus Express");
-		await agent.clickText("Wybierz i przejdź do pokoju");
+		await agent.clickText("Jadę tym wariantem — do pokoju");
 		await agent.waitForText("Zaloguj się kodem");
 
 		await agent.eval(`(() => {
