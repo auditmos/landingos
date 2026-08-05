@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/auditmos/landingos/compare/v1.22.0...v1.23.0) (2026-08-05)
+
+
+### Features
+
+* **room:** Moje loty list with flight context and nav badge ([ed990c1](https://github.com/auditmos/landingos/commit/ed990c1b696b62f4810bfe6932ac3ffdeb5519c6))
+
 # [1.22.0](https://github.com/auditmos/landingos/compare/v1.21.0...v1.22.0) (2026-08-05)
 
 
