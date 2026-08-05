@@ -3,6 +3,7 @@ import { History, PlaneLanding } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatArrivalInRome, formatDepartureDate } from "@/lib/flight-planner";
+import { useMyRooms, usePastFlights } from "@/lib/use-my-rooms";
 
 function flightTitle(flight: RoomListing["flight"]): string {
 	if (!flight) return "Twój lot";
@@ -29,16 +30,12 @@ function replanHref(flight: PastFlightListing["flight"]): string {
 	return `/?flightNumber=${encodeURIComponent(flightNumber)}`;
 }
 
-export function RoomGateway({
-	rooms,
-	pastFlights,
-	onSelect,
-}: {
-	rooms: RoomListing[] | null;
-	pastFlights: PastFlightListing[];
-	onSelect: (roomId: string) => void;
-}) {
-	if (rooms) return <MyFlightsList rooms={rooms} onSelect={onSelect} />;
+function roomHref(roomId: string): string {
+	return `/app?roomId=${encodeURIComponent(roomId)}`;
+}
+
+/** The /app fallback when the traveler has no open room. */
+export function RoomGateway({ pastFlights }: { pastFlights: PastFlightListing[] }) {
 	return (
 		<div className="space-y-5">
 			<Button asChild>
@@ -49,28 +46,21 @@ export function RoomGateway({
 	);
 }
 
-function MyFlightsList({
-	rooms,
-	onSelect,
-}: {
-	rooms: RoomListing[];
-	onSelect: (roomId: string) => void;
-}) {
+function MyFlightsList({ rooms }: { rooms: RoomListing[] }) {
 	return (
 		<Card>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2 text-xl">
 					<PlaneLanding className="size-5" />
-					Moje loty
+					Otwarte pokoje
 				</CardTitle>
 				<CardDescription>Wybierz lot, aby wejść do jego pokoju.</CardDescription>
 			</CardHeader>
 			<CardContent className="grid gap-2">
 				{rooms.map((listing) => (
-					<button
+					<a
 						key={listing.id}
-						type="button"
-						onClick={() => onSelect(listing.id)}
+						href={roomHref(listing.id)}
 						className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
 					>
 						<span className="min-w-0">
@@ -93,7 +83,7 @@ function MyFlightsList({
 								{formatRoomClosing(listing.closesAt)}
 							</span>
 						</span>
-					</button>
+					</a>
 				))}
 			</CardContent>
 		</Card>
@@ -134,5 +124,41 @@ function PastFlightsPanel({ flights }: { flights: PastFlightListing[] }) {
 				))}
 			</CardContent>
 		</Card>
+	);
+}
+
+/** The /app/flights page: open rooms plus recently closed flights to replan. */
+export function MyFlightsPage() {
+	const rooms = useMyRooms();
+	const past = usePastFlights();
+
+	return (
+		<section className="mx-auto max-w-3xl space-y-5">
+			<div>
+				<h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Moje loty</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
+					Twoje otwarte pokoje lotów i ostatnio zakończone podróże.
+				</p>
+			</div>
+
+			{rooms.isPending ? <p aria-live="polite">Wczytujemy Twoje loty…</p> : null}
+
+			{rooms.data && rooms.data.length > 0 ? <MyFlightsList rooms={rooms.data} /> : null}
+
+			{rooms.data && rooms.data.length === 0 ? (
+				<Card>
+					<CardContent className="space-y-3 pt-6">
+						<p className="text-sm text-muted-foreground">
+							Nie masz teraz otwartego pokoju lotu. Zaplanuj podróż, aby dołączyć.
+						</p>
+						<Button asChild>
+							<a href="/">Wróć do planera</a>
+						</Button>
+					</CardContent>
+				</Card>
+			) : null}
+
+			{past.data && past.data.length > 0 ? <PastFlightsPanel flights={past.data} /> : null}
+		</section>
 	);
 }

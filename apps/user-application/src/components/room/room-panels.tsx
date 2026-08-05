@@ -3,9 +3,8 @@ import type {
 	PublicTransportSelection,
 	RoomSelection,
 } from "@repo/data-ops/room";
-import { Bus, Car, Plane } from "lucide-react";
+import { Bus, Car } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -69,28 +68,6 @@ export function ChatMessageItem({
 					</Button>
 				)}
 			</div>
-		</div>
-	);
-}
-
-export function RoomStatusBar({
-	connection,
-	showFlights,
-	onShowFlights,
-}: {
-	connection: string;
-	showFlights: boolean;
-	onShowFlights: () => void;
-}) {
-	return (
-		<div className="flex items-center gap-2">
-			{showFlights ? (
-				<Button type="button" variant="ghost" size="sm" onClick={onShowFlights}>
-					<Plane className="size-4" />
-					Moje loty
-				</Button>
-			) : null}
-			<Badge variant="secondary">{connection}</Badge>
 		</div>
 	);
 }

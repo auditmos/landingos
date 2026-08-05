@@ -1,7 +1,6 @@
 import {
 	type PastFlightListing,
 	type PublicTransportSelection,
-	type RoomListing,
 	RoomMessageCreateRequestSchema,
 	type RoomSelection,
 	type RoomSnapshot,
@@ -17,6 +16,7 @@ import {
 	useState,
 } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,8 +30,8 @@ import { DropOffPanel } from "./drop-off-panel";
 import { RoomGateway } from "./my-flights-list";
 import { PseudonymSetup } from "./pseudonym-setup";
 import { useRoomExpiry, useRoomSocket } from "./room-connection";
-import { enterListedRoom, resolveRoomEntry, upsertMember, upsertMessage } from "./room-entry";
-import { ChatMessageItem, RoomStatusBar, SelectionPanel } from "./room-panels";
+import { resolveRoomEntry, upsertMember, upsertMessage } from "./room-entry";
+import { ChatMessageItem, SelectionPanel } from "./room-panels";
 import {
 	CommunityRulesDisclosure,
 	CommunityRulesGate,
@@ -56,9 +56,8 @@ function handleInitializationError(
 	}
 }
 
-export function FlightRoom() {
+export function FlightRoom({ roomId }: { roomId?: string }) {
 	const [publicOption, setPublicOption] = useState<PublicTransportSelection | null>(null);
-	const [flightChoices, setFlightChoices] = useState<RoomListing[] | null>(null);
 	const [pastFlights, setPastFlights] = useState<PastFlightListing[]>([]);
 	const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
 	const [message, setMessage] = useState("");
@@ -96,7 +95,7 @@ export function FlightRoom() {
 		setLoading(true);
 		setError("");
 		setNeedsPseudonym(false);
-		resolveRoomEntry()
+		resolveRoomEntry(roomId)
 			.then((entry) => {
 				if (!active) return;
 				if (entry.kind === "planner_required") {
@@ -105,10 +104,9 @@ export function FlightRoom() {
 					return;
 				}
 				if (entry.kind === "flight_choice") {
-					setFlightChoices(entry.rooms);
+					window.location.assign("/app/flights");
 					return;
 				}
-				setFlightChoices(entry.rooms.length > 1 ? entry.rooms : null);
 				setPublicOption(entry.publicOption);
 				setSnapshot(entry.snapshot);
 				refreshOpenRoomCount();
@@ -123,23 +121,11 @@ export function FlightRoom() {
 		return () => {
 			active = false;
 		};
-	}, [retryKey, closeRoomView, refreshOpenRoomCount]);
+	}, [retryKey, roomId, closeRoomView, refreshOpenRoomCount]);
 
 	useRoomExpiry(snapshot?.room.closesAt, closeRoomView);
 
 	useRoomSocket(snapshot?.room.id, { setSnapshot, setError, setConnection, closeRoomView });
-
-	async function enterChosenRoom(roomId: string) {
-		setError("");
-		setConnection("Łączenie…");
-		try {
-			const entered = await enterListedRoom(roomId);
-			setPublicOption(entered.publicOption);
-			setSnapshot(entered.snapshot);
-		} catch (caught) {
-			handleInitializationError(caught, setNeedsPseudonym, setError, closeRoomView);
-		}
-	}
 
 	async function changeSelection(selection: RoomSelection) {
 		if (!snapshot) return;
@@ -228,24 +214,11 @@ export function FlightRoom() {
 							lot.
 						</p>
 					</div>
-					{snapshot ? (
-						<RoomStatusBar
-							connection={connection}
-							showFlights={(flightChoices?.length ?? 0) > 1}
-							onShowFlights={() => {
-								setSnapshot(null);
-								setConnection("Łączenie…");
-							}}
-						/>
-					) : null}
+					{snapshot ? <Badge variant="secondary">{connection}</Badge> : null}
 				</div>
 
 				{!snapshot ? (
-					<RoomGateway
-						rooms={flightChoices}
-						pastFlights={pastFlights}
-						onSelect={(roomId) => void enterChosenRoom(roomId)}
-					/>
+					<RoomGateway pastFlights={pastFlights} />
 				) : (
 					<>
 						<div className="grid gap-4 sm:grid-cols-2">

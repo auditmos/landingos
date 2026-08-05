@@ -1,5 +1,5 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bus, Home, Menu, MessageCircle } from "lucide-react";
+import { Bus, Home, Menu, MessageCircle, PlaneLanding } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +13,7 @@ interface NavigationItem {
 	href: string;
 	badge?: string | number;
 	operatorOnly?: boolean;
+	indent?: boolean;
 }
 
 const navigationItems: NavigationItem[] = [
@@ -22,9 +23,15 @@ const navigationItems: NavigationItem[] = [
 		href: "/",
 	},
 	{
-		name: "Pokój lotu",
+		name: "Pokoje lotu",
 		icon: MessageCircle,
 		href: "/app",
+	},
+	{
+		name: "Moje loty",
+		icon: PlaneLanding,
+		href: "/app/flights",
+		indent: true,
 	},
 	{
 		name: "Katalog transferów",
@@ -95,6 +102,7 @@ export function Sidebar({ className }: SidebarProps) {
 									variant={isActive ? "default" : "ghost"}
 									className={cn(
 										"min-h-11 w-full justify-start gap-3",
+										!isCollapsed && item.indent && "pl-9",
 										isCollapsed && "px-2 justify-center",
 										isActive && "bg-primary text-primary-foreground shadow-sm",
 										!isActive && "text-muted-foreground hover:text-foreground hover:bg-accent",

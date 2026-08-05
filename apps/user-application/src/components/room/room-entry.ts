@@ -3,7 +3,6 @@ import type {
 	PublicRoomMember,
 	PublicRoomMessage,
 	PublicTransportSelection,
-	RoomListing,
 	RoomSnapshot,
 } from "@repo/data-ops/room";
 import {
@@ -41,8 +40,8 @@ export type EnteredRoom = {
 };
 
 export type RoomEntry =
-	| ({ kind: "room"; rooms: RoomListing[] } & EnteredRoom)
-	| { kind: "flight_choice"; rooms: RoomListing[] }
+	| ({ kind: "room" } & EnteredRoom)
+	| { kind: "flight_choice" }
 	| { kind: "planner_required"; pastFlights: PastFlightListing[] };
 
 function publicOptionFrom(
@@ -72,16 +71,7 @@ export async function enterListedRoom(roomId: string): Promise<EnteredRoom> {
 	return { snapshot, publicOption: publicOptionFrom(null, snapshot) };
 }
 
-// The room list and the replan aid are enrichments — their failure must never
-// block entering a room or seeing the planner prompt.
-async function listMyRoomsSafely(): Promise<RoomListing[]> {
-	try {
-		return await listMyRooms();
-	} catch {
-		return [];
-	}
-}
-
+// The replan aid is an enrichment — its failure must never block the planner prompt.
 async function listPastFlightsSafely(): Promise<PastFlightListing[]> {
 	try {
 		return await fetchPastFlights();
@@ -91,23 +81,23 @@ async function listPastFlightsSafely(): Promise<PastFlightListing[]> {
 }
 
 /**
- * Resolves what /app should show. A fresh planner intent wins; without one the
- * traveler is re-entered from server-side membership, so losing browser state
- * (new tab, device, restart) never strands them: one open room enters
- * directly, several offer the "Moje loty" choice. Every room entry carries the
- * full open-room list so the in-room switcher works regardless of entry path.
- * A traveler with no open room gets the planner prompt plus recently closed
- * flights to replan.
+ * Resolves what /app should show. An explicit ?roomId deep link (from the
+ * "Moje loty" page) wins; then a fresh planner intent; then server-side
+ * membership, so losing browser state (new tab, device, restart) never
+ * strands the traveler: one open room enters directly, several redirect to
+ * the "Moje loty" page. A traveler with no open room gets the planner prompt
+ * plus recently closed flights to replan.
  */
-export async function resolveRoomEntry(): Promise<RoomEntry> {
+export async function resolveRoomEntry(roomId?: string): Promise<RoomEntry> {
+	if (roomId) return { kind: "room", ...(await enterListedRoom(roomId)) };
 	const intent = loadRoomIntent();
 	if (intent) {
-		const [snapshot, rooms] = await Promise.all([enterFromIntent(intent), listMyRoomsSafely()]);
-		return { kind: "room", snapshot, publicOption: publicOptionFrom(intent, snapshot), rooms };
+		const snapshot = await enterFromIntent(intent);
+		return { kind: "room", snapshot, publicOption: publicOptionFrom(intent, snapshot) };
 	}
 	const rooms = await listMyRooms();
 	const [nextRoom] = rooms;
 	if (!nextRoom) return { kind: "planner_required", pastFlights: await listPastFlightsSafely() };
-	if (rooms.length > 1) return { kind: "flight_choice", rooms };
-	return { kind: "room", ...(await enterListedRoom(nextRoom.id)), rooms };
+	if (rooms.length > 1) return { kind: "flight_choice" };
+	return { kind: "room", ...(await enterListedRoom(nextRoom.id)) };
 }

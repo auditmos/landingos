@@ -175,13 +175,17 @@ function primeRoomMocks() {
 	});
 }
 
-async function mountRoom() {
+async function mountRoom(mountProps?: { roomId?: string }) {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
 	await act(async () =>
 		root.render(
-			createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FlightRoom)),
+			createElement(
+				QueryClientProvider,
+				{ client: new QueryClient() },
+				createElement(FlightRoom, mountProps ?? null),
+			),
 		),
 	);
 	await settle();
@@ -391,24 +395,6 @@ describe("room re-entry without planner intent", () => {
 		expect(replan?.getAttribute("href")).toBe("/?flightNumber=FR1234");
 	});
 
-	it("shows the Moje loty switcher after planner entry when another room is open", async () => {
-		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
-		mocks.list.mockResolvedValue([
-			snapshot.room,
-			{
-				id: "018f4c8e-5697-7df4-8f6e-c7644b137e5c",
-				flightInstanceId: "flight-2",
-				closesAt: "2026-09-17T08:20:00.000Z",
-			},
-		]);
-		await mountRoom();
-		expect(mocks.join).toHaveBeenCalledWith("flight-1");
-		const switcher = Array.from(container.querySelectorAll("button")).find((button) =>
-			button.textContent?.includes("Moje loty"),
-		);
-		expect(switcher).toBeDefined();
-	});
-
 	it("applies a planner selection exactly once across room visits", async () => {
 		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
 		await mountRoom();
@@ -424,59 +410,29 @@ describe("room re-entry without planner intent", () => {
 		expect(container.textContent).toContain("Pokój lotu");
 	});
 
-	it("offers Moje loty for several open rooms and enters the picked flight", async () => {
-		const secondRoomId = "018f4c8e-5697-7df4-8f6e-c7644b137e5c";
-		const flightFixture = {
-			id: "flight-1",
-			marketingCarrierCode: "FR",
-			marketingCarrierName: "Ryanair",
-			marketingFlightNumber: "1234",
-			operatingCarrierCode: null,
-			operatingFlightNumber: null,
-			departureLocalDate: "2026-09-14",
-			originIata: "WAW",
-			destinationIata: "BGY",
-			scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
-			displayTimezone: "Europe/Rome",
-			source: "provider",
-		};
+	it("redirects to the Moje loty page when several rooms are open and nothing picks one", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("location", { ...window.location, assign });
 		mocks.list.mockResolvedValue([
-			{ ...snapshot.room, flight: flightFixture },
+			snapshot.room,
 			{
-				id: secondRoomId,
+				id: "018f4c8e-5697-7df4-8f6e-c7644b137e5c",
 				flightInstanceId: "flight-2",
 				closesAt: "2026-09-17T08:20:00.000Z",
-				flight: {
-					...flightFixture,
-					id: "flight-2",
-					marketingFlightNumber: "5678",
-					originIata: "GDN",
-					departureLocalDate: "2026-09-16",
-					scheduledArrivalUtc: "2026-09-16T08:20:00.000Z",
-				},
 			},
 		]);
 		await mountRoom();
 		expect(mocks.refresh).not.toHaveBeenCalled();
-		expect(container.textContent).toContain("Moje loty");
-		expect(container.textContent).toContain("Ryanair FR1234");
-		expect(container.textContent).toContain("Ryanair FR5678");
-		expect(container.textContent).toContain("GDN → BGY");
+		expect(assign).toHaveBeenCalledWith("/app/flights");
+	});
 
-		const pick = Array.from(container.querySelectorAll("button")).find((button) =>
-			button.textContent?.includes("FR5678"),
-		);
-		await act(async () => pick?.click());
-		await settle();
+	it("enters the room named by the roomId deep link, ignoring planner state", async () => {
+		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
+		const secondRoomId = "018f4c8e-5697-7df4-8f6e-c7644b137e5c";
+		await mountRoom({ roomId: secondRoomId });
+		expect(mocks.join).not.toHaveBeenCalled();
+		expect(mocks.select).not.toHaveBeenCalled();
 		expect(mocks.refresh).toHaveBeenCalledWith(secondRoomId);
 		expect(container.textContent).toContain("Wspólny czat");
-
-		const back = Array.from(container.querySelectorAll("button")).find((button) =>
-			button.textContent?.includes("Moje loty"),
-		);
-		await act(async () => back?.click());
-		await settle();
-		expect(container.textContent).toContain("Ryanair FR1234");
-		expect(container.querySelector("#room-message")).toBeNull();
 	});
 });

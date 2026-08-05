@@ -77,13 +77,16 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 					</Button>
 					<Button asChild variant="ghost" className="justify-start">
 						<a href="/app">
-							Pokój lotu
+							Pokoje lotu
 							{openRoomCount > 0 ? (
 								<span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
 									{openRoomCount}
 								</span>
 							) : null}
 						</a>
+					</Button>
+					<Button asChild variant="ghost" className="justify-start pl-8">
+						<a href="/app/flights">Moje loty</a>
 					</Button>
 					{isOperator ? (
 						<Button asChild variant="ghost" className="justify-start">

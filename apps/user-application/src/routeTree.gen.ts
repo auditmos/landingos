@@ -17,6 +17,7 @@ import { Route as ApiAccountRouteImport } from './routes/api/account'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiProfileRouteImport } from './routes/api/profile'
 import { Route as AuthAppIndexRouteImport } from './routes/_auth/app/index'
+import { Route as AuthAppFlightsRouteImport } from './routes/_auth/app/flights'
 import { Route as AuthOperatorIndexRouteImport } from './routes/_auth/operator/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
 
@@ -59,6 +60,11 @@ const AuthAppIndexRoute = AuthAppIndexRouteImport.update({
   path: '/app/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const AuthAppFlightsRoute = AuthAppFlightsRouteImport.update({
+  id: '/app/flights',
+  path: '/app/flights',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 const AuthOperatorIndexRoute = AuthOperatorIndexRouteImport.update({
   id: '/operator/',
   path: '/operator/',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
+  '/app/flights': typeof AuthAppFlightsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/app/': typeof AuthAppIndexRoute
   '/operator/': typeof AuthOperatorIndexRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
+  '/app/flights': typeof AuthAppFlightsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/app': typeof AuthAppIndexRoute
   '/operator': typeof AuthOperatorIndexRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
+  '/_auth/app/flights': typeof AuthAppFlightsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_auth/app/': typeof AuthAppIndexRoute
   '/_auth/operator/': typeof AuthOperatorIndexRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/api/account'
     | '/api/health'
     | '/api/profile'
+    | '/app/flights'
     | '/api/auth/$'
     | '/app/'
     | '/operator/'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/api/account'
     | '/api/health'
     | '/api/profile'
+    | '/app/flights'
     | '/api/auth/$'
     | '/app'
     | '/operator'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/api/account'
     | '/api/health'
     | '/api/profile'
+    | '/_auth/app/flights'
     | '/api/auth/$'
     | '/_auth/app/'
     | '/_auth/operator/'
@@ -211,6 +223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAppIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/_auth/app/flights': {
+      id: '/_auth/app/flights'
+      path: '/app/flights'
+      fullPath: '/app/flights'
+      preLoaderRoute: typeof AuthAppFlightsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/_auth/operator/': {
       id: '/_auth/operator/'
       path: '/operator'
@@ -229,11 +248,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteRouteChildren {
+  AuthAppFlightsRoute: typeof AuthAppFlightsRoute
   AuthAppIndexRoute: typeof AuthAppIndexRoute
   AuthOperatorIndexRoute: typeof AuthOperatorIndexRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
+  AuthAppFlightsRoute: AuthAppFlightsRoute,
   AuthAppIndexRoute: AuthAppIndexRoute,
   AuthOperatorIndexRoute: AuthOperatorIndexRoute,
 }
@@ -255,13 +276,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.tsx'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
