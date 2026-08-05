@@ -17,6 +17,10 @@ DATABASE_PASSWORD=
 # Better Auth server configuration. Use a random secret outside development.
 BETTER_AUTH_SECRET=
 BETTER_AUTH_BASE_URL=
+# Cookie Domain attribute enabling cross-subdomain sessions (frontend <-> API hosts).
+# Required in staging/production (e.g. .landingos.app) or browser requests to the API
+# carry no session cookie. Leave blank locally — localhost works without it.
+BETTER_AUTH_COOKIE_DOMAIN=
 
 # Dedicated server-only HMAC secret for analytics actor pseudonyms (minimum 32 characters).
 ANALYTICS_PSEUDONYM_SECRET=

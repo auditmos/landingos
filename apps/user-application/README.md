@@ -628,6 +628,10 @@ Required variables:
 - `DATABASE_PASSWORD` - Database password
 - `BETTER_AUTH_SECRET` - Authentication secret key
 - `BETTER_AUTH_BASE_URL` - Public origin used by Better Auth
+- `BETTER_AUTH_COOKIE_DOMAIN` - Cookie `Domain` attribute enabling cross-subdomain
+  sessions between the frontend and API hosts. Required in staging/production
+  (`.landingos.app`) or browser calls to `api(-staging).landingos.app` carry no
+  session cookie and fail with 401. Leave unset locally.
 - `AUTH_EMAIL_FROM` - Verified transactional sender address; currently
   `logowanie@landingos.app` in `wrangler.jsonc`
 
