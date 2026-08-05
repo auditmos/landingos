@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/auditmos/landingos/compare/v1.17.1...v1.18.0) (2026-08-05)
+
+
+### Features
+
+* **room:** opt-in drop-off point sharing with private destination view ([7f2184d](https://github.com/auditmos/landingos/commit/7f2184da8d138170bc86128c822b585136007f5b))
+
 ## [1.17.1](https://github.com/auditmos/landingos/compare/v1.17.0...v1.17.1) (2026-08-05)
 
 
