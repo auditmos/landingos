@@ -6,8 +6,13 @@ import {
 	CarTaxiFront,
 	ChevronDown,
 	Flag,
+	Footprints,
+	type LucideIcon,
 	MapPin,
+	RailSymbol,
 	ShieldCheck,
+	TrainFront,
+	TramFront,
 	Users,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -31,12 +36,12 @@ const reasonCopy = {
 	other: "Inny problem",
 } as const;
 
-const modeCopy: Record<string, string> = {
-	bus: "Autobus",
-	train: "Pociąg",
-	metro: "Metro",
-	tram: "Tramwaj",
-	walk: "Pieszo",
+const modeIcons: Record<string, { icon: LucideIcon; label: string }> = {
+	walk: { icon: Footprints, label: "Pieszo" },
+	bus: { icon: Bus, label: "Autobus" },
+	train: { icon: TrainFront, label: "Pociąg" },
+	metro: { icon: RailSymbol, label: "Metro" },
+	tram: { icon: TramFront, label: "Tramwaj" },
 };
 
 function MemberSelection({ member }: { member: PublicRoomMember }) {
@@ -52,10 +57,21 @@ function MemberSelection({ member }: { member: PublicRoomMember }) {
 			</Badge>
 		);
 	}
+	const labels = selection.modes
+		.map((mode) => modeIcons[mode]?.label)
+		.filter((label): label is string => !!label);
 	return (
-		<Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
-			<Bus className="size-3" />
-			{selection.modes.map((mode) => modeCopy[mode] ?? mode).join(" · ")}
+		<Badge
+			variant="outline"
+			className="gap-1.5 font-normal text-muted-foreground"
+			title={labels.join(" · ")}
+		>
+			{selection.modes.map((mode) => {
+				const entry = modeIcons[mode];
+				if (!entry) return null;
+				const Icon = entry.icon;
+				return <Icon key={mode} className="size-3.5" aria-label={entry.label} />;
+			})}
 		</Badge>
 	);
 }
