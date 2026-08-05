@@ -47,43 +47,36 @@ const modeIcons: Record<string, { icon: LucideIcon; label: string }> = {
 function MemberSelection({ member }: { member: PublicRoomMember }) {
 	const selection = member.selection;
 	if (!selection) {
-		return <span className="text-xs text-muted-foreground">Jeszcze bez deklaracji</span>;
+		return <span>Jeszcze bez deklaracji</span>;
 	}
 	if (selection.kind === "shared_taxi") {
 		return (
-			<Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
-				<CarTaxiFront className="size-3" />
+			<span className="flex shrink-0 items-center gap-1">
+				<CarTaxiFront className="size-3.5 shrink-0" aria-hidden="true" />
 				Szuka taksówki
-			</Badge>
+			</span>
 		);
 	}
 	const labels = selection.modes
 		.map((mode) => modeIcons[mode]?.label)
 		.filter((label): label is string => !!label);
 	return (
-		<Badge
-			variant="outline"
-			className="gap-1.5 font-normal text-muted-foreground"
-			title={labels.join(" · ")}
-		>
+		<span className="flex shrink-0 items-center gap-1.5" title={labels.join(" · ")}>
 			{selection.modes.map((mode) => {
 				const entry = modeIcons[mode];
 				if (!entry) return null;
 				const Icon = entry.icon;
 				return <Icon key={mode} className="size-3.5" aria-label={entry.label} />;
 			})}
-		</Badge>
+		</span>
 	);
 }
 
 function MemberDropOff({ dropOffText }: { dropOffText: string }) {
 	const mapsUrl = dropOffMapsUrl(dropOffText);
 	return (
-		<span
-			className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"
-			title="Punkt wysiadki"
-		>
-			<MapPin className="size-3 shrink-0" />
+		<span className="flex min-w-0 items-center gap-1" title="Punkt wysiadki">
+			<MapPin className="size-3.5 shrink-0" aria-hidden="true" />
 			{mapsUrl ? (
 				<a
 					href={mapsUrl}
@@ -189,6 +182,87 @@ export function SafetyNotices({ safety }: { safety: RoomSafetyController }) {
 	);
 }
 
+function ownFirst(members: PublicRoomMember[], currentPseudonym: string): PublicRoomMember[] {
+	return [...members].sort((a, b) => {
+		if (a.pseudonym === currentPseudonym) return -1;
+		if (b.pseudonym === currentPseudonym) return 1;
+		return 0;
+	});
+}
+
+function MemberRow({
+	member,
+	own,
+	blocked,
+	safety,
+}: {
+	member: PublicRoomMember;
+	own: boolean;
+	blocked: boolean;
+	safety: RoomSafetyController;
+}) {
+	return (
+		<li className={cn("flex items-center gap-3 px-3 py-2.5", own && "bg-primary/5")}>
+			<MemberAvatar pseudonym={member.pseudonym} />
+			<div className={cn("min-w-0 flex-1", blocked && "opacity-50")}>
+				<div className="flex items-center gap-2">
+					<span className="truncate font-medium">{member.pseudonym}</span>
+					{own ? (
+						<Badge variant="secondary" className="rounded-full px-2 text-[11px]">
+							Ty
+						</Badge>
+					) : null}
+					{blocked ? (
+						<Badge variant="outline" className="rounded-full px-2 text-[11px]">
+							Zablokowano
+						</Badge>
+					) : null}
+				</div>
+				<div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+					<MemberSelection member={member} />
+					{member.selection?.dropOffText ? (
+						<>
+							<span aria-hidden="true" className="shrink-0">
+								·
+							</span>
+							<MemberDropOff dropOffText={member.selection.dropOffText} />
+						</>
+					) : null}
+				</div>
+			</div>
+			{own ? null : (
+				<div className="flex shrink-0 gap-0.5">
+					<Button
+						type="button"
+						size="icon"
+						variant="ghost"
+						className="size-9 text-muted-foreground hover:text-foreground"
+						disabled={safety.pending}
+						aria-label={blocked ? "Odblokuj" : "Zablokuj"}
+						title={blocked ? "Odblokuj" : "Zablokuj"}
+						onClick={() =>
+							void (blocked ? safety.unblock(member.pseudonym) : safety.block(member.pseudonym))
+						}
+					>
+						<Ban className={cn("size-4", blocked && "text-destructive")} />
+					</Button>
+					<Button
+						type="button"
+						size="icon"
+						variant="ghost"
+						className="size-9 text-muted-foreground hover:text-foreground"
+						aria-label="Zgłoś osobę"
+						title="Zgłoś osobę"
+						onClick={() => safety.startMemberReport(member.pseudonym)}
+					>
+						<Flag className="size-4" />
+					</Button>
+				</div>
+			)}
+		</li>
+	);
+}
+
 export function RoomMembers({
 	members,
 	currentPseudonym,
@@ -209,63 +283,16 @@ export function RoomMembers({
 				<CardDescription>Widoczne są wyłącznie pseudonimy i publiczne deklaracje.</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<ul className="space-y-2">
-					{members.map((member, index) => {
-						const own = member.pseudonym === currentPseudonym;
-						const blocked = safety.blockedPseudonyms.includes(member.pseudonym);
-						return (
-							<li
-								key={`${member.pseudonym}:${index}`}
-								className={cn(
-									"flex flex-wrap items-center gap-3 rounded-md border p-3",
-									own && "border-primary/40 bg-primary/5",
-								)}
-							>
-								<MemberAvatar pseudonym={member.pseudonym} />
-								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<span className="truncate font-medium">{member.pseudonym}</span>
-										{own ? <Badge variant="outline">Ty</Badge> : null}
-									</div>
-									<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-										<MemberSelection member={member} />
-									</div>
-									{member.selection?.dropOffText ? (
-										<MemberDropOff dropOffText={member.selection.dropOffText} />
-									) : null}
-								</div>
-								{own ? null : (
-									<div className="flex gap-1">
-										<Button
-											type="button"
-											size="icon"
-											variant="ghost"
-											disabled={safety.pending}
-											aria-label={blocked ? "Odblokuj" : "Zablokuj"}
-											title={blocked ? "Odblokuj" : "Zablokuj"}
-											onClick={() =>
-												void (blocked
-													? safety.unblock(member.pseudonym)
-													: safety.block(member.pseudonym))
-											}
-										>
-											<Ban className={cn("size-4", blocked && "text-destructive")} />
-										</Button>
-										<Button
-											type="button"
-											size="icon"
-											variant="ghost"
-											aria-label="Zgłoś osobę"
-											title="Zgłoś osobę"
-											onClick={() => safety.startMemberReport(member.pseudonym)}
-										>
-											<Flag className="size-4" />
-										</Button>
-									</div>
-								)}
-							</li>
-						);
-					})}
+				<ul className="divide-y divide-border overflow-hidden rounded-lg border">
+					{ownFirst(members, currentPseudonym).map((member, index) => (
+						<MemberRow
+							key={`${member.pseudonym}:${index}`}
+							member={member}
+							own={member.pseudonym === currentPseudonym}
+							blocked={safety.blockedPseudonyms.includes(member.pseudonym)}
+							safety={safety}
+						/>
+					))}
 				</ul>
 			</CardContent>
 		</Card>
