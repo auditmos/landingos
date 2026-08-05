@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/auditmos/landingos/compare/v1.18.0...v1.19.0) (2026-08-05)
+
+
+### Features
+
+* **room:** icon actions and clean selection chips in members list ([9257830](https://github.com/auditmos/landingos/commit/92578305cdde12f91ef1dec93319db99ab26c4cf))
+
 # [1.18.0](https://github.com/auditmos/landingos/compare/v1.17.1...v1.18.0) (2026-08-05)
 
 
