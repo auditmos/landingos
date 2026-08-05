@@ -54,6 +54,40 @@ describe("flight room public contracts", () => {
 		).toBe(false);
 	});
 
+	it("accepts a consented drop-off text on both selection kinds, bounded to 120 chars", () => {
+		const shared = RoomSelectionUpdateRequestSchema.parse({
+			selection: { ...publicTransportSelection, dropOffText: "  Piazza del Duomo 1  " },
+		});
+		expect(shared.selection.dropOffText).toBe("Piazza del Duomo 1");
+
+		const taxi = RoomSelectionUpdateRequestSchema.parse({
+			selection: { kind: "shared_taxi", dropOffText: "Navigli" },
+		});
+		expect(taxi.selection.dropOffText).toBe("Navigli");
+
+		for (const invalid of ["", "   ", "x".repeat(121)]) {
+			expect(
+				RoomSelectionUpdateRequestSchema.safeParse({
+					selection: { kind: "shared_taxi", dropOffText: invalid },
+				}).success,
+			).toBe(false);
+		}
+	});
+
+	it("still rejects place identifiers and coordinates next to a drop-off text", () => {
+		for (const forbidden of [
+			{ placeId: "private-place" },
+			{ coordinates: { latitude: 45.46, longitude: 9.19 } },
+			{ destination: "Via Torino 42" },
+		]) {
+			expect(
+				RoomSelectionUpdateRequestSchema.safeParse({
+					selection: { kind: "shared_taxi", dropOffText: "Navigli", ...forbidden },
+				}).success,
+			).toBe(false);
+		}
+	});
+
 	it("keeps hibernation attachments to room, user, and the direct close boundary", () => {
 		const attachment = ConnectionAttachmentSchema.parse({
 			roomId: "018f4c8e-5697-7df4-8f6e-c7644b137e5b",

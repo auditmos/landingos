@@ -157,6 +157,11 @@ export function RoomMembers({
 										{own ? <Badge variant="outline">Ty</Badge> : null}
 									</div>
 									<span className="text-xs text-muted-foreground">{selectionLabel(member)}</span>
+									{member.selection?.dropOffText ? (
+										<span className="block truncate text-xs text-muted-foreground">
+											Punkt wysiadki: {member.selection.dropOffText}
+										</span>
+									) : null}
 								</div>
 								{own ? null : (
 									<div className="flex gap-2">

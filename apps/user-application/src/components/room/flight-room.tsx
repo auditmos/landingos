@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { clearPrivateDropOff } from "@/lib/private-drop-off";
 import {
 	fetchRoomSnapshot,
 	issueRoomTicket,
@@ -35,6 +36,7 @@ import {
 import { clearRoomIntent, loadRoomIntent, type RoomIntent } from "@/lib/room-intent";
 import { cn } from "@/lib/utils";
 import { ClosedRoom } from "./closed-room";
+import { DropOffPanel } from "./drop-off-panel";
 import { PseudonymSetup } from "./pseudonym-setup";
 import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
 import {
@@ -261,6 +263,7 @@ export function FlightRoom() {
 	const messagesRef = useRef<HTMLDivElement>(null);
 	const closeRoomView = useCallback(() => {
 		clearRoomIntent();
+		clearPrivateDropOff();
 		setSnapshot(null);
 		setClosed(true);
 		setConnection("Pokój zamknięty");
@@ -492,7 +495,13 @@ export function FlightRoom() {
 							<SelectionPanel
 								selectedKind={snapshot.member.selection?.kind}
 								intent={intent}
-								onChange={changeSelection}
+								onChange={(selection) =>
+									changeSelection(
+										snapshot.member.selection?.dropOffText
+											? { ...selection, dropOffText: snapshot.member.selection.dropOffText }
+											: selection,
+									)
+								}
 							/>
 
 							<RoomMembers
@@ -501,6 +510,22 @@ export function FlightRoom() {
 								safety={safety}
 							/>
 						</div>
+
+						<DropOffPanel
+							flightInstanceId={snapshot.room.flightInstanceId}
+							sharedDropOff={snapshot.member.selection?.dropOffText}
+							canShare={!!snapshot.member.selection}
+							onShare={(label) => {
+								const selection = snapshot.member.selection;
+								if (selection) void changeSelection({ ...selection, dropOffText: label });
+							}}
+							onUnshare={() => {
+								const selection = snapshot.member.selection;
+								if (!selection) return;
+								const { dropOffText: _shared, ...rest } = selection;
+								void changeSelection(rest);
+							}}
+						/>
 
 						<Card>
 							<CardHeader>

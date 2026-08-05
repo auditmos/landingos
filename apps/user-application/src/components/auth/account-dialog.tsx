@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { ACCOUNT_DELETE_CONFIRMATION } from "@/lib/account-deletion-api";
 import { clearAnalyticsFunnel } from "@/lib/analytics-funnel";
 import { authClient } from "@/lib/auth-client";
+import { clearPrivateDropOff } from "@/lib/private-drop-off";
 import { clearRoomIntent } from "@/lib/room-intent";
 
 interface AccountDialogProps {
@@ -52,6 +53,7 @@ export function AccountDialog({ children }: AccountDialogProps) {
 				);
 			}
 			clearRoomIntent();
+			clearPrivateDropOff();
 			clearAnalyticsFunnel();
 			navigate({ to: "/" });
 		} catch (error) {

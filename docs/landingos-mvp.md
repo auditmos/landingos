@@ -102,7 +102,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
    - Jeden pokój jest identyfikowany przez kanoniczną instancję lotu, a nie sam tekst wpisany przez użytkownika.
    - Pokój zawiera członkostwa, pseudonimy, bieżący wybór transportu i jeden wspólny strumień wiadomości.
    - Nie powstają podgrupy, wiadomości prywatne ani trwałe profile społecznościowe.
-   - Dokładny cel podróży pozostaje w prywatnym kontekście planera i nie jest zwracany przez interfejs pokoju.
+   - Dokładny cel podróży pozostaje w prywatnym kontekście planera i nie jest zwracany przez interfejs pokoju. Jedyny wyjątek (decyzja z 2026-08-05): podróżny może dobrowolnie udostępnić tekstowy „punkt wysiadki” (`dropOffText`, do 120 znaków) w ramach własnej deklaracji transportu — domyślnie ukryty, odwoływalny w każdej chwili. Place ID i współrzędne nigdy nie trafiają do pokoju.
    - Pokój otwiera się po pierwszym dodaniu lotu i staje się niedostępny 24 godziny po planowanym lądowaniu.
    - Wiadomości pozostają niedostępne dla użytkowników po zamknięciu pokoju i są trwale usuwane 30 dni później.
    - Mechanizm dostarczania wiadomości jest szczegółem modułu; musi spełnić kryteria widoczności, izolacji i opóźnienia z Validation Strategy.
@@ -134,7 +134,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 
 ### Privacy and lifecycle
 
-- Dokładny adres celu jest danymi prywatnymi planera i nie może znaleźć się w odpowiedzi pokoju, wydarzeniach analitycznych ani wiadomości systemowej.
+- Dokładny adres celu jest danymi prywatnymi planera i nie może znaleźć się w odpowiedzi pokoju, wydarzeniach analitycznych ani wiadomości systemowej. Jedyny wyjątek to świadomie udostępniony przez podróżnego tekstowy punkt wysiadki (`dropOffText`) w jego własnej deklaracji — domyślnie ukryty i odwoływalny; place ID i współrzędne pozostają objęte zakazem bez wyjątków.
 - Dane pokoju są izolowane pomiędzy różnymi instancjami lotów, w tym lotami o tym samym numerze w różnych dniach.
 - Pokój jest ukrywany 24 godziny po planowanym lądowaniu; wiadomości są usuwane po kolejnych 30 dniach.
 - Polityka usunięcia konta oraz ewentualne wyjątki dla otwartych zgłoszeń wymagają przeglądu zgodności przed uruchomieniem produkcyjnym.
@@ -175,7 +175,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 - **Natychmiastowe usuwanie wiadomości po zamknięciu pokoju** — odrzucone, ponieważ uniemożliwiłoby obsługę zgłoszeń złożonych pod koniec podróży.
 - **Bezterminowa historia czatu** — odrzucona, ponieważ jest zbędna po podróży i zwiększa ryzyko prywatności.
 - **Natywne aplikacje iOS i Android** — odłożone (nie wykluczone) na rzecz jednej PWA w MVP, aby ograniczyć liczbę powierzchni wdrożeniowych. Ponieważ natywny klient jest planowany w przyszłości, granica API pozostaje niezależna od klienta (patrz Scope and platform), aby dodać go później bez przebudowy backendu.
-- **Dokładny adres widoczny w pokoju** — odrzucony ze względów bezpieczeństwa i prywatności.
+- **Dokładny adres widoczny w pokoju** — odrzucony ze względów bezpieczeństwa i prywatności. Decyzja z 2026-08-05: dopuszczono wyłącznie dobrowolny, domyślnie ukryty tekstowy punkt wysiadki udostępniany świadomie przez podróżnego (bez place ID i współrzędnych); automatyczna widoczność adresu pozostaje odrzucona.
 
 ## Validation Strategy
 
@@ -200,7 +200,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 | US-15 | Test odpowiedzi listy członków | Odpowiedź zawiera pseudonim i wybór transportu, ale nie zawiera e-maila ani dokładnego celu |
 | US-16 | Test dwóch równoległych klientów wysyłających i odbierających wiadomości | Wiadomość pojawia się u drugiego klienta w ciągu 5 sekund, bez duplikatów i bez przecieku do innego pokoju |
 | US-17 | Test deklaracji transportu publicznego i dzielonej taksówki | Obie deklaracje są widoczne; w żadnej ścieżce nie istnieje formularz płatności ani automatyczne rozliczenie |
-| US-18 | Test kontraktowy API oraz skan payloadów/analityki | Dokładny adres, place ID i współrzędne celu nie pojawiają się w API pokoju, wiadomościach systemowych ani zdarzeniach analitycznych |
+| US-18 | Test kontraktowy API oraz skan payloadów/analityki | Dokładny adres, place ID i współrzędne celu nie pojawiają się w API pokoju, wiadomościach systemowych ani zdarzeniach analitycznych; jedyny dopuszczony wyjątek to jawnie udostępniony przez podróżnego tekst punktu wysiadki w jego własnej deklaracji |
 | US-19 | Test zmiany wyboru przy dwóch aktywnych klientach | Nowy wybór zastępuje poprzedni i jest widoczny dla drugiego klienta w ciągu 5 sekund |
 | US-20 | Test blokady po stronie serwera | Po blokadzie wiadomości blokowanej osoby nie są zwracane blokującemu; odświeżenie i nowa sesja nie obchodzą blokady |
 | US-21 | Test zgłoszenia użytkownika i konkretnej wiadomości | Powstaje zgłoszenie z identyfikatorem pokoju, zgłaszającym, celem, czasem i niezbędnym snapshotem; brak danych dokładnego celu podróży |
@@ -275,7 +275,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 - Weryfikacja karty pokładowej, dokumentu tożsamości lub tożsamości współpasażera.
 - Podgrupy transportowe, wiadomości prywatne, zdjęcia profilowe, trwałe profile, obserwowanie i system reputacji.
 - Automatyczna moderacja treści i całodobowa obsługa bezpieczeństwa.
-- Udostępnianie dokładnego adresu noclegu innym użytkownikom.
+- Udostępnianie dokładnego adresu noclegu innym użytkownikom bez jawnej zgody (dobrowolny tekstowy punkt wysiadki jest częścią MVP; automatyczne ujawnianie pozostaje poza zakresem).
 - Nawigacja wewnątrz terminala, katalog wszystkich POI lotniska i tryb offline.
 - Natywne aplikacje iOS i Android w MVP (odłożone, nie wykluczone; API pozostaje niezależne od klienta, aby dodać je później).
 - Pełny self-hosting routingu, geokodowania i danych lotniczych.

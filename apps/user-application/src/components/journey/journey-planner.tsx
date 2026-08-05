@@ -25,6 +25,7 @@ import {
 	journeyUnavailableFromError,
 	recommendJourneysApi,
 } from "@/lib/journey-planner";
+import { savePrivateDropOff } from "@/lib/private-drop-off";
 import { publicSelectionFromJourneyVariant, saveRoomIntent } from "@/lib/room-intent";
 import { cn } from "@/lib/utils";
 
@@ -321,7 +322,17 @@ export function JourneyPlanner({
 
 	function continueToRoom(selection: ReturnType<typeof publicSelectionFromJourneyVariant>) {
 		saveRoomIntent({ flightInstanceId: flight.id, selection, publicOption: selection });
+		rememberDropOff();
 		window.location.assign("/app");
+	}
+
+	// Keep the traveler's own destination label available in the room view
+	// (browser-local only; shared with the room solely via the explicit toggle).
+	function rememberDropOff() {
+		savePrivateDropOff({
+			flightInstanceId: flight.id,
+			label: destination.displayName.trim().slice(0, 120),
+		});
 	}
 
 	useEffect(() => {
@@ -435,6 +446,7 @@ export function JourneyPlanner({
 											? { publicOption: publicSelectionFromJourneyVariant(topVariant) }
 											: {}),
 									});
+									rememberDropOff();
 									window.location.assign("/app");
 								}}
 							>

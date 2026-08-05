@@ -30,8 +30,20 @@ const OperatorNameSchema = z
 		}
 	});
 
+/**
+ * Voluntarily shared drop-off point. Bounded free text only — geographic
+ * identifiers stay banned from room payloads. Absent by default (hidden);
+ * present only after the traveler explicitly opts in, revocable anytime.
+ */
+export const DropOffTextSchema = z
+	.string()
+	.trim()
+	.min(1, "Punkt wysiadki nie może być pusty.")
+	.max(120, "Punkt wysiadki może mieć najwyżej 120 znaków.");
+
 export const PublicTransportSelectionSchema = z.strictObject({
 	kind: z.literal("public_transport"),
+	dropOffText: DropOffTextSchema.optional(),
 	badges: z
 		.array(RoomTransportBadgeSchema)
 		.max(3, "Można zapisać najwyżej 3 oznaczenia wariantu.")
@@ -49,6 +61,7 @@ export const PublicTransportSelectionSchema = z.strictObject({
 
 export const SharedTaxiSelectionSchema = z.strictObject({
 	kind: z.literal("shared_taxi"),
+	dropOffText: DropOffTextSchema.optional(),
 });
 
 export const RoomSelectionSchema = z.discriminatedUnion("kind", [
