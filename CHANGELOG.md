@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/auditmos/landingos/compare/v1.21.0...v1.22.0) (2026-08-05)
+
+
+### Features
+
+* **room:** re-enter the room from server-side membership ([2b19c6b](https://github.com/auditmos/landingos/commit/2b19c6b35c96215763671f6b64d9e546a6de5c94))
+
 # [1.21.0](https://github.com/auditmos/landingos/compare/v1.20.2...v1.21.0) (2026-08-05)
 
 
