@@ -16,6 +16,9 @@ const RoomIntentSchema = z.strictObject({
 	// room can offer switching to it even when the traveler entered via the
 	// shared-taxi path (US-19: change the transport declaration at any time).
 	publicOption: PublicTransportSelectionSchema.optional(),
+	// A planner intent applies its selection to the room exactly once; later
+	// room visits must keep whatever the traveler last chose server-side.
+	selectionApplied: z.boolean().optional(),
 });
 
 export type RoomIntent = z.infer<typeof RoomIntentSchema>;
@@ -66,6 +69,15 @@ export function loadRoomIntent(): RoomIntent | null {
 	}
 	storage?.removeItem(ROOM_INTENT_KEY);
 	return null;
+}
+
+export function markRoomIntentSelectionApplied(): void {
+	const intent = loadRoomIntent();
+	if (!intent) return;
+	browserStorage()?.setItem(
+		ROOM_INTENT_KEY,
+		JSON.stringify(RoomIntentSchema.parse({ ...intent, selectionApplied: true })),
+	);
 }
 
 export function clearRoomIntent(): void {

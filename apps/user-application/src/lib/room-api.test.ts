@@ -4,6 +4,7 @@ import {
 	fetchRoomSnapshot,
 	issueRoomTicket,
 	joinRoom,
+	listMyRooms,
 	roomWebSocketUrl,
 	sendRoomMessage,
 	updateRoomSelection,
@@ -25,6 +26,9 @@ describe("flight room browser API", () => {
 	it("uses the session cookie for join, refresh, selection, message, and ticket calls", async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
 			const path = new URL(String(input)).pathname;
+			if (path.endsWith("/rooms")) {
+				return Response.json([snapshot.room]);
+			}
 			if (path.endsWith("/selection")) {
 				return Response.json({
 					pseudonym: "Alicja BGY",
@@ -60,6 +64,8 @@ describe("flight room browser API", () => {
 
 		await joinRoom("flight-1", fetchMock);
 		await fetchRoomSnapshot(roomId, fetchMock);
+		const rooms = await listMyRooms(fetchMock);
+		expect(rooms).toEqual([snapshot.room]);
 		await updateRoomSelection(roomId, { kind: "shared_taxi" }, fetchMock);
 		await sendRoomMessage(
 			roomId,
@@ -71,7 +77,7 @@ describe("flight room browser API", () => {
 		);
 		await issueRoomTicket(roomId, fetchMock);
 
-		expect(fetchMock).toHaveBeenCalledTimes(5);
+		expect(fetchMock).toHaveBeenCalledTimes(6);
 		for (const call of fetchMock.mock.calls) {
 			const init = call[1];
 			expect(init?.credentials).toBe("include");

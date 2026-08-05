@@ -1,6 +1,5 @@
 import {
-	type PublicRoomMember,
-	type PublicRoomMessage,
+	type PublicTransportSelection,
 	RoomMessageCreateRequestSchema,
 	RoomRealtimeErrorSchema,
 	type RoomRealtimeEvent,
@@ -8,7 +7,7 @@ import {
 	type RoomSelection,
 	type RoomSnapshot,
 } from "@repo/data-ops/room";
-import { Bus, Car, MessageCircle, RefreshCw, Send } from "lucide-react";
+import { MessageCircle, RefreshCw, Send } from "lucide-react";
 import {
 	type Dispatch,
 	type FormEvent,
@@ -19,7 +18,6 @@ import {
 	useState,
 } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,17 +26,17 @@ import { clearPrivateDropOff } from "@/lib/private-drop-off";
 import {
 	fetchRoomSnapshot,
 	issueRoomTicket,
-	joinRoom,
 	roomWebSocketUrl,
 	sendRoomMessage,
 	updateRoomSelection,
 } from "@/lib/room-api";
-import { clearRoomIntent, loadRoomIntent, type RoomIntent } from "@/lib/room-intent";
+import { clearRoomIntent } from "@/lib/room-intent";
 import { cn } from "@/lib/utils";
 import { ClosedRoom } from "./closed-room";
 import { DropOffPanel } from "./drop-off-panel";
 import { PseudonymSetup } from "./pseudonym-setup";
-import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
+import { resolveRoomEntry, upsertMember, upsertMessage } from "./room-entry";
+import { ChatMessageItem, SelectionPanel } from "./room-panels";
 import {
 	CommunityRulesDisclosure,
 	CommunityRulesGate,
@@ -48,30 +46,7 @@ import {
 } from "./room-safety-panel";
 import { useRoomSafety } from "./use-room-safety";
 
-function upsertMember(members: PublicRoomMember[], member: PublicRoomMember): PublicRoomMember[] {
-	const index = members.findIndex((candidate) => candidate.pseudonym === member.pseudonym);
-	if (index < 0) return [...members, member];
-	return members.map((candidate, candidateIndex) =>
-		candidateIndex === index ? member : candidate,
-	);
-}
-
-function upsertMessage(
-	messages: PublicRoomMessage[],
-	message: PublicRoomMessage,
-): PublicRoomMessage[] {
-	return messages.some((candidate) => candidate.id === message.id)
-		? messages
-		: [...messages, message];
-}
-
 type SnapshotSetter = Dispatch<SetStateAction<RoomSnapshot | null>>;
-
-async function initializeRoom(intent: RoomIntent): Promise<RoomSnapshot> {
-	const joined = await joinRoom(intent.flightInstanceId);
-	await updateRoomSelection(joined.room.id, intent.selection);
-	return fetchRoomSnapshot(joined.room.id);
-}
 
 type RoomSocketHandlers = {
 	open: () => void;
@@ -144,114 +119,8 @@ function handleInitializationError(
 	}
 }
 
-function formatMessageTime(iso: string): string {
-	const date = new Date(iso);
-	if (Number.isNaN(date.getTime())) return "";
-	return date.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
-}
-
-function ChatMessageItem({
-	message,
-	own,
-	onReport,
-}: {
-	message: PublicRoomMessage;
-	own: boolean;
-	onReport: () => void;
-}) {
-	return (
-		<div className={cn("flex items-end gap-2", own && "flex-row-reverse")}>
-			{own ? null : (
-				<Avatar className="size-8 shrink-0">
-					<AvatarFallback
-						className={cn("text-xs font-semibold text-white", pseudonymColor(message.pseudonym))}
-					>
-						{pseudonymInitials(message.pseudonym)}
-					</AvatarFallback>
-				</Avatar>
-			)}
-			<div
-				className={cn(
-					"max-w-[78%] rounded-2xl px-3 py-2",
-					own
-						? "rounded-br-sm bg-primary text-primary-foreground"
-						: "rounded-bl-sm bg-muted text-foreground",
-				)}
-			>
-				{own ? null : <p className="text-xs font-semibold">{message.pseudonym}</p>}
-				<p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
-				<div className={cn("mt-1 flex", own ? "justify-end" : "justify-start")}>
-					<span
-						className={cn(
-							"text-[10px]",
-							own ? "text-primary-foreground/70" : "text-muted-foreground",
-						)}
-					>
-						{formatMessageTime(message.createdAt)}
-					</span>
-				</div>
-				{own ? null : (
-					<Button
-						type="button"
-						size="sm"
-						variant="ghost"
-						className="mt-1 h-7 px-2 text-xs"
-						onClick={onReport}
-					>
-						Zgłoś wiadomość
-					</Button>
-				)}
-			</div>
-		</div>
-	);
-}
-
-function SelectionPanel({
-	selectedKind,
-	intent,
-	onChange,
-}: {
-	selectedKind: RoomSelection["kind"] | undefined;
-	intent: RoomIntent | null;
-	onChange: (selection: RoomSelection) => void;
-}) {
-	const publicOption =
-		intent?.selection.kind === "public_transport"
-			? intent.selection
-			: (intent?.publicOption ?? null);
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="text-lg">Twoja deklaracja</CardTitle>
-				<CardDescription>Możesz zmienić ją w dowolnym momencie.</CardDescription>
-			</CardHeader>
-			<CardContent className="grid gap-2">
-				<Button
-					type="button"
-					className="justify-start"
-					variant={selectedKind === "public_transport" ? "default" : "outline"}
-					disabled={!publicOption}
-					onClick={() => publicOption && onChange(publicOption)}
-				>
-					<Bus className="size-4" />
-					Transport publiczny
-				</Button>
-				<Button
-					type="button"
-					className="justify-start"
-					variant={selectedKind === "shared_taxi" ? "default" : "outline"}
-					onClick={() => onChange({ kind: "shared_taxi" })}
-				>
-					<Car className="size-4" />
-					Dzielona taksówka
-				</Button>
-			</CardContent>
-		</Card>
-	);
-}
-
 export function FlightRoom() {
-	const [intent, setIntent] = useState<RoomIntent | null>(null);
+	const [publicOption, setPublicOption] = useState<PublicTransportSelection | null>(null);
 	const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
@@ -283,21 +152,18 @@ export function FlightRoom() {
 	useEffect(() => {
 		void retryKey;
 		let active = true;
-		const nextIntent = loadRoomIntent();
-		setIntent(nextIntent);
-		if (!nextIntent) {
-			setError("Najpierw wybierz lot i wariant przejazdu w planerze.");
-			setLoading(false);
-			return () => {
-				active = false;
-			};
-		}
 		setLoading(true);
 		setError("");
 		setNeedsPseudonym(false);
-		void initializeRoom(nextIntent)
-			.then((refreshed) => {
-				if (active) setSnapshot(refreshed);
+		resolveRoomEntry()
+			.then((entry) => {
+				if (!active) return;
+				if (entry.kind === "planner_required") {
+					setError("Najpierw wybierz lot i wariant przejazdu w planerze.");
+					return;
+				}
+				setPublicOption(entry.publicOption);
+				setSnapshot(entry.snapshot);
 			})
 			.catch((caught: unknown) => {
 				if (!active) return;
@@ -494,7 +360,7 @@ export function FlightRoom() {
 						<div className="grid gap-4 sm:grid-cols-2">
 							<SelectionPanel
 								selectedKind={snapshot.member.selection?.kind}
-								intent={intent}
+								publicOption={publicOption}
 								onChange={(selection) =>
 									changeSelection(
 										snapshot.member.selection?.dropOffText

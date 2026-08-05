@@ -1,8 +1,10 @@
 import {
 	type ConnectionTicketResponse,
 	ConnectionTicketResponseSchema,
+	type PublicRoom,
 	type PublicRoomMember,
 	PublicRoomMemberSchema,
+	PublicRoomSchema,
 	type RoomMessageCreateRequest,
 	RoomMessageCreateRequestSchema,
 	type RoomMessageCreateResponse,
@@ -11,7 +13,19 @@ import {
 	type RoomSnapshot,
 	RoomSnapshotSchema,
 } from "@repo/data-ops/room";
+import { z } from "zod";
 import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
+
+const RoomListSchema = z.array(PublicRoomSchema);
+
+/**
+ * Lists the caller's open rooms from server-side membership, so the room can
+ * be re-entered after the browser session state is gone (new tab, device,
+ * restart). Sorted by the server: soonest-closing room first.
+ */
+export async function listMyRooms(fetchImpl: typeof fetch = fetch): Promise<PublicRoom[]> {
+	return RoomListSchema.parse(await roomRequest("/rooms", { method: "GET" }, fetchImpl));
+}
 
 const DEFAULT_API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";
 const JSON_HEADERS: HeadersInit = { "content-type": "application/json" };

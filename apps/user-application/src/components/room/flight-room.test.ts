@@ -9,6 +9,7 @@ import { FlightRoom } from "./flight-room";
 const mocks = vi.hoisted(() => ({
 	join: vi.fn(),
 	refresh: vi.fn(),
+	list: vi.fn(),
 	select: vi.fn(),
 	send: vi.fn(),
 	ticket: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("@/lib/room-api", async (importOriginal) => {
 		...actual,
 		joinRoom: mocks.join,
 		fetchRoomSnapshot: mocks.refresh,
+		listMyRooms: mocks.list,
 		updateRoomSelection: mocks.select,
 		sendRoomMessage: mocks.send,
 		issueRoomTicket: mocks.ticket,
@@ -63,6 +65,19 @@ const snapshot: RoomSnapshot = {
 			createdAt: "2026-09-14T07:00:01.000Z",
 		},
 	],
+};
+const selectedMember = {
+	pseudonym: "Alicja BGY",
+	selection: {
+		kind: "public_transport",
+		badges: ["recommended"],
+		modes: ["bus"],
+		operatorNames: ["Airport Bus Express"],
+	},
+};
+const intentFixture = {
+	flightInstanceId: "flight-1",
+	selection: selectedMember.selection,
 };
 
 class FakeWebSocket extends EventTarget {
@@ -102,105 +117,96 @@ async function enter(input: HTMLInputElement, value: string) {
 	});
 }
 
-describe("Polish flight room UI", () => {
-	let container: HTMLDivElement;
-	let root: Root;
+let container: HTMLDivElement;
+let root: Root;
 
+function primeRoomMocks() {
+	mocks.join.mockResolvedValue(snapshot);
+	mocks.list.mockResolvedValue([]);
+	mocks.select.mockResolvedValue(selectedMember);
+	mocks.refresh.mockResolvedValue({
+		...snapshot,
+		member: selectedMember,
+		members: [selectedMember, otherMember],
+	});
+	mocks.ticket.mockResolvedValue({
+		ticket: "a".repeat(64),
+		expiresAt: "2026-09-14T07:01:00.000Z",
+	});
+	mocks.send.mockResolvedValue({
+		created: true,
+		message: {
+			id: "018f4c8e-5697-7df4-8f6e-c7644b137e51",
+			clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e52",
+			pseudonym: "Alicja BGY",
+			content: "Cześć!",
+			createdAt: "2026-09-14T07:00:00.000Z",
+		},
+	});
+	mocks.rules.mockResolvedValue({
+		version: COMMUNITY_RULES_VERSION,
+		accepted: false,
+		topics: COMMUNITY_RULES_TOPICS,
+	});
+	mocks.acceptRules.mockResolvedValue({
+		version: COMMUNITY_RULES_VERSION,
+		acceptedAt: "2026-09-14T07:00:00.000Z",
+		created: true,
+	});
+	mocks.blocks.mockResolvedValue({ blockedPseudonyms: [] });
+	mocks.block.mockResolvedValue({
+		blockedPseudonym: "Bartek BGY",
+		active: true,
+		changed: true,
+	});
+	mocks.unblock.mockResolvedValue({
+		blockedPseudonym: "Bartek BGY",
+		active: false,
+		changed: true,
+	});
+	mocks.report.mockResolvedValue({
+		reportId: "018f4c8e-5697-7df4-8f6e-c7644b137e57",
+		status: "open",
+		created: true,
+	});
+}
+
+async function mountRoom() {
+	container = document.createElement("div");
+	document.body.appendChild(container);
+	root = createRoot(container);
+	await act(async () => root.render(createElement(FlightRoom)));
+	await settle();
+	await settle();
+}
+
+async function unmountRoom() {
+	vi.useRealTimers();
+	await act(async () => root.unmount());
+	container.remove();
+	vi.unstubAllGlobals();
+}
+
+describe("Polish flight room UI", () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		FakeWebSocket.instances = [];
 		vi.stubGlobal("WebSocket", FakeWebSocket);
 		sessionStorage.clear();
-		sessionStorage.setItem(
-			"landingos.room-intent",
-			JSON.stringify({
-				flightInstanceId: "flight-1",
-				selection: {
-					kind: "public_transport",
-					badges: ["recommended"],
-					modes: ["bus"],
-					operatorNames: ["Airport Bus Express"],
-				},
-			}),
-		);
-		mocks.join.mockResolvedValue(snapshot);
-		mocks.select.mockResolvedValue({
-			pseudonym: "Alicja BGY",
-			selection: {
-				kind: "public_transport",
-				badges: ["recommended"],
-				modes: ["bus"],
-				operatorNames: ["Airport Bus Express"],
-			},
-		});
-		mocks.refresh.mockResolvedValue({
-			...snapshot,
-			member: await mocks.select(),
-			members: [await mocks.select(), otherMember],
-		});
-		mocks.ticket.mockResolvedValue({
-			ticket: "a".repeat(64),
-			expiresAt: "2026-09-14T07:01:00.000Z",
-		});
-		mocks.send.mockResolvedValue({
-			created: true,
-			message: {
-				id: "018f4c8e-5697-7df4-8f6e-c7644b137e51",
-				clientMessageId: "018f4c8e-5697-7df4-8f6e-c7644b137e52",
-				pseudonym: "Alicja BGY",
-				content: "Cześć!",
-				createdAt: "2026-09-14T07:00:00.000Z",
-			},
-		});
-		mocks.rules.mockResolvedValue({
-			version: COMMUNITY_RULES_VERSION,
-			accepted: false,
-			topics: COMMUNITY_RULES_TOPICS,
-		});
-		mocks.acceptRules.mockResolvedValue({
-			version: COMMUNITY_RULES_VERSION,
-			acceptedAt: "2026-09-14T07:00:00.000Z",
-			created: true,
-		});
-		mocks.blocks.mockResolvedValue({ blockedPseudonyms: [] });
-		mocks.block.mockResolvedValue({
-			blockedPseudonym: "Bartek BGY",
-			active: true,
-			changed: true,
-		});
-		mocks.unblock.mockResolvedValue({
-			blockedPseudonym: "Bartek BGY",
-			active: false,
-			changed: true,
-		});
-		mocks.report.mockResolvedValue({
-			reportId: "018f4c8e-5697-7df4-8f6e-c7644b137e57",
-			status: "open",
-			created: true,
-		});
-		vi.clearAllMocks();
-		container = document.createElement("div");
-		document.body.appendChild(container);
-		root = createRoot(container);
-		await act(async () => root.render(createElement(FlightRoom)));
-		await settle();
-		await settle();
+		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
+		primeRoomMocks();
+		await mountRoom();
 	});
 
-	afterEach(async () => {
-		vi.useRealTimers();
-		await act(async () => root.unmount());
-		container.remove();
-		vi.unstubAllGlobals();
-	});
+	afterEach(unmountRoom);
 
-	it("joins, persists the public selection, recovers history, and opens a ticketed socket", () => {
+	it("joins, applies the planner selection, and opens a ticketed socket", () => {
 		expect(mocks.join).toHaveBeenCalledWith("flight-1");
 		expect(mocks.select).toHaveBeenCalledWith(
 			roomId,
 			expect.objectContaining({ kind: "public_transport" }),
 		);
-		expect(mocks.refresh).toHaveBeenCalledWith(roomId);
+		expect(mocks.refresh).not.toHaveBeenCalled();
 		expect(mocks.ticket).toHaveBeenCalledWith(roomId);
 		expect(FakeWebSocket.instances[0]?.url).toContain(
 			`/rooms/${roomId}/connect?ticket=${"a".repeat(64)}`,
@@ -211,6 +217,8 @@ describe("Polish flight room UI", () => {
 		for (const topic of COMMUNITY_RULES_TOPICS) {
 			expect(container.textContent).toContain(topic);
 		}
+		const stored: unknown = JSON.parse(sessionStorage.getItem("landingos.room-intent") ?? "{}");
+		expect(stored).toMatchObject({ selectionApplied: true });
 	});
 
 	it("renders realtime messages and sends trimmed text with a client UUID", async () => {
@@ -258,7 +266,7 @@ describe("Polish flight room UI", () => {
 		await act(async () => {
 			await Promise.resolve();
 		});
-		expect(mocks.refresh).toHaveBeenCalledTimes(2);
+		expect(mocks.refresh).toHaveBeenCalledTimes(1);
 		expect(mocks.ticket).toHaveBeenCalledTimes(2);
 		expect(FakeWebSocket.instances).toHaveLength(2);
 		vi.useRealTimers();
@@ -311,5 +319,51 @@ describe("Polish flight room UI", () => {
 			}),
 		);
 		expect(container.textContent).toContain("Zgłoszenie zostało zapisane");
+	});
+});
+
+describe("room re-entry without planner intent", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		FakeWebSocket.instances = [];
+		vi.stubGlobal("WebSocket", FakeWebSocket);
+		sessionStorage.clear();
+		primeRoomMocks();
+	});
+
+	afterEach(unmountRoom);
+
+	it("re-enters the most imminent open room from server-side membership alone", async () => {
+		mocks.list.mockResolvedValue([snapshot.room]);
+		await mountRoom();
+		expect(mocks.list).toHaveBeenCalledTimes(1);
+		expect(mocks.join).not.toHaveBeenCalled();
+		expect(mocks.select).not.toHaveBeenCalled();
+		expect(mocks.refresh).toHaveBeenCalledWith(roomId);
+		expect(container.textContent).toContain("Pokój lotu");
+		expect(container.textContent).toContain("Alicja BGY");
+		expect(container.textContent).not.toContain("Najpierw wybierz lot");
+	});
+
+	it("sends the traveler to the planner only when no open room membership exists", async () => {
+		await mountRoom();
+		expect(mocks.refresh).not.toHaveBeenCalled();
+		expect(container.textContent).toContain("Najpierw wybierz lot i wariant przejazdu w planerze.");
+		expect(container.textContent).toContain("Wróć do planera");
+	});
+
+	it("applies a planner selection exactly once across room visits", async () => {
+		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
+		await mountRoom();
+		expect(mocks.select).toHaveBeenCalledTimes(1);
+
+		await act(async () => root.unmount());
+		container.remove();
+		FakeWebSocket.instances = [];
+		await mountRoom();
+
+		expect(mocks.join).toHaveBeenCalledTimes(2);
+		expect(mocks.select).toHaveBeenCalledTimes(1);
+		expect(container.textContent).toContain("Pokój lotu");
 	});
 });

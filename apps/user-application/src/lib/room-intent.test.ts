@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
 	clearRoomIntent,
 	loadRoomIntent,
+	markRoomIntentSelectionApplied,
 	publicSelectionFromJourneyVariant,
 	saveRoomIntent,
 } from "./room-intent";
@@ -107,6 +108,20 @@ describe("public room intent", () => {
 			selection: { kind: "shared_taxi" },
 		});
 		expect(loadRoomIntent()?.selection).toEqual({ kind: "shared_taxi" });
+	});
+
+	it("marks the planner selection as applied exactly once, until the planner writes a fresh intent", () => {
+		saveRoomIntent({ flightInstanceId: "flight-1", selection: { kind: "shared_taxi" } });
+		expect(loadRoomIntent()?.selectionApplied).toBeUndefined();
+		markRoomIntentSelectionApplied();
+		expect(loadRoomIntent()?.selectionApplied).toBe(true);
+		saveRoomIntent({ flightInstanceId: "flight-1", selection: { kind: "shared_taxi" } });
+		expect(loadRoomIntent()?.selectionApplied).toBeUndefined();
+	});
+
+	it("ignores the applied marker when no intent is stored", () => {
+		markRoomIntentSelectionApplied();
+		expect(loadRoomIntent()).toBeNull();
 	});
 
 	it("keeps a public-transport option alongside a shared-taxi choice so the room can switch back (US-19)", () => {
