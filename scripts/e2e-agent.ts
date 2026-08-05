@@ -98,7 +98,9 @@ export class AgentBrowser {
 		await this.eval(`(() => {
 			const normalize = (value) => value.replace(/\\s+/g, " ").trim();
 			const candidates = [...document.querySelectorAll("button, a, [role=button]")]
-				.filter((element) => normalize(element.textContent || "") === ${JSON.stringify(text)});
+				.filter((element) =>
+					normalize(element.textContent || "") === ${JSON.stringify(text)} ||
+					normalize(element.getAttribute("aria-label") || "") === ${JSON.stringify(text)});
 			const element = candidates[${occurrence}];
 			if (!(element instanceof HTMLElement)) {
 				throw new Error("Missing action: " + ${JSON.stringify(text)});
@@ -131,7 +133,9 @@ export class AgentBrowser {
 			const element = [...document.querySelectorAll("button, a, [role=button]")]
 				.find((candidate) => {
 					const rect = candidate.getBoundingClientRect();
-					return normalize(candidate.textContent || "") === ${JSON.stringify(primaryAction)} &&
+					const name = normalize(candidate.textContent || "") ||
+						normalize(candidate.getAttribute("aria-label") || "");
+					return name === ${JSON.stringify(primaryAction)} &&
 						rect.width > 0 && rect.height > 0;
 				});
 			if (!(element instanceof HTMLElement)) throw new Error("Missing primary action");

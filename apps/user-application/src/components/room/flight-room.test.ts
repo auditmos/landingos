@@ -287,7 +287,7 @@ describe("Polish flight room UI", () => {
 		expect(mocks.acceptRules).toHaveBeenCalledWith(COMMUNITY_RULES_VERSION);
 
 		const block = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent === "Zablokuj",
+			(button) => button.getAttribute("aria-label") === "Zablokuj",
 		);
 		await act(async () => block?.click());
 		await settle();

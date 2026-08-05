@@ -1,6 +1,15 @@
 import type { PublicRoomMember } from "@repo/data-ops/room";
 import { SafetyReportReasonSchema } from "@repo/data-ops/safety";
-import { ChevronDown, ShieldCheck, Users } from "lucide-react";
+import {
+	Ban,
+	Bus,
+	CarTaxiFront,
+	ChevronDown,
+	Flag,
+	MapPin,
+	ShieldCheck,
+	Users,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +30,33 @@ const reasonCopy = {
 	other: "Inny problem",
 } as const;
 
-function selectionLabel(member: PublicRoomMember) {
-	if (!member.selection) return "Jeszcze bez deklaracji";
-	if (member.selection.kind === "shared_taxi") return "Dzielona taksówka";
-	return member.selection.operatorNames.length > 0
-		? member.selection.operatorNames.join(", ")
-		: member.selection.modes.join(", ");
+const modeCopy: Record<string, string> = {
+	bus: "Autobus",
+	train: "Pociąg",
+	metro: "Metro",
+	tram: "Tramwaj",
+	walk: "Pieszo",
+};
+
+function MemberSelection({ member }: { member: PublicRoomMember }) {
+	const selection = member.selection;
+	if (!selection) {
+		return <span className="text-xs text-muted-foreground">Jeszcze bez deklaracji</span>;
+	}
+	if (selection.kind === "shared_taxi") {
+		return (
+			<Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
+				<CarTaxiFront className="size-3" />
+				Szuka taksówki
+			</Badge>
+		);
+	}
+	return (
+		<Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
+			<Bus className="size-3" />
+			{selection.modes.map((mode) => modeCopy[mode] ?? mode).join(" · ")}
+		</Badge>
+	);
 }
 
 function MemberAvatar({ pseudonym }: { pseudonym: string }) {
@@ -156,35 +186,45 @@ export function RoomMembers({
 										<span className="truncate font-medium">{member.pseudonym}</span>
 										{own ? <Badge variant="outline">Ty</Badge> : null}
 									</div>
-									<span className="text-xs text-muted-foreground">{selectionLabel(member)}</span>
+									<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+										<MemberSelection member={member} />
+									</div>
 									{member.selection?.dropOffText ? (
-										<span className="block truncate text-xs text-muted-foreground">
-											Punkt wysiadki: {member.selection.dropOffText}
+										<span
+											className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"
+											title="Punkt wysiadki"
+										>
+											<MapPin className="size-3 shrink-0" />
+											<span className="truncate">{member.selection.dropOffText}</span>
 										</span>
 									) : null}
 								</div>
 								{own ? null : (
-									<div className="flex gap-2">
+									<div className="flex gap-1">
 										<Button
 											type="button"
-											size="sm"
-											variant="outline"
+											size="icon"
+											variant="ghost"
 											disabled={safety.pending}
+											aria-label={blocked ? "Odblokuj" : "Zablokuj"}
+											title={blocked ? "Odblokuj" : "Zablokuj"}
 											onClick={() =>
 												void (blocked
 													? safety.unblock(member.pseudonym)
 													: safety.block(member.pseudonym))
 											}
 										>
-											{blocked ? "Odblokuj" : "Zablokuj"}
+											<Ban className={cn("size-4", blocked && "text-destructive")} />
 										</Button>
 										<Button
 											type="button"
-											size="sm"
+											size="icon"
 											variant="ghost"
+											aria-label="Zgłoś osobę"
+											title="Zgłoś osobę"
 											onClick={() => safety.startMemberReport(member.pseudonym)}
 										>
-											Zgłoś osobę
+											<Flag className="size-4" />
 										</Button>
 									</div>
 								)}
