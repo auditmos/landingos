@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { clearPrivateDropOff } from "@/lib/private-drop-off";
 import { fetchRoomSnapshot, sendRoomMessage, updateRoomSelection } from "@/lib/room-api";
 import { clearRoomIntent } from "@/lib/room-intent";
+import { useRefreshOpenRoomCount } from "@/lib/use-my-rooms";
 import { cn } from "@/lib/utils";
 import { ClosedRoom } from "./closed-room";
 import { DropOffPanel } from "./drop-off-panel";
@@ -68,6 +69,7 @@ export function FlightRoom() {
 	const [connection, setConnection] = useState("Łączenie…");
 	const [closed, setClosed] = useState(false);
 	const messagesRef = useRef<HTMLDivElement>(null);
+	const refreshOpenRoomCount = useRefreshOpenRoomCount();
 	const closeRoomView = useCallback(() => {
 		clearRoomIntent();
 		clearPrivateDropOff();
@@ -75,7 +77,8 @@ export function FlightRoom() {
 		setClosed(true);
 		setConnection("Pokój zamknięty");
 		setError("");
-	}, []);
+		refreshOpenRoomCount();
+	}, [refreshOpenRoomCount]);
 	const safety = useRoomSafety(snapshot?.room.id, async () => {
 		const roomId = snapshot?.room.id;
 		if (roomId) setSnapshot(await fetchRoomSnapshot(roomId));
@@ -108,6 +111,7 @@ export function FlightRoom() {
 				setFlightChoices(entry.rooms.length > 1 ? entry.rooms : null);
 				setPublicOption(entry.publicOption);
 				setSnapshot(entry.snapshot);
+				refreshOpenRoomCount();
 			})
 			.catch((caught: unknown) => {
 				if (!active) return;
@@ -119,7 +123,7 @@ export function FlightRoom() {
 		return () => {
 			active = false;
 		};
-	}, [retryKey, closeRoomView]);
+	}, [retryKey, closeRoomView, refreshOpenRoomCount]);
 
 	useRoomExpiry(snapshot?.room.closesAt, closeRoomView);
 

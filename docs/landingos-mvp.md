@@ -293,6 +293,14 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 
 Każda bramka ma dostarczyć mierzalny dowód. Przejście do następnej bramki nie oznacza, że kryteria późniejszych etapów są zweryfikowane.
 
+### Zaimplementowane rozszerzenia nawigacji pokoju (poza kolejką S0–S10)
+
+Stan na 2026-08-05. Trzy addytywne rozszerzenia UX wdrożone po slice'ach S0–S10; nie zmieniają żadnej zablokowanej decyzji ani inwariantu prywatności:
+
+1. **Powrót do pokoju z członkostwa serwerowego (wspiera US-14, US-22):** `/app` odtwarza otwarty pokój z `GET /rooms` (członkostwo po stronie serwera), a nie wyłącznie ze stanu przeglądarki — utrata `sessionStorage` (nowa karta, urządzenie, restart) nie odcina od pokoju. Wybór transportu z planera jest aplikowany dokładnie raz; kolejne wejścia zachowują deklarację zapisaną po stronie serwera (US-19).
+2. **„Moje loty" (wspiera US-14, US-19):** `GET /rooms` zwraca kontekst lotu (`flight` w pozycji listy); przy kilku otwartych pokojach `/app` pokazuje wybór lotu, w pokoju dostępny jest przełącznik „Moje loty", a nawigacja pokazuje licznik otwartych pokojów.
+3. **„Poprzednie loty" (zgodne z US-23):** `GET /rooms/past` zwraca wyłącznie tożsamość lotu (bez identyfikatora pokoju, uczestników i wiadomości), ograniczone do okna 30 dni po zamknięciu pokoju i maks. 10 pozycji — historia podróży pozostaje czasowa. Przycisk „Zaplanuj ponownie" prefiluje planer (`/?flightNumber=…`), wspierając metrykę powrotu (dodanie kolejnego lotu przez tego samego użytkownika).
+
 ### Future considerations (poza MVP)
 
 - **Wydłużone okno komunikacji po przylocie** — obecnie pokój staje się niedostępny 24 godziny po planowanym lądowaniu i tak zostaje w MVP (potwierdzone przez klienta). W przyszłości można rozważyć pozostawienie kanału komunikacji na wypadek potrzeby pomocy za granicą — polskojęzyczna grupa z tego samego lotu jako nieformalny backup przy dużych zakłóceniach. To wyłącznie kierunek do rozważenia, świadomie niewprowadzany teraz, aby nie rozszerzać zakresu.

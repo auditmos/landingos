@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type { RoomSnapshot } from "@repo/data-ops/room";
 import { COMMUNITY_RULES_TOPICS, COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -178,7 +179,11 @@ async function mountRoom() {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
-	await act(async () => root.render(createElement(FlightRoom)));
+	await act(async () =>
+		root.render(
+			createElement(QueryClientProvider, { client: new QueryClient() }, createElement(FlightRoom)),
+		),
+	);
 	await settle();
 	await settle();
 }
