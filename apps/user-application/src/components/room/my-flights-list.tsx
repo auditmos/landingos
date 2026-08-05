@@ -41,7 +41,7 @@ export function RoomGateway({
 	);
 }
 
-export function MyFlightsList({
+function MyFlightsList({
 	rooms,
 	onSelect,
 }: {
