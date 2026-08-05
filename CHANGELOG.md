@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/auditmos/landingos/compare/v1.19.0...v1.20.0) (2026-08-05)
+
+
+### Features
+
+* **room:** maps links for drop-off points and private route summary ([a27a779](https://github.com/auditmos/landingos/commit/a27a779226612d4fe85533a25e1b1ce9c15b2ffb))
+
 # [1.19.0](https://github.com/auditmos/landingos/compare/v1.18.0...v1.19.0) (2026-08-05)
 
 
