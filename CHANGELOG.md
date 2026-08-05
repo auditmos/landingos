@@ -1,3 +1,10 @@
+## [1.20.2](https://github.com/auditmos/landingos/compare/v1.20.1...v1.20.2) (2026-08-05)
+
+
+### Bug Fixes
+
+* **room:** icon-only transport modes in the members list ([915ae81](https://github.com/auditmos/landingos/commit/915ae818fa5dfee0550549869e4974d1370e65ed))
+
 ## [1.20.1](https://github.com/auditmos/landingos/compare/v1.20.0...v1.20.1) (2026-08-05)
 
 
