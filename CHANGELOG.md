@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/auditmos/landingos/compare/v1.27.0...v1.28.0) (2026-08-05)
+
+
+### Features
+
+* **safety:** close and reopen reports from the operator console ([bc5cfab](https://github.com/auditmos/landingos/commit/bc5cfab67272970b3ad2ca428e730c3db3d23c72))
+
 # [1.27.0](https://github.com/auditmos/landingos/compare/v1.26.0...v1.27.0) (2026-08-05)
 
 
