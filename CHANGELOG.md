@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/auditmos/landingos/compare/v1.26.0...v1.27.0) (2026-08-05)
+
+
+### Features
+
+* **safety:** operator read path and triage queue for reports ([5b48e34](https://github.com/auditmos/landingos/commit/5b48e349fd201ff323142a41231cf9114d04bc8a))
+
 # [1.26.0](https://github.com/auditmos/landingos/compare/v1.25.0...v1.26.0) (2026-08-05)
 
 
