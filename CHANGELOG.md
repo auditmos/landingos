@@ -1,3 +1,10 @@
+## [1.17.1](https://github.com/auditmos/landingos/compare/v1.17.0...v1.17.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **journey:** make room-entry buttons state their transport declaration ([a262fbc](https://github.com/auditmos/landingos/commit/a262fbc22b0d1bebbce5a6115499dd7734bbebd8))
+
 # [1.17.0](https://github.com/auditmos/landingos/compare/v1.16.0...v1.17.0) (2026-08-05)
 
 
