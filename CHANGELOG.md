@@ -1,3 +1,11 @@
+# [1.17.0](https://github.com/auditmos/landingos/compare/v1.16.0...v1.17.0) (2026-08-05)
+
+
+### Features
+
+* **journey:** compact variant picker with Google Maps navigation ([8578bd8](https://github.com/auditmos/landingos/commit/8578bd870b9b55612193ae6d34d530a53049acef))
+* **landing:** frame BGY corridor as first route with more coming ([482f5ae](https://github.com/auditmos/landingos/commit/482f5aed2320f0d43768f5c1bd6b4265e99ca699))
+
 # [1.16.0](https://github.com/auditmos/landingos/compare/v1.15.0...v1.16.0) (2026-08-04)
 
 
