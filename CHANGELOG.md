@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/auditmos/landingos/compare/v1.24.0...v1.25.0) (2026-08-05)
+
+
+### Features
+
+* **room:** instant nav-badge refresh; document the navigation extensions ([413a4c4](https://github.com/auditmos/landingos/commit/413a4c476518b5304d85bede0f402d339cc1c0df))
+
 # [1.24.0](https://github.com/auditmos/landingos/compare/v1.23.0...v1.24.0) (2026-08-05)
 
 
