@@ -320,18 +320,30 @@ export function JourneyPlanner({
 		variants.find((variant) => variant.badges.includes("recommended")) ??
 		variants[0];
 
-	function continueToRoom(selection: ReturnType<typeof publicSelectionFromJourneyVariant>) {
+	function continueToRoom(variant: JourneyVariant) {
+		const selection = publicSelectionFromJourneyVariant(variant);
 		saveRoomIntent({ flightInstanceId: flight.id, selection, publicOption: selection });
-		rememberDropOff();
+		rememberDropOff(variant);
 		window.location.assign("/app");
 	}
 
-	// Keep the traveler's own destination label available in the room view
-	// (browser-local only; shared with the room solely via the explicit toggle).
-	function rememberDropOff() {
+	// Keep the traveler's own destination label and chosen route available in
+	// the room view (browser-local only; the label is shared with the room
+	// solely via the explicit toggle, the route never).
+	function rememberDropOff(variant?: JourneyVariant) {
 		savePrivateDropOff({
 			flightInstanceId: flight.id,
 			label: destination.displayName.trim().slice(0, 120),
+			...(variant
+				? {
+						route: variant.steps.slice(0, 20).map((step) => ({
+							mode: step.mode,
+							from: step.from.trim().slice(0, 80),
+							to: step.to.trim().slice(0, 80),
+							durationMinutes: step.durationMinutes,
+						})),
+					}
+				: {}),
 		});
 	}
 
@@ -421,7 +433,7 @@ export function JourneyPlanner({
 						key={selectedVariant.id}
 						variant={selectedVariant}
 						mapsUrl={mapsUrl}
-						onChoose={(selected) => continueToRoom(publicSelectionFromJourneyVariant(selected))}
+						onChoose={continueToRoom}
 					/>
 					<Card>
 						<CardHeader>

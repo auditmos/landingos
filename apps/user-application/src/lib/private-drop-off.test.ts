@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearPrivateDropOff, loadPrivateDropOff, savePrivateDropOff } from "./private-drop-off";
+import {
+	clearPrivateDropOff,
+	dropOffMapsUrl,
+	loadPrivateDropOff,
+	savePrivateDropOff,
+} from "./private-drop-off";
 
 const STORAGE_KEY = "landingos.private-drop-off";
 
@@ -31,6 +36,46 @@ describe("private drop-off store", () => {
 	it("refuses labels beyond 120 characters instead of persisting them", () => {
 		savePrivateDropOff({ flightInstanceId: "flight-1", label: "x".repeat(121) });
 		expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+	});
+
+	it("round-trips the chosen route summary alongside the label", () => {
+		savePrivateDropOff({
+			flightInstanceId: "flight-1",
+			label: "Bershka",
+			route: [
+				{ mode: "bus", from: "Bergamo BGY", to: "Milano Centrale", durationMinutes: 50 },
+				{ mode: "walk", from: "Milano Centrale", to: "Bershka", durationMinutes: 8 },
+			],
+		});
+		const loaded = loadPrivateDropOff("flight-1");
+		expect(loaded?.route).toHaveLength(2);
+		expect(loaded?.route?.[0]).toEqual({
+			mode: "bus",
+			from: "Bergamo BGY",
+			to: "Milano Centrale",
+			durationMinutes: 50,
+		});
+	});
+
+	it("refuses an oversized route instead of persisting it", () => {
+		savePrivateDropOff({
+			flightInstanceId: "flight-1",
+			label: "Bershka",
+			route: Array.from({ length: 21 }, (_, index) => ({
+				mode: "bus",
+				from: `Stop ${index}`,
+				to: `Stop ${index + 1}`,
+				durationMinutes: 5,
+			})),
+		});
+		expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+	});
+
+	it("builds an allowlisted Google Maps search link from the label", () => {
+		expect(dropOffMapsUrl("Piazza del Duomo 1")).toBe(
+			"https://www.google.com/maps/search/?api=1&query=Piazza%20del%20Duomo%201",
+		);
+		expect(dropOffMapsUrl("   ")).toBeNull();
 	});
 
 	it("discards corrupt browser state and clears on demand", () => {

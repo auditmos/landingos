@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { dropOffMapsUrl } from "@/lib/private-drop-off";
 import { cn } from "@/lib/utils";
 import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
 import type { RoomSafetyController } from "./use-room-safety";
@@ -56,6 +57,30 @@ function MemberSelection({ member }: { member: PublicRoomMember }) {
 			<Bus className="size-3" />
 			{selection.modes.map((mode) => modeCopy[mode] ?? mode).join(" · ")}
 		</Badge>
+	);
+}
+
+function MemberDropOff({ dropOffText }: { dropOffText: string }) {
+	const mapsUrl = dropOffMapsUrl(dropOffText);
+	return (
+		<span
+			className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"
+			title="Punkt wysiadki"
+		>
+			<MapPin className="size-3 shrink-0" />
+			{mapsUrl ? (
+				<a
+					href={mapsUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="truncate underline underline-offset-2 hover:text-primary"
+				>
+					{dropOffText}
+				</a>
+			) : (
+				<span className="truncate">{dropOffText}</span>
+			)}
+		</span>
 	);
 }
 
@@ -190,13 +215,7 @@ export function RoomMembers({
 										<MemberSelection member={member} />
 									</div>
 									{member.selection?.dropOffText ? (
-										<span
-											className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"
-											title="Punkt wysiadki"
-										>
-											<MapPin className="size-3 shrink-0" />
-											<span className="truncate">{member.selection.dropOffText}</span>
-										</span>
+										<MemberDropOff dropOffText={member.selection.dropOffText} />
 									) : null}
 								</div>
 								{own ? null : (
