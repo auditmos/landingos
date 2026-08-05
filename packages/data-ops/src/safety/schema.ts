@@ -41,6 +41,21 @@ export const SafetyReportReasonSchema = z.enum([
 	"other",
 ]);
 
+/**
+ * Single source of the Polish reason copy. Both the reporting form in the room
+ * and the triage queue in the operator console render from this map, so the two
+ * surfaces can never drift into describing the same report differently.
+ */
+export const SAFETY_REPORT_REASON_LABELS = {
+	harassment_or_discrimination: "Nękanie lub dyskryminacja",
+	threats_or_impersonation: "Groźby lub podszywanie się",
+	money_or_private_information: "Presja dotycząca pieniędzy lub prywatnych informacji",
+	personal_data: "Udostępnianie cudzych danych",
+	illegal_content: "Nielegalna treść",
+	commercial_spam: "Spam komercyjny",
+	other: "Inny problem",
+} as const satisfies Record<z.infer<typeof SafetyReportReasonSchema>, string>;
+
 function normalizeNote(value: string) {
 	return value.normalize("NFC").trim();
 }
@@ -112,6 +127,40 @@ export const SafetyReportCreateResponseSchema = z.strictObject({
 	created: z.boolean(),
 });
 
+export const SAFETY_REPORT_QUEUE_PAGE_SIZE = 25;
+
+export const SafetyReportQueueQuerySchema = z.strictObject({
+	reason: SafetyReportReasonSchema.optional(),
+	limit: z.coerce.number().int().min(1).max(100).default(SAFETY_REPORT_QUEUE_PAGE_SIZE),
+	offset: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * Triage projection of a report. Deliberately narrower than the stored record:
+ * the reporter and the reported person are identified by pseudonym only (never
+ * by account identifier), and the only chat text that ever leaves the safety
+ * store is the frozen evidence snapshot of the reported message itself.
+ */
+export const SafetyReportQueueItemSchema = z.strictObject({
+	id: z.string().uuid(),
+	roomId: z.string().uuid(),
+	flightDesignator: z.string().min(1),
+	departureLocalDate: z.string().min(1),
+	reporterPseudonym: PseudonymSchema.nullable(),
+	targetPseudonym: PseudonymSchema.nullable(),
+	messageId: z.string().uuid().nullable(),
+	reason: SafetyReportReasonSchema,
+	note: SafetyReportNoteSchema.nullable(),
+	status: z.literal("open"),
+	evidenceSnapshot: SafetyReportEvidenceSchema.nullable(),
+	createdAt: z.string().datetime({ offset: true }),
+});
+
+export const SafetyReportQueueResponseSchema = z.strictObject({
+	reports: z.array(SafetyReportQueueItemSchema),
+	hasMore: z.boolean(),
+});
+
 export type CommunityRulesAcceptanceRequest = z.infer<typeof CommunityRulesAcceptanceRequestSchema>;
 export type CommunityRulesStatusResponse = z.infer<typeof CommunityRulesStatusResponseSchema>;
 export type CommunityRulesAcceptanceResponse = z.infer<
@@ -122,6 +171,9 @@ export type SafetyReportCreateRequest = z.infer<typeof SafetyReportCreateRequest
 export type SafetyReportEvidence = z.infer<typeof SafetyReportEvidenceSchema>;
 export type SafetyReportRecord = z.infer<typeof SafetyReportRecordSchema>;
 export type SafetyReportCreateResponse = z.infer<typeof SafetyReportCreateResponseSchema>;
+export type SafetyReportQueueQuery = z.input<typeof SafetyReportQueueQuerySchema>;
+export type SafetyReportQueueItem = z.infer<typeof SafetyReportQueueItemSchema>;
+export type SafetyReportQueueResponse = z.infer<typeof SafetyReportQueueResponseSchema>;
 export type RoomBlockRequest = z.infer<typeof RoomBlockRequestSchema>;
 export type RoomBlockResponse = z.infer<typeof RoomBlockResponseSchema>;
 export type BlockedMembersResponse = z.infer<typeof BlockedMembersResponseSchema>;

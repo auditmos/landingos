@@ -1,5 +1,5 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bus, Home, Menu, MessageCircle, PlaneLanding } from "lucide-react";
+import { Bus, Home, Menu, MessageCircle, PlaneLanding, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -38,6 +38,13 @@ const navigationItems: NavigationItem[] = [
 		icon: Bus,
 		href: "/operator",
 		operatorOnly: true,
+	},
+	{
+		name: "Zgłoszenia",
+		icon: ShieldAlert,
+		href: "/operator/reports",
+		operatorOnly: true,
+		indent: true,
 	},
 ];
 

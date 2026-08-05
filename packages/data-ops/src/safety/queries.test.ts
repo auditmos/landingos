@@ -12,6 +12,7 @@ import {
 	hasCommunityRulesAcceptance,
 	listBlockedMemberPseudonyms,
 	listBlockedRecipientIds,
+	listSafetyReportQueue,
 	SafetyQueryError,
 	unblockRoomMember,
 } from "./queries";
@@ -309,6 +310,126 @@ describe("authorized and idempotent safety reports", () => {
 				).rejects.toBeInstanceOf(SafetyQueryError);
 			}
 			expect(await countSafetyReports(db)).toBe(0);
+		} finally {
+			await client.close();
+		}
+	});
+});
+
+describe("operator report queue", () => {
+	async function seedQueue(db: RoomDatabase, roomA: { id: string }, roomB: { id: string }) {
+		const reported = await createRoomMessage(
+			db,
+			roomA.id,
+			USER_C,
+			{ clientMessageId: MESSAGE_C, content: "Niewłaściwa wiadomość" },
+			new Date("2026-09-14T07:00:00.000Z"),
+		);
+		await createSafetyReport(db, {
+			roomId: roomA.id,
+			reporterId: USER_A,
+			request: {
+				targetType: "member",
+				targetPseudonym: "Bartek BGY",
+				reason: "harassment_or_discrimination",
+				note: "Proszę sprawdzić.",
+			},
+			createdAt: new Date("2026-09-14T07:10:00.000Z"),
+		});
+		await createSafetyReport(db, {
+			roomId: roomA.id,
+			reporterId: USER_A,
+			request: {
+				targetType: "message",
+				messageId: reported.message.id,
+				reason: "commercial_spam",
+			},
+			createdAt: new Date("2026-09-14T07:20:00.000Z"),
+		});
+		await createSafetyReport(db, {
+			roomId: roomB.id,
+			reporterId: USER_B,
+			request: { targetType: "member", targetPseudonym: "Alicja BGY", reason: "illegal_content" },
+			createdAt: new Date("2026-09-15T09:00:00.000Z"),
+		});
+	}
+
+	it("returns newest first with flight context, pseudonyms, and frozen evidence", async () => {
+		const { client, db, roomA, roomB } = await createTestDatabase();
+		try {
+			await seedQueue(db, roomA, roomB);
+			const queue = await listSafetyReportQueue(db);
+
+			expect(queue.hasMore).toBe(false);
+			expect(queue.reports.map((report) => report.reason)).toEqual([
+				"illegal_content",
+				"commercial_spam",
+				"harassment_or_discrimination",
+			]);
+			expect(queue.reports[0]).toMatchObject({
+				roomId: roomB.id,
+				flightDesignator: "FR1234",
+				departureLocalDate: "2026-09-15",
+				reporterPseudonym: "Bartek BGY",
+				targetPseudonym: "Alicja BGY",
+				messageId: null,
+				note: null,
+				status: "open",
+				evidenceSnapshot: null,
+			});
+			expect(queue.reports[1]?.evidenceSnapshot).toEqual({
+				messageText: "Niewłaściwa wiadomość",
+				authorPseudonym: "Celina BGY",
+				originalMessageAt: "2026-09-14T07:00:00.000Z",
+			});
+			expect(queue.reports[2]?.note).toBe("Proszę sprawdzić.");
+			expect(JSON.stringify(queue)).not.toMatch(
+				/email|destination|placeId|coordinates|consent|provider|user-a|user-b|user-c/i,
+			);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("filters by reason and pages without dropping or repeating reports", async () => {
+		const { client, db, roomA, roomB } = await createTestDatabase();
+		try {
+			await seedQueue(db, roomA, roomB);
+
+			const filtered = await listSafetyReportQueue(db, { reason: "commercial_spam" });
+			expect(filtered.reports).toHaveLength(1);
+			expect(filtered.reports[0]?.reason).toBe("commercial_spam");
+			expect(filtered.hasMore).toBe(false);
+
+			const firstPage = await listSafetyReportQueue(db, { limit: 2, offset: 0 });
+			const secondPage = await listSafetyReportQueue(db, { limit: 2, offset: 2 });
+			expect(firstPage.hasMore).toBe(true);
+			expect(secondPage.hasMore).toBe(false);
+			const paged = [...firstPage.reports, ...secondPage.reports].map((report) => report.id);
+			expect(paged).toHaveLength(3);
+			expect(new Set(paged).size).toBe(3);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("keeps reports reviewable after account erasure and evidence purge", async () => {
+		const { client, db, roomA, roomB } = await createTestDatabase();
+		try {
+			await seedQueue(db, roomA, roomB);
+			await client.exec(`
+				UPDATE safety_reports SET reporter_id = NULL, target_user_id = NULL;
+				UPDATE safety_reports SET evidence_snapshot = NULL;
+			`);
+			const queue = await listSafetyReportQueue(db);
+
+			expect(queue.reports).toHaveLength(3);
+			for (const report of queue.reports) {
+				expect(report.reporterPseudonym).toBeNull();
+				expect(report.targetPseudonym).toBeNull();
+				expect(report.evidenceSnapshot).toBeNull();
+				expect(report.flightDesignator).toBe("FR1234");
+			}
 		} finally {
 			await client.close();
 		}

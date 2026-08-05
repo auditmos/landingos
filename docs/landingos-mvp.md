@@ -121,7 +121,9 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
    - Uwierzytelniony panel administracyjny udostępnia operacje CRUD na katalogu transferów BGY (operator, źródło, data kontroli, zakres ceny, link zakupu).
    - Panel jest cienką nakładką na to samo API co reszta produktu, dostępną wyłącznie dla roli operatora.
    - Wpis bez wymaganych pól nie może zostać opublikowany; walidacja świeżości oznacza wpisy wymagające ponownej weryfikacji.
-   - Panel nie ma dostępu do dokładnych celów podróży ani treści prywatnych czatów; obsługa zgłoszeń pozostaje po stronie modułu Identity & Safety.
+   - Panel udostępnia kolejkę otwartych zgłoszeń bezpieczeństwa w trybie tylko do odczytu (`GET /operator/reports`), za tą samą serwerową kontrolą roli operatora co katalog. Widoczne są wyłącznie: pseudonimy zgłaszającego i zgłoszonego, powód, notatka, kontekst lotu (oznaczenie + data) oraz zamrożony snapshot zgłoszonej wiadomości. Zgłoszenia usuniętych kont pozostają w kolejce z pustymi pseudonimami; snapshot znika po upływie retencji.
+   - Panel nie ma dostępu do dokładnych celów podróży, adresów e-mail ani do pozostałej treści prywatnych czatów. Zapis zgłoszeń oraz blokowanie pozostają po stronie modułu Identity & Safety.
+   - **Nie zaimplementowano:** zmiany statusu zgłoszenia. Enum `safety_report_status` ma nadal jedną wartość (`open`), więc kolejka jest przeglądem, a nie workflow — zamykanie/eskalacja wymagają migracji oraz przeglądu zgodności.
 
 ### Data flow and integrations
 

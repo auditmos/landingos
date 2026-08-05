@@ -1,13 +1,19 @@
-import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { auth_user } from "@/drizzle/auth-schema";
+import { flightInstances } from "@/flight/table";
 import type { RoomDatabase } from "@/room/queries";
 import { getRoomAccessContext } from "@/room/queries";
-import { roomMemberships, roomMessages } from "@/room/table";
+import { flightRooms, roomMemberships, roomMessages } from "@/room/table";
 import {
 	type SafetyReportCreateRequest,
 	SafetyReportCreateRequestSchema,
 	type SafetyReportEvidence,
 	SafetyReportEvidenceSchema,
+	type SafetyReportQueueQuery,
+	SafetyReportQueueQuerySchema,
+	type SafetyReportQueueResponse,
+	SafetyReportQueueResponseSchema,
 	type SafetyReportRecord,
 	SafetyReportRecordSchema,
 } from "./schema";
@@ -323,6 +329,65 @@ export async function createSafetyReport(
 		.limit(1);
 	if (!row) throw new Error("Nie udało się zapisać zgłoszenia.");
 	return { report: reportFromRow(row), created: Boolean(inserted) };
+}
+
+const reporterAccount = alias(auth_user, "reporter_account");
+const targetAccount = alias(auth_user, "target_account");
+
+/**
+ * Triage queue for the operator console, newest first. Reads one row past the
+ * requested page so the caller learns whether more reports exist without a
+ * second count query. Accounts erased by the deletion flow surface as `null`
+ * pseudonyms rather than disappearing — an open report must stay reviewable
+ * even after either side leaves.
+ */
+export async function listSafetyReportQueue(
+	db: RoomDatabase,
+	query: SafetyReportQueueQuery = {},
+): Promise<SafetyReportQueueResponse> {
+	const { reason, limit, offset } = SafetyReportQueueQuerySchema.parse(query);
+	const rows = await db
+		.select({
+			id: safetyReports.id,
+			roomId: safetyReports.roomId,
+			carrierCode: flightInstances.marketingCarrierCode,
+			flightNumber: flightInstances.marketingFlightNumber,
+			departureLocalDate: flightInstances.departureLocalDate,
+			reporterPseudonym: reporterAccount.pseudonym,
+			targetPseudonym: targetAccount.pseudonym,
+			messageId: safetyReports.messageId,
+			reason: safetyReports.reason,
+			note: safetyReports.note,
+			status: safetyReports.status,
+			evidenceSnapshot: safetyReports.evidenceSnapshot,
+			createdAt: safetyReports.createdAt,
+		})
+		.from(safetyReports)
+		.innerJoin(flightRooms, eq(safetyReports.roomId, flightRooms.id))
+		.innerJoin(flightInstances, eq(flightRooms.flightInstanceId, flightInstances.id))
+		.leftJoin(reporterAccount, eq(safetyReports.reporterId, reporterAccount.id))
+		.leftJoin(targetAccount, eq(safetyReports.targetUserId, targetAccount.id))
+		.where(reason ? eq(safetyReports.reason, reason) : undefined)
+		.orderBy(desc(safetyReports.createdAt), desc(safetyReports.id))
+		.limit(limit + 1)
+		.offset(offset);
+	return SafetyReportQueueResponseSchema.parse({
+		reports: rows.slice(0, limit).map((row) => ({
+			id: row.id,
+			roomId: row.roomId,
+			flightDesignator: `${row.carrierCode}${row.flightNumber}`,
+			departureLocalDate: row.departureLocalDate,
+			reporterPseudonym: row.reporterPseudonym,
+			targetPseudonym: row.targetPseudonym,
+			messageId: row.messageId,
+			reason: row.reason,
+			note: row.note,
+			status: row.status,
+			evidenceSnapshot: row.evidenceSnapshot,
+			createdAt: row.createdAt.toISOString(),
+		})),
+		hasMore: rows.length > limit,
+	});
 }
 
 export async function countSafetyReports(db: RoomDatabase): Promise<number> {

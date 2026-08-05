@@ -54,6 +54,38 @@ describe("safety privacy and configuration boundary", () => {
 		}
 	});
 
+	it("keeps the operator triage queue on pseudonyms and frozen evidence only", () => {
+		const schema = readFileSync("packages/data-ops/src/safety/schema.ts", "utf8");
+		const item = schema.slice(
+			schema.indexOf("export const SafetyReportQueueItemSchema"),
+			schema.indexOf("export const SafetyReportQueueResponseSchema"),
+		);
+		expect(item).toContain("reporterPseudonym:");
+		expect(item).toContain("targetPseudonym:");
+		expect(item).not.toMatch(/reporterId|targetUserId|email|destination|placeId|coordinates/i);
+
+		const queue = [
+			"apps/data-service/src/hono/handlers/operator-reports-handlers.ts",
+			"apps/user-application/src/lib/operator-reports-api.ts",
+			"apps/user-application/src/components/operator/operator-reports-console.tsx",
+		]
+			.map((path) => readFileSync(path, "utf8"))
+			.join("\n");
+		expect(queue).not.toMatch(/\b(reporterId|targetUserId|placeId|coordinates|destination)\b/i);
+		expect(queue).not.toMatch(/\bconsole\.(?:log|info|warn|error)\b/);
+	});
+
+	it("gates every operator report route behind the shared server-side check", () => {
+		const handlers = readFileSync(
+			"apps/data-service/src/hono/handlers/operator-reports-handlers.ts",
+			"utf8",
+		);
+		expect(handlers).toContain('reports.use("*", operatorOnly(dependencies))');
+		expect(readFileSync("apps/data-service/src/hono/app.ts", "utf8")).toContain(
+			'App.route("/operator/reports", operatorReports)',
+		);
+	});
+
 	it("keeps history and realtime block filters on the server", () => {
 		expect(readFileSync("packages/data-ops/src/room/queries.ts", "utf8")).toContain(
 			"hiddenByBlock",

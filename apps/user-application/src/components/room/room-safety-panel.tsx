@@ -1,5 +1,5 @@
 import type { PublicRoomMember } from "@repo/data-ops/room";
-import { SafetyReportReasonSchema } from "@repo/data-ops/safety";
+import { SAFETY_REPORT_REASON_LABELS, SafetyReportReasonSchema } from "@repo/data-ops/safety";
 import {
 	Ban,
 	Bus,
@@ -25,16 +25,6 @@ import { dropOffMapsUrl } from "@/lib/private-drop-off";
 import { cn } from "@/lib/utils";
 import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
 import type { RoomSafetyController } from "./use-room-safety";
-
-const reasonCopy = {
-	harassment_or_discrimination: "Nękanie lub dyskryminacja",
-	threats_or_impersonation: "Groźby lub podszywanie się",
-	money_or_private_information: "Presja dotycząca pieniędzy lub prywatnych informacji",
-	personal_data: "Udostępnianie cudzych danych",
-	illegal_content: "Nielegalna treść",
-	commercial_spam: "Spam komercyjny",
-	other: "Inny problem",
-} as const;
 
 const modeIcons: Record<string, { icon: LucideIcon; label: string }> = {
 	walk: { icon: Footprints, label: "Pieszo" },
@@ -324,7 +314,7 @@ export function ReportForm({ safety }: { safety: RoomSafetyController }) {
 				>
 					{SafetyReportReasonSchema.options.map((reason) => (
 						<option key={reason} value={reason}>
-							{reasonCopy[reason]}
+							{SAFETY_REPORT_REASON_LABELS[reason]}
 						</option>
 					))}
 				</select>

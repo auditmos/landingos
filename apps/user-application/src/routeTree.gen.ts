@@ -13,12 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as AuthOperatorRouteRouteImport } from './routes/_auth/operator/route'
 import { Route as ApiAccountRouteImport } from './routes/api/account'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiProfileRouteImport } from './routes/api/profile'
 import { Route as AuthAppIndexRouteImport } from './routes/_auth/app/index'
 import { Route as AuthAppFlightsRouteImport } from './routes/_auth/app/flights'
 import { Route as AuthOperatorIndexRouteImport } from './routes/_auth/operator/index'
+import { Route as AuthOperatorReportsRouteImport } from './routes/_auth/operator/reports'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -39,6 +41,11 @@ const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthOperatorRouteRoute = AuthOperatorRouteRouteImport.update({
+  id: '/operator',
+  path: '/operator',
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const ApiAccountRoute = ApiAccountRouteImport.update({
   id: '/api/account',
@@ -66,9 +73,14 @@ const AuthAppFlightsRoute = AuthAppFlightsRouteImport.update({
   getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthOperatorIndexRoute = AuthOperatorIndexRouteImport.update({
-  id: '/operator/',
-  path: '/operator/',
-  getParentRoute: () => AuthRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthOperatorRouteRoute,
+} as any)
+const AuthOperatorReportsRoute = AuthOperatorReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthOperatorRouteRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -80,10 +92,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
+  '/operator': typeof AuthOperatorRouteRouteWithChildren
   '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
   '/app/flights': typeof AuthAppFlightsRoute
+  '/operator/reports': typeof AuthOperatorReportsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/app/': typeof AuthAppIndexRoute
   '/operator/': typeof AuthOperatorIndexRoute
@@ -96,6 +110,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
   '/app/flights': typeof AuthAppFlightsRoute
+  '/operator/reports': typeof AuthOperatorReportsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/app': typeof AuthAppIndexRoute
   '/operator': typeof AuthOperatorIndexRoute
@@ -106,10 +121,12 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteRouteWithChildren
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
+  '/_auth/operator': typeof AuthOperatorRouteRouteWithChildren
   '/api/account': typeof ApiAccountRoute
   '/api/health': typeof ApiHealthRoute
   '/api/profile': typeof ApiProfileRoute
   '/_auth/app/flights': typeof AuthAppFlightsRoute
+  '/_auth/operator/reports': typeof AuthOperatorReportsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_auth/app/': typeof AuthAppIndexRoute
   '/_auth/operator/': typeof AuthOperatorIndexRoute
@@ -120,10 +137,12 @@ export interface FileRouteTypes {
     | '/'
     | '/signin'
     | '/signup'
+    | '/operator'
     | '/api/account'
     | '/api/health'
     | '/api/profile'
     | '/app/flights'
+    | '/operator/reports'
     | '/api/auth/$'
     | '/app/'
     | '/operator/'
@@ -136,6 +155,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/profile'
     | '/app/flights'
+    | '/operator/reports'
     | '/api/auth/$'
     | '/app'
     | '/operator'
@@ -145,10 +165,12 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/signin'
     | '/signup'
+    | '/_auth/operator'
     | '/api/account'
     | '/api/health'
     | '/api/profile'
     | '/_auth/app/flights'
+    | '/_auth/operator/reports'
     | '/api/auth/$'
     | '/_auth/app/'
     | '/_auth/operator/'
@@ -195,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/operator': {
+      id: '/_auth/operator'
+      path: '/operator'
+      fullPath: '/operator'
+      preLoaderRoute: typeof AuthOperatorRouteRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/api/account': {
       id: '/api/account'
       path: '/api/account'
@@ -232,10 +261,17 @@ declare module '@tanstack/react-router' {
     }
     '/_auth/operator/': {
       id: '/_auth/operator/'
-      path: '/operator'
+      path: '/'
       fullPath: '/operator/'
       preLoaderRoute: typeof AuthOperatorIndexRouteImport
-      parentRoute: typeof AuthRouteRoute
+      parentRoute: typeof AuthOperatorRouteRoute
+    }
+    '/_auth/operator/reports': {
+      id: '/_auth/operator/reports'
+      path: '/reports'
+      fullPath: '/operator/reports'
+      preLoaderRoute: typeof AuthOperatorReportsRouteImport
+      parentRoute: typeof AuthOperatorRouteRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -247,16 +283,29 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthRouteRouteChildren {
-  AuthAppFlightsRoute: typeof AuthAppFlightsRoute
-  AuthAppIndexRoute: typeof AuthAppIndexRoute
+interface AuthOperatorRouteRouteChildren {
+  AuthOperatorReportsRoute: typeof AuthOperatorReportsRoute
   AuthOperatorIndexRoute: typeof AuthOperatorIndexRoute
 }
 
+const AuthOperatorRouteRouteChildren: AuthOperatorRouteRouteChildren = {
+  AuthOperatorReportsRoute: AuthOperatorReportsRoute,
+  AuthOperatorIndexRoute: AuthOperatorIndexRoute,
+}
+
+const AuthOperatorRouteRouteWithChildren =
+  AuthOperatorRouteRoute._addFileChildren(AuthOperatorRouteRouteChildren)
+
+interface AuthRouteRouteChildren {
+  AuthOperatorRouteRoute: typeof AuthOperatorRouteRouteWithChildren
+  AuthAppFlightsRoute: typeof AuthAppFlightsRoute
+  AuthAppIndexRoute: typeof AuthAppIndexRoute
+}
+
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
+  AuthOperatorRouteRoute: AuthOperatorRouteRouteWithChildren,
   AuthAppFlightsRoute: AuthAppFlightsRoute,
   AuthAppIndexRoute: AuthAppIndexRoute,
-  AuthOperatorIndexRoute: AuthOperatorIndexRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
@@ -276,13 +325,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.tsx'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
