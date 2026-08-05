@@ -366,4 +366,60 @@ describe("room re-entry without planner intent", () => {
 		expect(mocks.select).toHaveBeenCalledTimes(1);
 		expect(container.textContent).toContain("Pokój lotu");
 	});
+
+	it("offers Moje loty for several open rooms and enters the picked flight", async () => {
+		const secondRoomId = "018f4c8e-5697-7df4-8f6e-c7644b137e5c";
+		const flightFixture = {
+			id: "flight-1",
+			marketingCarrierCode: "FR",
+			marketingCarrierName: "Ryanair",
+			marketingFlightNumber: "1234",
+			operatingCarrierCode: null,
+			operatingFlightNumber: null,
+			departureLocalDate: "2026-09-14",
+			originIata: "WAW",
+			destinationIata: "BGY",
+			scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+			displayTimezone: "Europe/Rome",
+			source: "provider",
+		};
+		mocks.list.mockResolvedValue([
+			{ ...snapshot.room, flight: flightFixture },
+			{
+				id: secondRoomId,
+				flightInstanceId: "flight-2",
+				closesAt: "2026-09-17T08:20:00.000Z",
+				flight: {
+					...flightFixture,
+					id: "flight-2",
+					marketingFlightNumber: "5678",
+					originIata: "GDN",
+					departureLocalDate: "2026-09-16",
+					scheduledArrivalUtc: "2026-09-16T08:20:00.000Z",
+				},
+			},
+		]);
+		await mountRoom();
+		expect(mocks.refresh).not.toHaveBeenCalled();
+		expect(container.textContent).toContain("Moje loty");
+		expect(container.textContent).toContain("Ryanair FR1234");
+		expect(container.textContent).toContain("Ryanair FR5678");
+		expect(container.textContent).toContain("GDN → BGY");
+
+		const pick = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("FR5678"),
+		);
+		await act(async () => pick?.click());
+		await settle();
+		expect(mocks.refresh).toHaveBeenCalledWith(secondRoomId);
+		expect(container.textContent).toContain("Wspólny czat");
+
+		const back = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Moje loty"),
+		);
+		await act(async () => back?.click());
+		await settle();
+		expect(container.textContent).toContain("Ryanair FR1234");
+		expect(container.querySelector("#room-message")).toBeNull();
+	});
 });

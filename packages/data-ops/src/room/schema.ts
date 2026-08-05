@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FlightInstanceSchema } from "@/flight/schema";
 import { PseudonymSchema } from "@/identity/schema";
 
 export const RoomIdSchema = z.string().uuid("Nieprawidłowy identyfikator pokoju.");
@@ -119,6 +120,18 @@ export const PublicRoomSchema = z.strictObject({
 	closesAt: z.string().datetime({ offset: true }),
 });
 
+/**
+ * One row of the traveler's room list, carrying the flight context needed to
+ * label the trip (number, origin, arrival). `flight` is optional only for
+ * rollout tolerance — current servers always include it.
+ */
+export const RoomListingSchema = z.strictObject({
+	id: RoomIdSchema,
+	flightInstanceId: z.string().min(1),
+	closesAt: z.string().datetime({ offset: true }),
+	flight: FlightInstanceSchema.optional(),
+});
+
 export const RoomSnapshotSchema = z.strictObject({
 	room: PublicRoomSchema,
 	member: PublicRoomMemberSchema,
@@ -177,6 +190,7 @@ export type RoomMessageCreateRequest = z.infer<typeof RoomMessageCreateRequestSc
 export type PublicRoomMessage = z.infer<typeof PublicRoomMessageSchema>;
 export type RoomMessageCreateResponse = z.infer<typeof RoomMessageCreateResponseSchema>;
 export type PublicRoom = z.infer<typeof PublicRoomSchema>;
+export type RoomListing = z.infer<typeof RoomListingSchema>;
 export type RoomSnapshot = z.infer<typeof RoomSnapshotSchema>;
 export type ConnectionTicketResponse = z.infer<typeof ConnectionTicketResponseSchema>;
 export type ConnectionAttachment = z.infer<typeof ConnectionAttachmentSchema>;

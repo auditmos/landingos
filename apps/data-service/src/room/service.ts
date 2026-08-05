@@ -7,6 +7,7 @@ import type {
 	PublicRoom,
 	PublicRoomMember,
 	RoomAccessContext,
+	RoomListing,
 	RoomMessageCreateRequest,
 	RoomRealtimeEvent,
 	RoomSelection,
@@ -48,7 +49,7 @@ export interface FlightRoomServiceDependencies {
 		userId: string;
 		now?: Date;
 	}): Promise<JoinFlightRoomResult>;
-	listActiveRooms(userId: string, now: Date): Promise<PublicRoom[]>;
+	listActiveRooms(userId: string, now: Date): Promise<RoomListing[]>;
 	getRoomSnapshot(roomId: string, userId: string): Promise<RoomSnapshot>;
 	getRoomAccessContext(roomId: string, userId: string): Promise<RoomAccessContext | null>;
 	replaceRoomSelection(
@@ -138,7 +139,7 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 			return snapshot;
 		},
 
-		async list(userId: string): Promise<PublicRoom[]> {
+		async list(userId: string): Promise<RoomListing[]> {
 			const now = dependencies.now();
 			return (await dependencies.listActiveRooms(userId, now)).filter(
 				(room) => now.getTime() < new Date(room.closesAt).getTime(),

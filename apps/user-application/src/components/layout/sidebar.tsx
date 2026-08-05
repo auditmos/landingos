@@ -3,6 +3,7 @@ import { Bus, Home, Menu, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useOpenRoomCount } from "@/lib/use-my-rooms";
 import { useViewerContext } from "@/lib/use-viewer";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,12 @@ export function Sidebar({ className }: SidebarProps) {
 	const currentPath = routerState.location.pathname;
 	const [isCollapsed, setIsCollapsed] = useState(false);
 	const { isOperator } = useViewerContext();
-	const visibleItems = navigationItems.filter((item) => !item.operatorOnly || isOperator);
+	const openRoomCount = useOpenRoomCount();
+	const visibleItems = navigationItems
+		.filter((item) => !item.operatorOnly || isOperator)
+		.map((item) =>
+			item.href === "/app" && openRoomCount > 0 ? { ...item, badge: openRoomCount } : item,
+		);
 
 	return (
 		<>

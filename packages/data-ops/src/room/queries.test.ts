@@ -41,9 +41,9 @@ async function createTestDatabase() {
 			 scheduled_arrival_utc, display_timezone, source)
 		VALUES
 			('${FLIGHT_A}', 'fr1234:2026-09-14', 'FR', 'Ryanair', '1234', '2026-09-14',
-			 'WAW', 'BGY', '2026-09-14T08:20:00Z', 'Europe/Rome', 'fixture'),
+			 'WAW', 'BGY', '2026-09-14T08:20:00Z', 'Europe/Rome', 'provider'),
 			('${FLIGHT_B}', 'fr1234:2026-09-15', 'FR', 'Ryanair', '1234', '2026-09-15',
-			 'WAW', 'BGY', '2026-09-15T08:20:00Z', 'Europe/Rome', 'fixture');
+			 'WAW', 'BGY', '2026-09-15T08:20:00Z', 'Europe/Rome', 'provider');
 	`);
 	return {
 		client,
@@ -63,7 +63,24 @@ describe("flight room persistence", () => {
 				now: beforeClose,
 			});
 			expect(joined.room.closesAt).toBe(closeAt.toISOString());
-			expect(await listActiveRoomsForUser(db, USER_A, beforeClose)).toEqual([joined.room]);
+			const [listed] = await listActiveRoomsForUser(db, USER_A, beforeClose);
+			expect(listed).toEqual({
+				...joined.room,
+				flight: {
+					id: FLIGHT_A,
+					marketingCarrierCode: "FR",
+					marketingCarrierName: "Ryanair",
+					marketingFlightNumber: "1234",
+					operatingCarrierCode: null,
+					operatingFlightNumber: null,
+					departureLocalDate: "2026-09-14",
+					originIata: "WAW",
+					destinationIata: "BGY",
+					scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+					displayTimezone: "Europe/Rome",
+					source: "provider",
+				},
+			});
 			expect(await listActiveRoomsForUser(db, USER_A, closeAt)).toEqual([]);
 			await expect(
 				joinFlightRoom(db, {

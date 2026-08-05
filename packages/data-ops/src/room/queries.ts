@@ -11,6 +11,8 @@ import {
 	type PublicRoomMessage,
 	PublicRoomMessageSchema,
 	PublicRoomSchema,
+	type RoomListing,
+	RoomListingSchema,
 	type RoomMessageCreateRequest,
 	RoomMessageCreateRequestSchema,
 	type RoomSelection,
@@ -395,18 +397,43 @@ export async function listActiveRoomsForUser(
 	db: RoomDatabase,
 	userId: string,
 	now = new Date(),
-): Promise<PublicRoom[]> {
+): Promise<RoomListing[]> {
 	const rows = await db
 		.select({
 			id: flightRooms.id,
 			flightInstanceId: flightRooms.flightInstanceId,
 			closesAt: flightRooms.closesAt,
+			flight: {
+				id: flightInstances.id,
+				marketingCarrierCode: flightInstances.marketingCarrierCode,
+				marketingCarrierName: flightInstances.marketingCarrierName,
+				marketingFlightNumber: flightInstances.marketingFlightNumber,
+				operatingCarrierCode: flightInstances.operatingCarrierCode,
+				operatingFlightNumber: flightInstances.operatingFlightNumber,
+				departureLocalDate: flightInstances.departureLocalDate,
+				originIata: flightInstances.originIata,
+				destinationIata: flightInstances.destinationIata,
+				scheduledArrivalUtc: flightInstances.scheduledArrivalUtc,
+				displayTimezone: flightInstances.displayTimezone,
+				source: flightInstances.source,
+			},
 		})
 		.from(roomMemberships)
 		.innerJoin(flightRooms, eq(roomMemberships.roomId, flightRooms.id))
+		.innerJoin(flightInstances, eq(flightRooms.flightInstanceId, flightInstances.id))
 		.where(and(eq(roomMemberships.userId, userId), gt(flightRooms.closesAt, now)))
 		.orderBy(asc(flightRooms.closesAt), asc(flightRooms.id));
-	return rows.map(roomFromRow);
+	return rows.map((row) =>
+		RoomListingSchema.parse({
+			id: row.id,
+			flightInstanceId: row.flightInstanceId,
+			closesAt: row.closesAt.toISOString(),
+			flight: {
+				...row.flight,
+				scheduledArrivalUtc: row.flight.scheduledArrivalUtc.toISOString(),
+			},
+		}),
+	);
 }
 
 export async function getRoomSnapshot(

@@ -1,10 +1,10 @@
 import {
 	type ConnectionTicketResponse,
 	ConnectionTicketResponseSchema,
-	type PublicRoom,
 	type PublicRoomMember,
 	PublicRoomMemberSchema,
-	PublicRoomSchema,
+	type RoomListing,
+	RoomListingSchema,
 	type RoomMessageCreateRequest,
 	RoomMessageCreateRequestSchema,
 	type RoomMessageCreateResponse,
@@ -16,14 +16,14 @@ import {
 import { z } from "zod";
 import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
 
-const RoomListSchema = z.array(PublicRoomSchema);
+const RoomListSchema = z.array(RoomListingSchema);
 
 /**
  * Lists the caller's open rooms from server-side membership, so the room can
  * be re-entered after the browser session state is gone (new tab, device,
  * restart). Sorted by the server: soonest-closing room first.
  */
-export async function listMyRooms(fetchImpl: typeof fetch = fetch): Promise<PublicRoom[]> {
+export async function listMyRooms(fetchImpl: typeof fetch = fetch): Promise<RoomListing[]> {
 	return RoomListSchema.parse(await roomRequest("/rooms", { method: "GET" }, fetchImpl));
 }
 

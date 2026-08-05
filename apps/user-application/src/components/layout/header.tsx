@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { useOpenRoomCount } from "@/lib/use-my-rooms";
 import { useViewerContext } from "@/lib/use-viewer";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ interface HeaderProps {
 export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 	const { data: session } = authClient.useSession();
 	const { isOperator } = useViewerContext();
+	const openRoomCount = useOpenRoomCount();
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
 	const user = session?.user;
@@ -74,7 +76,14 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 						<a href="/">Start</a>
 					</Button>
 					<Button asChild variant="ghost" className="justify-start">
-						<a href="/app">Pokój lotu</a>
+						<a href="/app">
+							Pokój lotu
+							{openRoomCount > 0 ? (
+								<span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+									{openRoomCount}
+								</span>
+							) : null}
+						</a>
 					</Button>
 					{isOperator ? (
 						<Button asChild variant="ghost" className="justify-start">

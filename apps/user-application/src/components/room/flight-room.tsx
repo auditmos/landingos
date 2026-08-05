@@ -1,9 +1,7 @@
 import {
 	type PublicTransportSelection,
+	type RoomListing,
 	RoomMessageCreateRequestSchema,
-	RoomRealtimeErrorSchema,
-	type RoomRealtimeEvent,
-	RoomRealtimeEventSchema,
 	type RoomSelection,
 	type RoomSnapshot,
 } from "@repo/data-ops/room";
@@ -18,25 +16,20 @@ import {
 	useState,
 } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { clearPrivateDropOff } from "@/lib/private-drop-off";
-import {
-	fetchRoomSnapshot,
-	issueRoomTicket,
-	roomWebSocketUrl,
-	sendRoomMessage,
-	updateRoomSelection,
-} from "@/lib/room-api";
+import { fetchRoomSnapshot, sendRoomMessage, updateRoomSelection } from "@/lib/room-api";
 import { clearRoomIntent } from "@/lib/room-intent";
 import { cn } from "@/lib/utils";
 import { ClosedRoom } from "./closed-room";
 import { DropOffPanel } from "./drop-off-panel";
+import { RoomGateway } from "./my-flights-list";
 import { PseudonymSetup } from "./pseudonym-setup";
-import { resolveRoomEntry, upsertMember, upsertMessage } from "./room-entry";
-import { ChatMessageItem, SelectionPanel } from "./room-panels";
+import { useRoomExpiry, useRoomSocket } from "./room-connection";
+import { enterListedRoom, resolveRoomEntry, upsertMember, upsertMessage } from "./room-entry";
+import { ChatMessageItem, RoomStatusBar, SelectionPanel } from "./room-panels";
 import {
 	CommunityRulesDisclosure,
 	CommunityRulesGate,
@@ -45,64 +38,6 @@ import {
 	SafetyNotices,
 } from "./room-safety-panel";
 import { useRoomSafety } from "./use-room-safety";
-
-type SnapshotSetter = Dispatch<SetStateAction<RoomSnapshot | null>>;
-
-type RoomSocketHandlers = {
-	open: () => void;
-	message: (event: MessageEvent) => void;
-	close: (event: CloseEvent) => void;
-};
-
-async function openRoomConnection(
-	roomId: string,
-	recoverHistory: boolean,
-	handlers: RoomSocketHandlers,
-) {
-	const recovered = recoverHistory ? await fetchRoomSnapshot(roomId) : undefined;
-	const ticket = await issueRoomTicket(roomId);
-	const socket = new WebSocket(roomWebSocketUrl(roomId, ticket.ticket));
-	socket.addEventListener("open", handlers.open);
-	socket.addEventListener("message", handlers.message);
-	socket.addEventListener("close", handlers.close);
-	return { recovered, socket };
-}
-
-function applyRealtimeEvent(setSnapshot: SnapshotSetter, event: RoomRealtimeEvent) {
-	if (event.type === "room_redacted") return;
-	setSnapshot((current) => {
-		if (!current) return current;
-		if (event.type === "message_created") {
-			return {
-				...current,
-				messages: upsertMessage(current.messages, event.message),
-			};
-		}
-		return {
-			...current,
-			members: upsertMember(current.members, event.member),
-		};
-	});
-}
-
-function handleRealtimePayload(
-	rawData: string,
-	setSnapshot: SnapshotSetter,
-	setError: Dispatch<SetStateAction<string>>,
-) {
-	try {
-		const value: unknown = JSON.parse(rawData);
-		const event = RoomRealtimeEventSchema.safeParse(value);
-		if (event.success) {
-			applyRealtimeEvent(setSnapshot, event.data);
-			return;
-		}
-		const realtimeError = RoomRealtimeErrorSchema.safeParse(value);
-		if (realtimeError.success) setError(realtimeError.data.error);
-	} catch {
-		setError("Odebrano nieprawidłowe zdarzenie pokoju.");
-	}
-}
 
 function handleInitializationError(
 	caught: unknown,
@@ -121,6 +56,7 @@ function handleInitializationError(
 
 export function FlightRoom() {
 	const [publicOption, setPublicOption] = useState<PublicTransportSelection | null>(null);
+	const [flightChoices, setFlightChoices] = useState<RoomListing[] | null>(null);
 	const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
@@ -162,6 +98,10 @@ export function FlightRoom() {
 					setError("Najpierw wybierz lot i wariant przejazdu w planerze.");
 					return;
 				}
+				if (entry.kind === "flight_choice") {
+					setFlightChoices(entry.rooms);
+					return;
+				}
 				setPublicOption(entry.publicOption);
 				setSnapshot(entry.snapshot);
 			})
@@ -177,89 +117,21 @@ export function FlightRoom() {
 		};
 	}, [retryKey, closeRoomView]);
 
-	useEffect(() => {
-		const closesAt = snapshot?.room.closesAt;
-		if (!closesAt) return;
-		let timer: ReturnType<typeof setTimeout>;
-		const schedule = () => {
-			const remaining = new Date(closesAt).getTime() - Date.now();
-			if (remaining <= 0) {
-				closeRoomView();
-				return;
-			}
-			timer = setTimeout(
-				remaining > 2_147_000_000 ? schedule : closeRoomView,
-				Math.min(remaining, 2_147_000_000),
-			);
-		};
-		schedule();
-		return () => clearTimeout(timer);
-	}, [snapshot?.room.closesAt, closeRoomView]);
+	useRoomExpiry(snapshot?.room.closesAt, closeRoomView);
 
-	useEffect(() => {
-		const roomId = snapshot?.room.id;
-		if (!roomId) return;
-		const activeRoomId = roomId;
-		let active = true;
-		let socket: WebSocket | undefined;
-		let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+	useRoomSocket(snapshot?.room.id, { setSnapshot, setError, setConnection, closeRoomView });
 
-		function handleOpen() {
-			if (active) setConnection("Połączono");
+	async function enterChosenRoom(roomId: string) {
+		setError("");
+		setConnection("Łączenie…");
+		try {
+			const entered = await enterListedRoom(roomId);
+			setPublicOption(entered.publicOption);
+			setSnapshot(entered.snapshot);
+		} catch (caught) {
+			handleInitializationError(caught, setNeedsPseudonym, setError, closeRoomView);
 		}
-
-		function handleMessage(raw: MessageEvent) {
-			if (!active || typeof raw.data !== "string") return;
-			try {
-				const parsed = RoomRealtimeEventSchema.safeParse(JSON.parse(raw.data));
-				if (parsed.success && parsed.data.type === "room_redacted") {
-					void fetchRoomSnapshot(activeRoomId).then(setSnapshot).catch(closeRoomView);
-					return;
-				}
-			} catch {
-				// The shared payload parser below renders the Polish validation error.
-			}
-			handleRealtimePayload(raw.data, setSnapshot, setError);
-		}
-
-		function handleClose(event: CloseEvent) {
-			if (!active) return;
-			if (event.code === 4001) {
-				closeRoomView();
-				return;
-			}
-			setConnection("Przywracanie połączenia…");
-			reconnectTimer = setTimeout(() => void connect(true), 1_000);
-		}
-
-		function connect(recoverHistory: boolean) {
-			void openRoomConnection(activeRoomId, recoverHistory, {
-				open: handleOpen,
-				message: handleMessage,
-				close: handleClose,
-			})
-				.then((prepared) => {
-					if (!active) {
-						prepared.socket.close(1000, "Widok został zamknięty");
-						return;
-					}
-					if (prepared.recovered) setSnapshot(prepared.recovered);
-					socket = prepared.socket;
-				})
-				.catch((caught: unknown) => {
-					if (!active) return;
-					setConnection("Połączenie przerwane");
-					setError(caught instanceof Error ? caught.message : "Nie udało się połączyć z pokojem.");
-				});
-		}
-
-		connect(false);
-		return () => {
-			active = false;
-			if (reconnectTimer) clearTimeout(reconnectTimer);
-			socket?.close(1000, "Zmiana widoku");
-		};
-	}, [snapshot?.room.id, closeRoomView]);
+	}
 
 	async function changeSelection(selection: RoomSelection) {
 		if (!snapshot) return;
@@ -348,13 +220,20 @@ export function FlightRoom() {
 							lot.
 						</p>
 					</div>
-					<Badge variant="secondary">{connection}</Badge>
+					{snapshot ? (
+						<RoomStatusBar
+							connection={connection}
+							showFlights={(flightChoices?.length ?? 0) > 1}
+							onShowFlights={() => {
+								setSnapshot(null);
+								setConnection("Łączenie…");
+							}}
+						/>
+					) : null}
 				</div>
 
 				{!snapshot ? (
-					<Button asChild>
-						<a href="/">Wróć do planera</a>
-					</Button>
+					<RoomGateway rooms={flightChoices} onSelect={(roomId) => void enterChosenRoom(roomId)} />
 				) : (
 					<>
 						<div className="grid gap-4 sm:grid-cols-2">

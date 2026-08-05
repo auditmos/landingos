@@ -2,6 +2,7 @@ import type {
 	PublicRoomMember,
 	PublicRoomMessage,
 	PublicTransportSelection,
+	RoomListing,
 	RoomSnapshot,
 } from "@repo/data-ops/room";
 import { fetchRoomSnapshot, joinRoom, listMyRooms, updateRoomSelection } from "@/lib/room-api";
@@ -27,8 +28,14 @@ export function upsertMessage(
 		: [...messages, message];
 }
 
+export type EnteredRoom = {
+	snapshot: RoomSnapshot;
+	publicOption: PublicTransportSelection | null;
+};
+
 export type RoomEntry =
-	| { kind: "room"; snapshot: RoomSnapshot; publicOption: PublicTransportSelection | null }
+	| ({ kind: "room" } & EnteredRoom)
+	| { kind: "flight_choice"; rooms: RoomListing[] }
 	| { kind: "planner_required" };
 
 function publicOptionFrom(
@@ -53,11 +60,17 @@ async function enterFromIntent(intent: RoomIntent): Promise<RoomSnapshot> {
 	return { ...joined, member, members: upsertMember(joined.members, member) };
 }
 
+export async function enterListedRoom(roomId: string): Promise<EnteredRoom> {
+	const snapshot = await fetchRoomSnapshot(roomId);
+	return { snapshot, publicOption: publicOptionFrom(null, snapshot) };
+}
+
 /**
  * Resolves what /app should show. A fresh planner intent wins; without one the
- * traveler is re-entered into their most imminent open room from server-side
- * membership, so losing browser state (new tab, device, restart) never strands
- * them. Only a traveler with no open room is sent back to the planner.
+ * traveler is re-entered from server-side membership, so losing browser state
+ * (new tab, device, restart) never strands them: one open room enters
+ * directly, several offer the "Moje loty" choice. Only a traveler with no
+ * open room is sent back to the planner.
  */
 export async function resolveRoomEntry(): Promise<RoomEntry> {
 	const intent = loadRoomIntent();
@@ -65,8 +78,9 @@ export async function resolveRoomEntry(): Promise<RoomEntry> {
 		const snapshot = await enterFromIntent(intent);
 		return { kind: "room", snapshot, publicOption: publicOptionFrom(intent, snapshot) };
 	}
-	const [nextRoom] = await listMyRooms();
+	const rooms = await listMyRooms();
+	const [nextRoom] = rooms;
 	if (!nextRoom) return { kind: "planner_required" };
-	const snapshot = await fetchRoomSnapshot(nextRoom.id);
-	return { kind: "room", snapshot, publicOption: publicOptionFrom(null, snapshot) };
+	if (rooms.length > 1) return { kind: "flight_choice", rooms };
+	return { kind: "room", ...(await enterListedRoom(nextRoom.id)) };
 }
