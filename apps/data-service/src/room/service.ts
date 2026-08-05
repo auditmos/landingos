@@ -4,6 +4,7 @@ import type {
 	ConnectionTicketResponse,
 	CreateConnectionTicketInput,
 	JoinFlightRoomResult,
+	PastFlightListing,
 	PublicRoom,
 	PublicRoomMember,
 	RoomAccessContext,
@@ -50,6 +51,7 @@ export interface FlightRoomServiceDependencies {
 		now?: Date;
 	}): Promise<JoinFlightRoomResult>;
 	listActiveRooms(userId: string, now: Date): Promise<RoomListing[]>;
+	listPastFlights(userId: string, now: Date): Promise<PastFlightListing[]>;
 	getRoomSnapshot(roomId: string, userId: string): Promise<RoomSnapshot>;
 	getRoomAccessContext(roomId: string, userId: string): Promise<RoomAccessContext | null>;
 	replaceRoomSelection(
@@ -144,6 +146,10 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 			return (await dependencies.listActiveRooms(userId, now)).filter(
 				(room) => now.getTime() < new Date(room.closesAt).getTime(),
 			);
+		},
+
+		async listPast(userId: string): Promise<PastFlightListing[]> {
+			return dependencies.listPastFlights(userId, dependencies.now());
 		},
 
 		async getSnapshot(roomId: string, userId: string): Promise<RoomSnapshot> {

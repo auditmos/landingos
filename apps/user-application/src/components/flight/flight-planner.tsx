@@ -38,8 +38,8 @@ function parseLookupForm(
 	};
 }
 
-export function FlightPlanner() {
-	const [flightNumber, setFlightNumber] = useState("");
+export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumber?: string }) {
+	const [flightNumber, setFlightNumber] = useState(initialFlightNumber);
 	const [departureDateInput, setDepartureDateInput] = useState(currentDateInPoland);
 	const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 	const [result, setResult] = useState<FlightResolveResult | null>(null);

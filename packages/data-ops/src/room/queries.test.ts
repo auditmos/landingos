@@ -12,6 +12,7 @@ import {
 	getRoomSnapshot,
 	joinFlightRoom,
 	listActiveRoomsForUser,
+	listPastFlightsForUser,
 	listRoomMessages,
 	replaceRoomSelection,
 } from "./queries";
@@ -90,6 +91,34 @@ describe("flight room persistence", () => {
 				}),
 			).rejects.toMatchObject({ code: "ROOM_CLOSED" });
 			expect(await countRoomMemberships(db, joined.room.id)).toBe(1);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("offers recently closed flights for replanning within the 30-day window only", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const beforeClose = new Date("2026-09-15T08:19:59.000Z");
+			await joinFlightRoom(db, { flightInstanceId: FLIGHT_A, userId: USER_A, now: beforeClose });
+			expect(await listPastFlightsForUser(db, USER_A, beforeClose)).toEqual([]);
+
+			const afterClose = new Date("2026-09-16T00:00:00.000Z");
+			const [past] = await listPastFlightsForUser(db, USER_A, afterClose);
+			expect(past?.flight).toMatchObject({
+				marketingCarrierCode: "FR",
+				marketingFlightNumber: "1234",
+				originIata: "WAW",
+				departureLocalDate: "2026-09-14",
+			});
+			expect(past?.closedAt).toBe("2026-09-15T08:20:00.000Z");
+			expect(JSON.stringify(past)).not.toMatch(
+				/placeId|latitude|longitude|email|pseudonym|content|roomId|membership/i,
+			);
+
+			const beyondWindow = new Date("2026-10-16T00:00:00.000Z");
+			expect(await listPastFlightsForUser(db, USER_A, beyondWindow)).toEqual([]);
+			expect(await listPastFlightsForUser(db, USER_B, afterClose)).toEqual([]);
 		} finally {
 			await client.close();
 		}

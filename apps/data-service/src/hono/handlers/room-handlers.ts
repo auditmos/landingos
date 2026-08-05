@@ -98,6 +98,13 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		return c.json(await dependencies.createService(c.env).list(userId));
 	});
 
+	// Registered before "/:roomId" so the static segment wins the route match.
+	rooms.get("/past", async (c) => {
+		const userId = await currentUserId(c.req.raw, dependencies);
+		if (!userId) return unauthorized(c);
+		return c.json(await dependencies.createService(c.env).listPast(userId));
+	});
+
 	rooms.post("/join", async (c) => {
 		const userId = await currentUserId(c.req.raw, dependencies);
 		if (!userId) return unauthorized(c);

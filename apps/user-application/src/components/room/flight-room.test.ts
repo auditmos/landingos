@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 	join: vi.fn(),
 	refresh: vi.fn(),
 	list: vi.fn(),
+	past: vi.fn(),
 	select: vi.fn(),
 	send: vi.fn(),
 	ticket: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("@/lib/room-api", async (importOriginal) => {
 		joinRoom: mocks.join,
 		fetchRoomSnapshot: mocks.refresh,
 		listMyRooms: mocks.list,
+		fetchPastFlights: mocks.past,
 		updateRoomSelection: mocks.select,
 		sendRoomMessage: mocks.send,
 		issueRoomTicket: mocks.ticket,
@@ -123,6 +125,7 @@ let root: Root;
 function primeRoomMocks() {
 	mocks.join.mockResolvedValue(snapshot);
 	mocks.list.mockResolvedValue([]);
+	mocks.past.mockResolvedValue([]);
 	mocks.select.mockResolvedValue(selectedMember);
 	mocks.refresh.mockResolvedValue({
 		...snapshot,
@@ -350,6 +353,55 @@ describe("room re-entry without planner intent", () => {
 		expect(mocks.refresh).not.toHaveBeenCalled();
 		expect(container.textContent).toContain("Najpierw wybierz lot i wariant przejazdu w planerze.");
 		expect(container.textContent).toContain("Wróć do planera");
+		expect(container.textContent).not.toContain("Poprzednie loty");
+	});
+
+	it("offers replanning recently closed flights when no room is open", async () => {
+		mocks.past.mockResolvedValue([
+			{
+				closedAt: "2026-07-20T08:20:00.000Z",
+				flight: {
+					id: "flight-old",
+					marketingCarrierCode: "FR",
+					marketingCarrierName: "Ryanair",
+					marketingFlightNumber: "1234",
+					operatingCarrierCode: null,
+					operatingFlightNumber: null,
+					departureLocalDate: "2026-07-19",
+					originIata: "WAW",
+					destinationIata: "BGY",
+					scheduledArrivalUtc: "2026-07-19T08:20:00.000Z",
+					displayTimezone: "Europe/Rome",
+					source: "provider",
+				},
+			},
+		]);
+		await mountRoom();
+		expect(container.textContent).toContain("Poprzednie loty");
+		expect(container.textContent).toContain("Ryanair FR1234");
+		expect(container.textContent).toContain("WAW → BGY · 19.07.2026");
+		const replan = Array.from(container.querySelectorAll("a")).find((anchor) =>
+			anchor.textContent?.includes("Zaplanuj ponownie"),
+		);
+		expect(replan?.getAttribute("href")).toBe("/?flightNumber=FR1234");
+	});
+
+	it("shows the Moje loty switcher after planner entry when another room is open", async () => {
+		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
+		mocks.list.mockResolvedValue([
+			snapshot.room,
+			{
+				id: "018f4c8e-5697-7df4-8f6e-c7644b137e5c",
+				flightInstanceId: "flight-2",
+				closesAt: "2026-09-17T08:20:00.000Z",
+			},
+		]);
+		await mountRoom();
+		expect(mocks.join).toHaveBeenCalledWith("flight-1");
+		const switcher = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Moje loty"),
+		);
+		expect(switcher).toBeDefined();
 	});
 
 	it("applies a planner selection exactly once across room visits", async () => {

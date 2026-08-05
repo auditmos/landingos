@@ -52,6 +52,7 @@ function dependencies(
 		getRoomSnapshot: vi.fn(async () => snapshot),
 		getRoomAccessContext: vi.fn(async () => access),
 		listActiveRooms: vi.fn(async () => [room]),
+		listPastFlights: vi.fn(async () => []),
 		replaceRoomSelection: vi.fn(async (_roomId, _userId, selection) => ({
 			...member,
 			selection,
@@ -80,6 +81,7 @@ describe("flight room service ordering and idempotency", () => {
 		const service = createFlightRoomService(deps);
 		expect(await service.join("flight-1", "user-1")).toEqual(snapshot);
 		expect(await service.list("user-1")).toEqual([room]);
+		expect(await service.listPast("user-1")).toEqual([]);
 		expect(await service.getSnapshot(room.id, "user-1")).toEqual(snapshot);
 		await expect(
 			service.replaceSelection(room.id, "user-1", { kind: "shared_taxi" }),

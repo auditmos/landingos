@@ -1,6 +1,7 @@
 import type { RoomSnapshot } from "@repo/data-ops/room";
 import { describe, expect, it, vi } from "vitest";
 import {
+	fetchPastFlights,
 	fetchRoomSnapshot,
 	issueRoomTicket,
 	joinRoom,
@@ -26,6 +27,9 @@ describe("flight room browser API", () => {
 	it("uses the session cookie for join, refresh, selection, message, and ticket calls", async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
 			const path = new URL(String(input)).pathname;
+			if (path.endsWith("/past")) {
+				return Response.json([]);
+			}
 			if (path.endsWith("/rooms")) {
 				return Response.json([snapshot.room]);
 			}
@@ -66,6 +70,7 @@ describe("flight room browser API", () => {
 		await fetchRoomSnapshot(roomId, fetchMock);
 		const rooms = await listMyRooms(fetchMock);
 		expect(rooms).toEqual([snapshot.room]);
+		expect(await fetchPastFlights(fetchMock)).toEqual([]);
 		await updateRoomSelection(roomId, { kind: "shared_taxi" }, fetchMock);
 		await sendRoomMessage(
 			roomId,
@@ -77,7 +82,7 @@ describe("flight room browser API", () => {
 		);
 		await issueRoomTicket(roomId, fetchMock);
 
-		expect(fetchMock).toHaveBeenCalledTimes(6);
+		expect(fetchMock).toHaveBeenCalledTimes(7);
 		for (const call of fetchMock.mock.calls) {
 			const init = call[1];
 			expect(init?.credentials).toBe("include");

@@ -33,11 +33,29 @@ const access: RoomAccessContext = {
 	userId: "user-1",
 	coordinatorKey: "flight-1",
 };
+const pastFlight = {
+	flight: {
+		id: "flight-0",
+		marketingCarrierCode: "FR",
+		marketingCarrierName: "Ryanair",
+		marketingFlightNumber: "1234",
+		operatingCarrierCode: null,
+		operatingFlightNumber: null,
+		departureLocalDate: "2026-09-01",
+		originIata: "WAW",
+		destinationIata: "BGY" as const,
+		scheduledArrivalUtc: "2026-09-01T08:20:00.000Z",
+		displayTimezone: "Europe/Rome" as const,
+		source: "provider" as const,
+	},
+	closedAt: "2026-09-02T08:20:00.000Z",
+};
 
 function buildApp(serviceOverrides: Partial<FlightRoomService> = {}) {
 	const service: FlightRoomService = {
 		join: vi.fn(async () => snapshot),
 		list: vi.fn(async () => [room]),
+		listPast: vi.fn(async () => [pastFlight]),
 		getSnapshot: vi.fn(async () => snapshot),
 		replaceSelection: vi.fn(async (_roomId, _userId, selection) => ({
 			...member,
@@ -93,6 +111,17 @@ const browserHeaders = {
 };
 
 describe("flight room authenticated HTTP API", () => {
+	it("returns the caller's past flights and requires a session for them", async () => {
+		const { app, service } = buildApp();
+		const anonymous = await app.request("/rooms/past");
+		expect(anonymous.status).toBe(401);
+
+		const listed = await app.request("/rooms/past", { headers: browserHeaders });
+		expect(listed.status).toBe(200);
+		expect(await listed.json()).toEqual([pastFlight]);
+		expect(service.listPast).toHaveBeenCalledWith("user-1");
+	});
+
 	it("omits closed rooms and returns the typed closed state for history, reconnect, and send", async () => {
 		const closed = new FlightRoomServiceError(
 			"room_closed",

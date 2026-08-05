@@ -132,6 +132,17 @@ export const RoomListingSchema = z.strictObject({
 	flight: FlightInstanceSchema.optional(),
 });
 
+/**
+ * A closed room reduced to its flight identity, for the replan shortcut.
+ * Deliberately carries no room id, members, or messages: closed rooms stay
+ * gone (US-23) — only the traveler's own flight fact is offered back, and only
+ * within the bounded retention window enforced by the query.
+ */
+export const PastFlightListingSchema = z.strictObject({
+	flight: FlightInstanceSchema,
+	closedAt: z.string().datetime({ offset: true }),
+});
+
 export const RoomSnapshotSchema = z.strictObject({
 	room: PublicRoomSchema,
 	member: PublicRoomMemberSchema,
@@ -191,6 +202,7 @@ export type PublicRoomMessage = z.infer<typeof PublicRoomMessageSchema>;
 export type RoomMessageCreateResponse = z.infer<typeof RoomMessageCreateResponseSchema>;
 export type PublicRoom = z.infer<typeof PublicRoomSchema>;
 export type RoomListing = z.infer<typeof RoomListingSchema>;
+export type PastFlightListing = z.infer<typeof PastFlightListingSchema>;
 export type RoomSnapshot = z.infer<typeof RoomSnapshotSchema>;
 export type ConnectionTicketResponse = z.infer<typeof ConnectionTicketResponseSchema>;
 export type ConnectionAttachment = z.infer<typeof ConnectionAttachmentSchema>;

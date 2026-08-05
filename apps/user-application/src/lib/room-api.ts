@@ -1,6 +1,8 @@
 import {
 	type ConnectionTicketResponse,
 	ConnectionTicketResponseSchema,
+	type PastFlightListing,
+	PastFlightListingSchema,
 	type PublicRoomMember,
 	PublicRoomMemberSchema,
 	type RoomListing,
@@ -25,6 +27,15 @@ const RoomListSchema = z.array(RoomListingSchema);
  */
 export async function listMyRooms(fetchImpl: typeof fetch = fetch): Promise<RoomListing[]> {
 	return RoomListSchema.parse(await roomRequest("/rooms", { method: "GET" }, fetchImpl));
+}
+
+const PastFlightListSchema = z.array(PastFlightListingSchema);
+
+/** The traveler's recently closed flights (30-day window) for the replan shortcut. */
+export async function fetchPastFlights(
+	fetchImpl: typeof fetch = fetch,
+): Promise<PastFlightListing[]> {
+	return PastFlightListSchema.parse(await roomRequest("/rooms/past", { method: "GET" }, fetchImpl));
 }
 
 const DEFAULT_API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";

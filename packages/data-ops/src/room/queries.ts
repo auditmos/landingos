@@ -1,10 +1,12 @@
-import { and, asc, count, eq, gt, isNotNull, isNull, lte, notExists, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, lte, notExists, or } from "drizzle-orm";
 import type { getDb } from "@/database/setup";
 import { auth_user } from "@/drizzle/auth-schema";
 import { flightInstances } from "@/flight/table";
 import { MESSAGE_RETENTION_MS, ROOM_ACCESS_WINDOW_MS } from "@/lifecycle/constants";
 import { userBlocks } from "@/safety/table";
 import {
+	type PastFlightListing,
+	PastFlightListingSchema,
 	type PublicRoom,
 	type PublicRoomMember,
 	PublicRoomMemberSchema,
@@ -403,20 +405,7 @@ export async function listActiveRoomsForUser(
 			id: flightRooms.id,
 			flightInstanceId: flightRooms.flightInstanceId,
 			closesAt: flightRooms.closesAt,
-			flight: {
-				id: flightInstances.id,
-				marketingCarrierCode: flightInstances.marketingCarrierCode,
-				marketingCarrierName: flightInstances.marketingCarrierName,
-				marketingFlightNumber: flightInstances.marketingFlightNumber,
-				operatingCarrierCode: flightInstances.operatingCarrierCode,
-				operatingFlightNumber: flightInstances.operatingFlightNumber,
-				departureLocalDate: flightInstances.departureLocalDate,
-				originIata: flightInstances.originIata,
-				destinationIata: flightInstances.destinationIata,
-				scheduledArrivalUtc: flightInstances.scheduledArrivalUtc,
-				displayTimezone: flightInstances.displayTimezone,
-				source: flightInstances.source,
-			},
+			flight: flightListingColumns,
 		})
 		.from(roomMemberships)
 		.innerJoin(flightRooms, eq(roomMemberships.roomId, flightRooms.id))
@@ -428,10 +417,61 @@ export async function listActiveRoomsForUser(
 			id: row.id,
 			flightInstanceId: row.flightInstanceId,
 			closesAt: row.closesAt.toISOString(),
-			flight: {
-				...row.flight,
-				scheduledArrivalUtc: row.flight.scheduledArrivalUtc.toISOString(),
-			},
+			flight: flightFromJoinedRow(row.flight),
+		}),
+	);
+}
+
+const flightListingColumns = {
+	id: flightInstances.id,
+	marketingCarrierCode: flightInstances.marketingCarrierCode,
+	marketingCarrierName: flightInstances.marketingCarrierName,
+	marketingFlightNumber: flightInstances.marketingFlightNumber,
+	operatingCarrierCode: flightInstances.operatingCarrierCode,
+	operatingFlightNumber: flightInstances.operatingFlightNumber,
+	departureLocalDate: flightInstances.departureLocalDate,
+	originIata: flightInstances.originIata,
+	destinationIata: flightInstances.destinationIata,
+	scheduledArrivalUtc: flightInstances.scheduledArrivalUtc,
+	displayTimezone: flightInstances.displayTimezone,
+	source: flightInstances.source,
+};
+
+function flightFromJoinedRow(flight: { scheduledArrivalUtc: Date } & Record<string, unknown>) {
+	return { ...flight, scheduledArrivalUtc: flight.scheduledArrivalUtc.toISOString() };
+}
+
+const PAST_FLIGHTS_LIMIT = 10;
+
+/**
+ * The traveler's recently closed flights, reduced to flight identity for the
+ * replan shortcut. Bounded to the MESSAGE_RETENTION_MS window so no indefinite
+ * travel history accumulates in the UI (US-23).
+ */
+export async function listPastFlightsForUser(
+	db: RoomDatabase,
+	userId: string,
+	now = new Date(),
+): Promise<PastFlightListing[]> {
+	const oldestClose = new Date(now.getTime() - MESSAGE_RETENTION_MS);
+	const rows = await db
+		.select({ closesAt: flightRooms.closesAt, flight: flightListingColumns })
+		.from(roomMemberships)
+		.innerJoin(flightRooms, eq(roomMemberships.roomId, flightRooms.id))
+		.innerJoin(flightInstances, eq(flightRooms.flightInstanceId, flightInstances.id))
+		.where(
+			and(
+				eq(roomMemberships.userId, userId),
+				lte(flightRooms.closesAt, now),
+				gt(flightRooms.closesAt, oldestClose),
+			),
+		)
+		.orderBy(desc(flightRooms.closesAt), asc(flightRooms.id))
+		.limit(PAST_FLIGHTS_LIMIT);
+	return rows.map((row) =>
+		PastFlightListingSchema.parse({
+			closedAt: row.closesAt.toISOString(),
+			flight: flightFromJoinedRow(row.flight),
 		}),
 	);
 }

@@ -1,4 +1,5 @@
 import {
+	type PastFlightListing,
 	type PublicTransportSelection,
 	type RoomListing,
 	RoomMessageCreateRequestSchema,
@@ -57,6 +58,7 @@ function handleInitializationError(
 export function FlightRoom() {
 	const [publicOption, setPublicOption] = useState<PublicTransportSelection | null>(null);
 	const [flightChoices, setFlightChoices] = useState<RoomListing[] | null>(null);
+	const [pastFlights, setPastFlights] = useState<PastFlightListing[]>([]);
 	const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
@@ -95,6 +97,7 @@ export function FlightRoom() {
 			.then((entry) => {
 				if (!active) return;
 				if (entry.kind === "planner_required") {
+					setPastFlights(entry.pastFlights);
 					setError("Najpierw wybierz lot i wariant przejazdu w planerze.");
 					return;
 				}
@@ -102,6 +105,7 @@ export function FlightRoom() {
 					setFlightChoices(entry.rooms);
 					return;
 				}
+				setFlightChoices(entry.rooms.length > 1 ? entry.rooms : null);
 				setPublicOption(entry.publicOption);
 				setSnapshot(entry.snapshot);
 			})
@@ -233,7 +237,11 @@ export function FlightRoom() {
 				</div>
 
 				{!snapshot ? (
-					<RoomGateway rooms={flightChoices} onSelect={(roomId) => void enterChosenRoom(roomId)} />
+					<RoomGateway
+						rooms={flightChoices}
+						pastFlights={pastFlights}
+						onSelect={(roomId) => void enterChosenRoom(roomId)}
+					/>
 				) : (
 					<>
 						<div className="grid gap-4 sm:grid-cols-2">
