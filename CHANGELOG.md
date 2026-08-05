@@ -1,3 +1,10 @@
+# [1.24.0](https://github.com/auditmos/landingos/compare/v1.23.0...v1.24.0) (2026-08-05)
+
+
+### Features
+
+* **room:** past-flight replanning and an always-available room switcher ([94ff975](https://github.com/auditmos/landingos/commit/94ff9753c39038a2f70faf0917de03ea443455d1))
+
 # [1.23.0](https://github.com/auditmos/landingos/compare/v1.22.0...v1.23.0) (2026-08-05)
 
 
