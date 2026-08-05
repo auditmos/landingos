@@ -25,7 +25,6 @@ const PrivateDropOffSchema = z.strictObject({
 });
 
 export type PrivateDropOff = z.infer<typeof PrivateDropOffSchema>;
-export type PrivateRouteStep = z.infer<typeof PrivateRouteStepSchema>;
 
 function browserStorage(): Storage | null {
 	return typeof window === "undefined" ? null : window.sessionStorage;
