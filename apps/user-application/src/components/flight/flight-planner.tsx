@@ -175,6 +175,17 @@ export function FlightPlanner() {
 							Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy maksymalnie
 							trzy sensowne warianty przejazdu.
 						</p>
+						<p className="mt-5 text-xs font-bold uppercase text-muted-foreground">
+							<span className="text-primary">Pierwsza trasa:</span> Polska
+							<span className="px-1.5 text-primary" aria-hidden="true">
+								→
+							</span>
+							BGY
+							<span className="px-1.5 text-primary" aria-hidden="true">
+								→
+							</span>
+							Mediolan · kolejne kierunki wkrótce
+						</p>
 
 						<ol
 							className="mt-10 grid list-none border-t border-border sm:mt-12 sm:grid-cols-3"
@@ -341,7 +352,7 @@ export function FlightPlanner() {
 					<p className="font-bold text-foreground">
 						LandingOS <span aria-hidden="true">·</span> lot, przejazd, pokój lotu
 					</p>
-					<p>Stworzone dla podróżujących z Polski do Mediolanu.</p>
+					<p>Zaczynamy od lotów z Polski do Mediolanu-Bergamo. Kolejne kierunki wkrótce.</p>
 				</div>
 			</footer>
 		</div>

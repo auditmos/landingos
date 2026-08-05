@@ -151,6 +151,24 @@ h1 {
 	text-wrap: pretty;
 }
 
+.route-note {
+	margin: 1.5rem 0 0;
+	color: var(--muted);
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.route-note strong {
+	color: var(--accent);
+	font-weight: 800;
+}
+
+.route-note span {
+	padding: 0 0.35rem;
+	color: var(--accent);
+}
+
 .promise {
 	display: grid;
 	margin-top: clamp(2.25rem, 4vw, 3.75rem);
