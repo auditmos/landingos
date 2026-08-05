@@ -4,8 +4,22 @@ import {
 	JourneyRecommendationRequestSchema,
 	type JourneyRecommendationResult,
 	JourneyRecommendationResultSchema,
+	sanitizeJourneyExternalUrl,
 } from "@repo/data-ops/journey";
 import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
+
+const BGY_AIRPORT_COORDINATES = "45.673889,9.704167";
+
+// Planner-only deep link: the private destination coordinates stay in the
+// user's browser tab — never in room payloads, analytics, or logs.
+export function journeyNavigationUrl(coordinates: {
+	latitude: number;
+	longitude: number;
+}): string | null {
+	return sanitizeJourneyExternalUrl(
+		`https://www.google.com/maps/dir/?api=1&origin=${BGY_AIRPORT_COORDINATES}&destination=${coordinates.latitude},${coordinates.longitude}&travelmode=transit`,
+	);
+}
 
 const API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";
 

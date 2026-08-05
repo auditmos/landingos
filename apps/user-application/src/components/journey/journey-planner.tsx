@@ -1,7 +1,16 @@
 import type { PrivateDestination } from "@repo/data-ops/destination";
 import type { FlightInstance } from "@repo/data-ops/flight";
 import type { JourneyRecommendationResult, JourneyVariant } from "@repo/data-ops/journey";
-import { Clock3, ExternalLink, Footprints, RotateCcw, Route, Users } from "lucide-react";
+import {
+	ChevronDown,
+	Clock3,
+	ExternalLink,
+	Footprints,
+	Navigation,
+	RotateCcw,
+	Route,
+	Users,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +21,7 @@ import {
 	formatJourneyCost,
 	journeyBadgeCopy,
 	journeyFailureCopy,
+	journeyNavigationUrl,
 	journeyUnavailableFromError,
 	recommendJourneysApi,
 } from "@/lib/journey-planner";
@@ -26,11 +36,26 @@ const modeCopy = {
 	walk: "Pieszo",
 } as const;
 
+function variantShortLabel(variant: JourneyVariant, index: number): string {
+	const badge = variant.badges[0];
+	return badge ? journeyBadgeCopy[badge] : `Wariant ${index + 1}`;
+}
+
+function transferCountLabel(count: number): string {
+	if (count === 1) return "1 przesiadka";
+	const mod10 = count % 10;
+	const mod100 = count % 100;
+	if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} przesiadki`;
+	return `${count} przesiadek`;
+}
+
 export function JourneyVariantCard({
 	variant,
+	mapsUrl,
 	onChoose,
 }: {
 	variant: JourneyVariant;
+	mapsUrl?: string | null;
 	onChoose?: (variant: JourneyVariant) => void;
 }) {
 	return (
@@ -71,42 +96,6 @@ export function JourneyVariantCard({
 					</div>
 				</dl>
 
-				<ol className="space-y-2">
-					{variant.steps.map((step, index) => (
-						<li
-							key={`${step.mode}:${step.from}:${step.to}:${index}`}
-							className="rounded-md bg-muted/50 p-3"
-						>
-							<p className="font-medium tabular-nums">
-								{index + 1}. {modeCopy[step.mode]} · {step.durationMinutes} min
-							</p>
-							<p className="text-pretty text-sm text-muted-foreground">
-								{step.from} → {step.to}
-							</p>
-							{step.walkingMeters > 0 ? (
-								<p className="text-xs text-muted-foreground tabular-nums">
-									<Footprints className="mr-1 inline size-3" />
-									{step.walkingMeters} m pieszo
-								</p>
-							) : null}
-						</li>
-					))}
-				</ol>
-
-				<div className="text-sm tabular-nums">
-					<p className="font-medium">Źródła</p>
-					<ul className="text-muted-foreground">
-						{variant.sourceReferences.map((source) => (
-							<li key={`${source.kind}:${source.label}`}>
-								{source.label}
-								{source.checkedAt
-									? ` · sprawdzono ${new Date(source.checkedAt).toLocaleDateString("pl-PL")}`
-									: ""}
-							</li>
-						))}
-					</ul>
-				</div>
-
 				{variant.manualVerification ? (
 					<p
 						className={cn(
@@ -133,22 +122,133 @@ export function JourneyVariantCard({
 					</p>
 				)}
 
-				{variant.externalLinks.map((link) => (
-					<Button key={link.url} asChild>
-						<a href={link.url} target="_blank" rel="noopener noreferrer">
-							{link.label}
-							<ExternalLink className="size-4" />
-						</a>
-					</Button>
-				))}
-				{onChoose ? (
-					<Button type="button" variant="secondary" onClick={() => onChoose(variant)}>
-						<Users className="size-4" />
-						Wybierz i przejdź do pokoju
-					</Button>
-				) : null}
+				<div className="flex flex-wrap gap-2">
+					{mapsUrl ? (
+						<Button asChild>
+							<a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+								<Navigation className="size-4" />
+								Nawiguj w Mapach Google
+								<ExternalLink className="size-4" />
+							</a>
+						</Button>
+					) : null}
+					{variant.externalLinks.map((link) => (
+						<Button key={link.url} asChild variant="outline">
+							<a href={link.url} target="_blank" rel="noopener noreferrer">
+								{link.label}
+								<ExternalLink className="size-4" />
+							</a>
+						</Button>
+					))}
+					{onChoose ? (
+						<Button type="button" variant="secondary" onClick={() => onChoose(variant)}>
+							<Users className="size-4" />
+							Wybierz i przejdź do pokoju
+						</Button>
+					) : null}
+				</div>
+
+				<details className="group rounded-md border border-border">
+					<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+						Etapy trasy i źródła ({variant.steps.length})
+						<ChevronDown
+							className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+							aria-hidden="true"
+						/>
+					</summary>
+					<div className="space-y-4 border-t border-border px-3 py-3">
+						<ol className="space-y-2">
+							{variant.steps.map((step, index) => (
+								<li key={`${step.mode}:${step.from}:${step.to}:${index}`} className="text-sm">
+									<p className="font-medium tabular-nums">
+										{index + 1}. {modeCopy[step.mode]} · {step.durationMinutes} min
+									</p>
+									<p className="text-pretty text-muted-foreground">
+										{step.from} → {step.to}
+										{step.walkingMeters > 0 ? (
+											<span className="tabular-nums">
+												{" "}
+												· <Footprints className="mr-0.5 inline size-3" aria-hidden="true" />
+												{step.walkingMeters} m pieszo
+											</span>
+										) : null}
+									</p>
+								</li>
+							))}
+						</ol>
+						<div className="text-sm tabular-nums">
+							<p className="font-medium">Źródła</p>
+							<ul className="text-muted-foreground">
+								{variant.sourceReferences.map((source) => (
+									<li key={`${source.kind}:${source.label}`}>
+										{source.label}
+										{source.checkedAt
+											? ` · sprawdzono ${new Date(source.checkedAt).toLocaleDateString("pl-PL")}`
+											: ""}
+									</li>
+								))}
+							</ul>
+						</div>
+					</div>
+				</details>
 			</CardContent>
 		</Card>
+	);
+}
+
+function JourneyVariantPicker({
+	variants,
+	selectedId,
+	onSelect,
+}: {
+	variants: JourneyVariant[];
+	selectedId: string;
+	onSelect: (id: string) => void;
+}) {
+	if (variants.length < 2) return null;
+	return (
+		<fieldset className="border-0 p-0">
+			<legend className="sr-only">Wybór wariantu przejazdu</legend>
+			<div className="grid gap-2 sm:grid-cols-3">
+				{variants.map((variant, index) => {
+					const isSelected = variant.id === selectedId;
+					return (
+						<button
+							key={variant.id}
+							type="button"
+							aria-pressed={isSelected}
+							onClick={() => onSelect(variant.id)}
+							className={cn(
+								"min-h-11 rounded-md border px-4 py-3 text-left transition-colors",
+								isSelected
+									? "border-primary bg-accent text-accent-foreground"
+									: "border-border bg-card hover:bg-muted",
+							)}
+						>
+							<span
+								className={cn(
+									"block text-xs font-bold uppercase",
+									isSelected ? "text-accent-foreground" : "text-primary",
+								)}
+							>
+								{variantShortLabel(variant, index)}
+							</span>
+							<span className="mt-1 block text-xl font-bold tabular-nums">
+								{variant.durationMinutes} min
+							</span>
+							<span
+								className={cn(
+									"block text-xs tabular-nums",
+									isSelected ? "text-accent-foreground" : "text-muted-foreground",
+								)}
+							>
+								{transferCountLabel(variant.transferCount)} · {variant.walkingMinutes} min pieszo
+							</span>
+						</button>
+					);
+				})}
+			</div>
+		</fieldset>
 	);
 }
 
@@ -207,7 +307,17 @@ export function JourneyPlanner({
 	const [retryKey, setRetryKey] = useState(0);
 	const [result, setResult] = useState<JourneyRecommendationResult>();
 	const [loading, setLoading] = useState(false);
+	const [selectedVariantId, setSelectedVariantId] = useState<string>();
 	const { latitude, longitude } = destination.coordinates;
+	const mapsUrl = journeyNavigationUrl(destination.coordinates);
+
+	const variants = result?.status === "recommendations" ? result.variants : [];
+	// Response-local IDs change on every refetch — fall back to the recommended
+	// (or first) variant whenever the stored selection no longer exists.
+	const selectedVariant =
+		variants.find((variant) => variant.id === selectedVariantId) ??
+		variants.find((variant) => variant.badges.includes("recommended")) ??
+		variants[0];
 
 	function continueToRoom(selection: ReturnType<typeof publicSelectionFromJourneyVariant>) {
 		saveRoomIntent({ flightInstanceId: flight.id, selection, publicOption: selection });
@@ -284,20 +394,24 @@ export function JourneyPlanner({
 					</CardContent>
 				</Card>
 			) : null}
-			{result?.status === "recommendations" ? (
+			{result?.status === "recommendations" && selectedVariant ? (
 				<>
 					{result.explanation ? (
 						<Alert>
 							<AlertDescription>{result.explanation}</AlertDescription>
 						</Alert>
 					) : null}
-					{result.variants.map((variant) => (
-						<JourneyVariantCard
-							key={variant.id}
-							variant={variant}
-							onChoose={(selected) => continueToRoom(publicSelectionFromJourneyVariant(selected))}
-						/>
-					))}
+					<JourneyVariantPicker
+						variants={variants}
+						selectedId={selectedVariant.id}
+						onSelect={setSelectedVariantId}
+					/>
+					<JourneyVariantCard
+						key={selectedVariant.id}
+						variant={selectedVariant}
+						mapsUrl={mapsUrl}
+						onChoose={(selected) => continueToRoom(publicSelectionFromJourneyVariant(selected))}
+					/>
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2 text-balance text-xl">

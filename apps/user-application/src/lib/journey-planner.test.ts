@@ -7,7 +7,12 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JourneyPlanner, JourneyVariantCard } from "@/components/journey/journey-planner";
-import { formatJourneyCost, type JourneyApiError, recommendJourneysApi } from "./journey-planner";
+import {
+	formatJourneyCost,
+	type JourneyApiError,
+	journeyNavigationUrl,
+	recommendJourneysApi,
+} from "./journey-planner";
 
 const flight: FlightInstance = {
 	id: "flight-id",
@@ -212,6 +217,22 @@ describe("journey card contract", () => {
 		expect(unknownHtml).toContain("Brak pełnej ceny");
 		expect(staleHtml).toContain("Dane ręczne są nieaktualne");
 	});
+
+	it("collapses steps and sources behind a details section and leads with the Maps link", () => {
+		const mapsUrl = journeyNavigationUrl(destination.coordinates);
+		const html = renderToStaticMarkup(
+			createElement(JourneyVariantCard, { variant: baseVariant, mapsUrl }),
+		);
+		expect(mapsUrl).toBe(
+			"https://www.google.com/maps/dir/?api=1&origin=45.673889,9.704167&destination=45.464098,9.191926&travelmode=transit",
+		);
+		expect(html).toContain("Nawiguj w Mapach Google");
+		expect(html).toContain("<details");
+		expect(html).toContain("Etapy trasy i źródła (2)");
+		expect(html.indexOf("<details")).toBeLessThan(html.indexOf("1. Autobus"));
+		expect(html.indexOf("<details")).toBeLessThan(html.indexOf("Fixture Transit"));
+		expect(html.indexOf("Nawiguj w Mapach Google")).toBeLessThan(html.indexOf("<details"));
+	});
 });
 
 describe("journey API boundary", () => {
@@ -353,5 +374,55 @@ describe("interactive journey planner", () => {
 			'a[href="https://www.milanbergamoairport.it/en/bus/"]',
 		);
 		expect(link).not.toBeNull();
+	});
+
+	it("shows one detailed card at a time behind a compact variant picker", async () => {
+		const simplest: JourneyVariant = {
+			...baseVariant,
+			id: "journey-2",
+			badges: ["simplest"],
+			durationMinutes: 82,
+			transferCount: 0,
+			steps: [
+				{
+					mode: "bus",
+					from: "Aeroporto BGY",
+					to: "Porta Garibaldi",
+					durationMinutes: 74,
+					walkingMeters: 0,
+				},
+			],
+			externalLinks: [],
+		};
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					status: "recommendations",
+					variants: [simplest, baseVariant],
+					explanation: "Dwa warianty do porównania.",
+				}),
+			),
+		);
+
+		await act(async () => {
+			root.render(createElement(JourneyPlanner, { flight, destination }));
+		});
+
+		const pickerButtons = container.querySelectorAll<HTMLButtonElement>("button[aria-pressed]");
+		expect(pickerButtons).toHaveLength(2);
+		// The recommended variant is preselected even when the provider lists it second.
+		expect(container.querySelector('button[aria-pressed="true"]')?.textContent).toContain("65 min");
+		expect(container.querySelectorAll("details")).toHaveLength(1);
+		expect(container.textContent).not.toContain("Porta Garibaldi");
+
+		const simplestButton = Array.from(pickerButtons).find((button) =>
+			button.textContent?.includes("Najprostsza"),
+		);
+		expect(simplestButton).toBeDefined();
+		await act(async () => simplestButton?.click());
+		expect(container.querySelector('button[aria-pressed="true"]')?.textContent).toContain("82 min");
+		expect(container.querySelectorAll("details")).toHaveLength(1);
+		expect(container.textContent).toContain("Porta Garibaldi");
 	});
 });
