@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/auditmos/landingos/compare/v1.20.2...v1.21.0) (2026-08-05)
+
+
+### Features
+
+* **room:** restructure the members list for visual hierarchy ([2f81f9c](https://github.com/auditmos/landingos/commit/2f81f9c76773432b2a0c9dac4ea00ba213f4f850))
+
 ## [1.20.2](https://github.com/auditmos/landingos/compare/v1.20.1...v1.20.2) (2026-08-05)
 
 
