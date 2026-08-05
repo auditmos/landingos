@@ -323,27 +323,19 @@ export function JourneyPlanner({
 	function continueToRoom(variant: JourneyVariant) {
 		const selection = publicSelectionFromJourneyVariant(variant);
 		saveRoomIntent({ flightInstanceId: flight.id, selection, publicOption: selection });
-		rememberDropOff(variant);
+		rememberDropOff();
 		window.location.assign("/app");
 	}
 
-	// Keep the traveler's own destination label and chosen route available in
-	// the room view (browser-local only; the label is shared with the room
-	// solely via the explicit toggle, the route never).
-	function rememberDropOff(variant?: JourneyVariant) {
+	// Keep the traveler's own destination label and the planner's exact
+	// navigation link available in the room view (browser-local only; the
+	// label is shared with the room solely via the explicit toggle, the
+	// link never).
+	function rememberDropOff() {
 		savePrivateDropOff({
 			flightInstanceId: flight.id,
 			label: destination.displayName.trim().slice(0, 120),
-			...(variant
-				? {
-						route: variant.steps.slice(0, 20).map((step) => ({
-							mode: step.mode,
-							from: step.from.trim().slice(0, 80),
-							to: step.to.trim().slice(0, 80),
-							durationMinutes: step.durationMinutes,
-						})),
-					}
-				: {}),
+			...(mapsUrl ? { mapsUrl } : {}),
 		});
 	}
 

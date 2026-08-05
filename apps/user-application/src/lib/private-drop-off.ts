@@ -3,25 +3,17 @@ import { z } from "zod";
 
 const STORAGE_KEY = "landingos.private-drop-off";
 
-const PrivateRouteStepSchema = z.strictObject({
-	mode: z.string().trim().min(1).max(24),
-	from: z.string().trim().min(1).max(80),
-	to: z.string().trim().min(1).max(80),
-	durationMinutes: z.number().int().min(0).max(600),
-});
-
 /**
- * Browser-local memory of where the traveler is heading and the route variant
- * they chose, so the flight room can show both back to them and offer the
- * opt-in drop-off share. Deliberately stores only display labels — never
- * place IDs or geographic identifiers — and never leaves sessionStorage
- * unless the traveler explicitly shares the label as `dropOffText` in their
- * room selection. The route summary is never shared at all.
+ * Browser-local memory of where the traveler is heading, so the flight room
+ * can show it back to them and offer the opt-in drop-off share. Holds the
+ * display label plus the planner's own navigation link (the exact deep link
+ * shown on the journey view). Neither value leaves sessionStorage except the
+ * label, and only via the explicit `dropOffText` share toggle.
  */
 const PrivateDropOffSchema = z.strictObject({
 	flightInstanceId: z.string().min(1),
 	label: z.string().trim().min(1).max(120),
-	route: z.array(PrivateRouteStepSchema).min(1).max(20).optional(),
+	mapsUrl: z.string().trim().min(1).max(500).optional(),
 });
 
 export type PrivateDropOff = z.infer<typeof PrivateDropOffSchema>;
@@ -33,7 +25,11 @@ function browserStorage(): Storage | null {
 export function savePrivateDropOff(dropOff: PrivateDropOff): void {
 	const storage = browserStorage();
 	if (!storage) return;
-	const parsed = PrivateDropOffSchema.safeParse(dropOff);
+	const { mapsUrl, ...rest } = dropOff;
+	const safeMapsUrl = mapsUrl && sanitizeJourneyExternalUrl(mapsUrl) ? mapsUrl : undefined;
+	const parsed = PrivateDropOffSchema.safeParse(
+		safeMapsUrl ? { ...rest, mapsUrl: safeMapsUrl } : rest,
+	);
 	if (!parsed.success) return;
 	storage.setItem(STORAGE_KEY, JSON.stringify(parsed.data));
 }
@@ -59,9 +55,9 @@ export function clearPrivateDropOff(): void {
 }
 
 /**
- * Google Maps place-search link for a drop-off label. Text query only —
- * there is nothing more precise to link, by design — and the result must
- * still pass the shared external-host allowlist.
+ * Fallback Google Maps place-search link for a drop-off label — used where
+ * only shared text exists (other members' points). Must still pass the
+ * shared external-host allowlist.
  */
 export function dropOffMapsUrl(label: string): string | null {
 	const query = label.trim();

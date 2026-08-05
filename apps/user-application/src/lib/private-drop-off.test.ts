@@ -38,37 +38,22 @@ describe("private drop-off store", () => {
 		expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
 	});
 
-	it("round-trips the chosen route summary alongside the label", () => {
-		savePrivateDropOff({
-			flightInstanceId: "flight-1",
-			label: "Bershka",
-			route: [
-				{ mode: "bus", from: "Bergamo BGY", to: "Milano Centrale", durationMinutes: 50 },
-				{ mode: "walk", from: "Milano Centrale", to: "Bershka", durationMinutes: 8 },
-			],
-		});
-		const loaded = loadPrivateDropOff("flight-1");
-		expect(loaded?.route).toHaveLength(2);
-		expect(loaded?.route?.[0]).toEqual({
-			mode: "bus",
-			from: "Bergamo BGY",
-			to: "Milano Centrale",
-			durationMinutes: 50,
-		});
+	it("round-trips the planner's exact navigation link alongside the label", () => {
+		const plannerUrl =
+			"https://www.google.com/maps/dir/?api=1&origin=45.673889,9.704167&destination=45.464098,9.191926&travelmode=transit";
+		savePrivateDropOff({ flightInstanceId: "flight-1", label: "Bershka", mapsUrl: plannerUrl });
+		expect(loadPrivateDropOff("flight-1")?.mapsUrl).toBe(plannerUrl);
 	});
 
-	it("refuses an oversized route instead of persisting it", () => {
+	it("drops a navigation link that fails the external-host allowlist, keeping the label", () => {
 		savePrivateDropOff({
 			flightInstanceId: "flight-1",
 			label: "Bershka",
-			route: Array.from({ length: 21 }, (_, index) => ({
-				mode: "bus",
-				from: `Stop ${index}`,
-				to: `Stop ${index + 1}`,
-				durationMinutes: 5,
-			})),
+			mapsUrl: "https://evil.example/maps?query=Bershka",
 		});
-		expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+		const loaded = loadPrivateDropOff("flight-1");
+		expect(loaded?.label).toBe("Bershka");
+		expect(loaded?.mapsUrl).toBeUndefined();
 	});
 
 	it("builds an allowlisted Google Maps search link from the label", () => {

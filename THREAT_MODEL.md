@@ -121,9 +121,10 @@ releases or forks with changed trust assumptions.
 - `/api/health` is intentionally public and returns coarse service/environment/readiness data.
 - Browser `sessionStorage` holds only a validated funnel ID, room intent containing
   `flightInstanceId` plus coarse public selection, and the traveler's own drop-off label
-  and chosen-route summary (`analytics-funnel.ts`, `room-intent.ts`, `private-drop-off.ts`).
-  These values are not credentials; the route summary never enters room payloads. Place IDs
-  and coordinates remain component/request state.
+  with the planner's allowlisted navigation link (`analytics-funnel.ts`, `room-intent.ts`,
+  `private-drop-off.ts`). These values are not credentials; the navigation link embeds the
+  traveler's own destination coordinates, stays browser-local, and never enters room
+  payloads. Place IDs remain component/request state.
 - Responses receive `applySecurityHeaders`. Its CSP currently permits `'unsafe-inline'` and
   `'unsafe-eval'`; it is a restriction, not a guarantee that XSS is impossible.
 
