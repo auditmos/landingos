@@ -6,11 +6,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OperatorReportsConsole } from "./operator-reports-console";
 
-const mocks = vi.hoisted(() => ({ list: vi.fn() }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), setStatus: vi.fn() }));
 
 vi.mock("@/lib/operator-reports-api", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@/lib/operator-reports-api")>();
-	return { ...actual, listSafetyReports: mocks.list };
+	return { ...actual, listSafetyReports: mocks.list, setSafetyReportStatus: mocks.setStatus };
 });
 
 const messageReport: SafetyReportQueueItem = {
@@ -30,6 +30,8 @@ const messageReport: SafetyReportQueueItem = {
 		originalMessageAt: "2026-09-14T07:00:00.000Z",
 	},
 	createdAt: "2026-09-14T07:20:00.000Z",
+	resolvedAt: null,
+	resolvedByPseudonym: null,
 };
 
 const erasedReport: SafetyReportQueueItem = {
@@ -71,10 +73,24 @@ describe("operator report queue panel", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
-		mocks.list.mockImplementation(async (query: SafetyReportQueueQuery = {}) => ({
-			reports: query.offset ? [memberReport] : [messageReport, erasedReport],
-			hasMore: !query.offset,
-		}));
+		const closed = new Set<string>();
+		mocks.list.mockImplementation(async (query: SafetyReportQueueQuery = {}) => {
+			const page = query.offset ? [memberReport] : [messageReport, erasedReport];
+			const withStatus = page.map((report) =>
+				closed.has(report.id) ? { ...report, status: "resolved" as const } : report,
+			);
+			return {
+				reports: query.status
+					? withStatus.filter((report) => report.status === query.status)
+					: withStatus,
+				hasMore: !query.offset,
+			};
+		});
+		mocks.setStatus.mockImplementation(async (reportId: string, status: string) => {
+			if (status === "resolved") closed.add(reportId);
+			else closed.delete(reportId);
+			return { ...messageReport, id: reportId, status };
+		});
 		container = document.createElement("div");
 		document.body.appendChild(container);
 		root = createRoot(container);
@@ -109,6 +125,33 @@ describe("operator report queue panel", () => {
 		expect(container.textContent).toContain(
 			"Treść wiadomości została usunięta po upływie okresu retencji.",
 		);
+	});
+
+	it("closes a report, drops it from the open queue, and reopens it from the closed view", async () => {
+		expect(container.textContent).toContain("Kup teraz mój bilet");
+
+		await act(async () => {
+			button(container, "Zamknij zgłoszenie").click();
+		});
+		await settle();
+		expect(mocks.setStatus).toHaveBeenCalledWith(messageReport.id, "resolved");
+		expect(container.textContent).not.toContain("Kup teraz mój bilet");
+
+		const filter = container.querySelector("#report-status-filter");
+		if (!(filter instanceof HTMLSelectElement)) throw new Error("Brak filtra statusu");
+		await act(async () => {
+			filter.value = "resolved";
+			filter.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		await settle();
+		expect(container.textContent).toContain("Kup teraz mój bilet");
+		expect(container.textContent).toContain("Zamknięte");
+
+		await act(async () => {
+			button(container, "Otwórz ponownie").click();
+		});
+		await settle();
+		expect(mocks.setStatus).toHaveBeenCalledWith(messageReport.id, "open");
 	});
 
 	it("filters by reason and appends the next page instead of replacing it", async () => {

@@ -123,7 +123,9 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
    - Wpis bez wymaganych pól nie może zostać opublikowany; walidacja świeżości oznacza wpisy wymagające ponownej weryfikacji.
    - Panel udostępnia kolejkę otwartych zgłoszeń bezpieczeństwa w trybie tylko do odczytu (`GET /operator/reports`), za tą samą serwerową kontrolą roli operatora co katalog. Widoczne są wyłącznie: pseudonimy zgłaszającego i zgłoszonego, powód, notatka, kontekst lotu (oznaczenie + data) oraz zamrożony snapshot zgłoszonej wiadomości. Zgłoszenia usuniętych kont pozostają w kolejce z pustymi pseudonimami; snapshot znika po upływie retencji.
    - Panel nie ma dostępu do dokładnych celów podróży, adresów e-mail ani do pozostałej treści prywatnych czatów. Zapis zgłoszeń oraz blokowanie pozostają po stronie modułu Identity & Safety.
-   - **Nie zaimplementowano:** zmiany statusu zgłoszenia. Enum `safety_report_status` ma nadal jedną wartość (`open`), więc kolejka jest przeglądem, a nie workflow — zamykanie/eskalacja wymagają migracji oraz przeglądu zgodności.
+   - Operator zamyka zgłoszenie przyciskiem „Zamknij zgłoszenie" (`PATCH /operator/reports/:id` z `{ "status": "resolved" }`). Decyzja jest audytowalna (`resolved_at`, `resolved_by`) i odwracalna — „Otwórz ponownie" czyści ślad, aby status `resolved` i zapisany recenzent nigdy się nie rozjechały. Triage może zmienić wyłącznie status; powód, notatka i snapshot pozostają niezmienne.
+   - Tożsamość zamykającego operatora pochodzi z zweryfikowanej sesji, nigdy z treści żądania; w kolejce widoczny jest wyłącznie jego pseudonim.
+   - **Znane ograniczenie:** ponowne zgłoszenie tej samej osoby lub wiadomości przez tego samego zgłaszającego jest deduplikowane na istniejącym wierszu (unikalne indeksy), więc **nie** otwiera ponownie zamkniętego zgłoszenia — zwraca `created: false` wraz z zapisanym statusem. Powrót takiej sprawy do kolejki wymagałby osobnego dziennika decyzji.
 
 ### Data flow and integrations
 

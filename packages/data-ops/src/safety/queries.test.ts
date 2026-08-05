@@ -14,6 +14,7 @@ import {
 	listBlockedRecipientIds,
 	listSafetyReportQueue,
 	SafetyQueryError,
+	setSafetyReportStatus,
 	unblockRoomMember,
 } from "./queries";
 import { COMMUNITY_RULES_VERSION } from "./schema";
@@ -408,6 +409,98 @@ describe("operator report queue", () => {
 			const paged = [...firstPage.reports, ...secondPage.reports].map((report) => report.id);
 			expect(paged).toHaveLength(3);
 			expect(new Set(paged).size).toBe(3);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("closes, reopens, and stays idempotent while filtering by status", async () => {
+		const { client, db, roomA, roomB } = await createTestDatabase();
+		try {
+			await seedQueue(db, roomA, roomB);
+			const [newest] = (await listSafetyReportQueue(db)).reports;
+			if (!newest) throw new Error("Brak zgłoszenia do zamknięcia.");
+
+			const closed = await setSafetyReportStatus(db, {
+				reportId: newest.id,
+				operatorId: USER_C,
+				status: "resolved",
+				now: new Date("2026-09-16T10:00:00.000Z"),
+			});
+			expect(closed).toMatchObject({
+				changed: true,
+				report: {
+					id: newest.id,
+					status: "resolved",
+					resolvedAt: "2026-09-16T10:00:00.000Z",
+					resolvedByPseudonym: "Celina BGY",
+				},
+			});
+
+			const repeat = await setSafetyReportStatus(db, {
+				reportId: newest.id,
+				operatorId: USER_A,
+				status: "resolved",
+				now: new Date("2026-09-16T11:00:00.000Z"),
+			});
+			expect(repeat?.changed).toBe(false);
+			expect(repeat?.report.resolvedAt).toBe("2026-09-16T10:00:00.000Z");
+			expect(repeat?.report.resolvedByPseudonym).toBe("Celina BGY");
+
+			const open = await listSafetyReportQueue(db, { status: "open" });
+			const resolved = await listSafetyReportQueue(db, { status: "resolved" });
+			expect(open.reports).toHaveLength(2);
+			expect(open.reports.map((report) => report.id)).not.toContain(newest.id);
+			expect(resolved.reports.map((report) => report.id)).toEqual([newest.id]);
+
+			const reopened = await setSafetyReportStatus(db, {
+				reportId: newest.id,
+				operatorId: USER_C,
+				status: "open",
+			});
+			expect(reopened).toMatchObject({
+				changed: true,
+				report: { status: "open", resolvedAt: null, resolvedByPseudonym: null },
+			});
+			expect((await listSafetyReportQueue(db, { status: "open" })).reports).toHaveLength(3);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("reports an unknown id as missing instead of inventing a decision", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			expect(
+				await setSafetyReportStatus(db, {
+					reportId: "018f4c8e-5697-7df4-8f6e-c7644b137e99",
+					operatorId: USER_A,
+					status: "resolved",
+				}),
+			).toBeNull();
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("keeps a closed report closed after the reviewing account is erased", async () => {
+		const { client, db, roomA, roomB } = await createTestDatabase();
+		try {
+			await seedQueue(db, roomA, roomB);
+			const [newest] = (await listSafetyReportQueue(db)).reports;
+			if (!newest) throw new Error("Brak zgłoszenia do zamknięcia.");
+			await setSafetyReportStatus(db, {
+				reportId: newest.id,
+				operatorId: USER_C,
+				status: "resolved",
+				now: new Date("2026-09-16T10:00:00.000Z"),
+			});
+			await client.exec(`DELETE FROM auth_user WHERE id = '${USER_C}';`);
+
+			const [row] = (await listSafetyReportQueue(db, { status: "resolved" })).reports;
+			expect(row?.status).toBe("resolved");
+			expect(row?.resolvedAt).toBe("2026-09-16T10:00:00.000Z");
+			expect(row?.resolvedByPseudonym).toBeNull();
 		} finally {
 			await client.close();
 		}

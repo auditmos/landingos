@@ -71,6 +71,13 @@
       "when": 1785164411795,
       "tag": "0009_boring_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785941774427,
+      "tag": "0010_perfect_chameleon",
+      "breakpoints": true
     }
   ]
 }

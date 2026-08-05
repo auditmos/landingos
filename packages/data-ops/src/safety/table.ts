@@ -25,7 +25,7 @@ export const safetyReportReason = pgEnum("safety_report_reason", [
 	"other",
 ]);
 
-export const safetyReportStatus = pgEnum("safety_report_status", ["open"]);
+export const safetyReportStatus = pgEnum("safety_report_status", ["open", "resolved"]);
 
 export const communityRulesAcceptances = pgTable(
 	"community_rules_acceptances",
@@ -74,6 +74,10 @@ export const safetyReports = pgTable(
 		status: safetyReportStatus("status").default("open").notNull(),
 		evidenceSnapshot: jsonb("evidence_snapshot").$type<SafetyReportEvidence>(),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+		// Audit trail for the triage decision. `set null` keeps a closed report
+		// closed after the reviewing account is erased.
+		resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+		resolvedBy: text("resolved_by").references(() => auth_user.id, { onDelete: "set null" }),
 	},
 	(table) => [
 		uniqueIndex("safety_reports_member_retry_unique")

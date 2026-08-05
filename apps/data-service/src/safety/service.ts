@@ -15,6 +15,7 @@ import {
 	SafetyReportCreateRequestSchema,
 	type SafetyReportCreateResponse,
 	SafetyReportCreateResponseSchema,
+	type SafetyReportStatus,
 } from "@repo/data-ops/safety";
 
 export class SafetyServiceError extends Error {
@@ -62,7 +63,7 @@ export interface SafetyServiceDependencies {
 		reporterId: string;
 		request: SafetyReportCreateRequest;
 		createdAt?: Date;
-	}): Promise<{ report: { id: string; status: "open" }; created: boolean }>;
+	}): Promise<{ report: { id: string; status: SafetyReportStatus }; created: boolean }>;
 }
 
 function mapQueryError(error: unknown): never {

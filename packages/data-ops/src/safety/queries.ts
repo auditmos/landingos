@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { auth_user } from "@/drizzle/auth-schema";
 import { flightInstances } from "@/flight/table";
@@ -10,12 +10,15 @@ import {
 	SafetyReportCreateRequestSchema,
 	type SafetyReportEvidence,
 	SafetyReportEvidenceSchema,
+	type SafetyReportQueueItem,
+	SafetyReportQueueItemSchema,
 	type SafetyReportQueueQuery,
 	SafetyReportQueueQuerySchema,
 	type SafetyReportQueueResponse,
 	SafetyReportQueueResponseSchema,
 	type SafetyReportRecord,
 	SafetyReportRecordSchema,
+	type SafetyReportStatus,
 } from "./schema";
 import { communityRulesAcceptances, safetyReports, userBlocks } from "./table";
 
@@ -257,12 +260,19 @@ function reportFromRow(row: {
 	messageId: string | null;
 	reason: SafetyReportRecord["reason"];
 	note: string | null;
-	status: "open";
+	status: SafetyReportRecord["status"];
 	evidenceSnapshot: unknown;
 	createdAt: Date;
 }): SafetyReportRecord {
 	return SafetyReportRecordSchema.parse({
-		...row,
+		id: row.id,
+		roomId: row.roomId,
+		reporterId: row.reporterId,
+		targetUserId: row.targetUserId,
+		messageId: row.messageId,
+		reason: row.reason,
+		note: row.note,
+		status: row.status,
 		evidenceSnapshot:
 			row.evidenceSnapshot === null ? null : SafetyReportEvidenceSchema.parse(row.evidenceSnapshot),
 		createdAt: row.createdAt.toISOString(),
@@ -333,20 +343,10 @@ export async function createSafetyReport(
 
 const reporterAccount = alias(auth_user, "reporter_account");
 const targetAccount = alias(auth_user, "target_account");
+const reviewerAccount = alias(auth_user, "reviewer_account");
 
-/**
- * Triage queue for the operator console, newest first. Reads one row past the
- * requested page so the caller learns whether more reports exist without a
- * second count query. Accounts erased by the deletion flow surface as `null`
- * pseudonyms rather than disappearing — an open report must stay reviewable
- * even after either side leaves.
- */
-export async function listSafetyReportQueue(
-	db: RoomDatabase,
-	query: SafetyReportQueueQuery = {},
-): Promise<SafetyReportQueueResponse> {
-	const { reason, limit, offset } = SafetyReportQueueQuerySchema.parse(query);
-	const rows = await db
+function queueSelection(db: RoomDatabase) {
+	return db
 		.select({
 			id: safetyReports.id,
 			roomId: safetyReports.roomId,
@@ -361,33 +361,93 @@ export async function listSafetyReportQueue(
 			status: safetyReports.status,
 			evidenceSnapshot: safetyReports.evidenceSnapshot,
 			createdAt: safetyReports.createdAt,
+			resolvedAt: safetyReports.resolvedAt,
+			resolvedByPseudonym: reviewerAccount.pseudonym,
 		})
 		.from(safetyReports)
 		.innerJoin(flightRooms, eq(safetyReports.roomId, flightRooms.id))
 		.innerJoin(flightInstances, eq(flightRooms.flightInstanceId, flightInstances.id))
 		.leftJoin(reporterAccount, eq(safetyReports.reporterId, reporterAccount.id))
 		.leftJoin(targetAccount, eq(safetyReports.targetUserId, targetAccount.id))
-		.where(reason ? eq(safetyReports.reason, reason) : undefined)
+		.leftJoin(reviewerAccount, eq(safetyReports.resolvedBy, reviewerAccount.id));
+}
+
+type QueueRow = Awaited<ReturnType<typeof queueSelection>>[number];
+
+function queueItemFromRow(row: QueueRow): SafetyReportQueueItem {
+	return SafetyReportQueueItemSchema.parse({
+		id: row.id,
+		roomId: row.roomId,
+		flightDesignator: `${row.carrierCode}${row.flightNumber}`,
+		departureLocalDate: row.departureLocalDate,
+		reporterPseudonym: row.reporterPseudonym,
+		targetPseudonym: row.targetPseudonym,
+		messageId: row.messageId,
+		reason: row.reason,
+		note: row.note,
+		status: row.status,
+		evidenceSnapshot: row.evidenceSnapshot,
+		createdAt: row.createdAt.toISOString(),
+		resolvedAt: row.resolvedAt?.toISOString() ?? null,
+		resolvedByPseudonym: row.resolvedByPseudonym,
+	});
+}
+
+/**
+ * Triage queue for the operator console, newest first. Reads one row past the
+ * requested page so the caller learns whether more reports exist without a
+ * second count query. Accounts erased by the deletion flow surface as `null`
+ * pseudonyms rather than disappearing — an open report must stay reviewable
+ * even after either side leaves.
+ */
+export async function listSafetyReportQueue(
+	db: RoomDatabase,
+	query: SafetyReportQueueQuery = {},
+): Promise<SafetyReportQueueResponse> {
+	const { status, reason, limit, offset } = SafetyReportQueueQuerySchema.parse(query);
+	const filters = [
+		status ? eq(safetyReports.status, status) : undefined,
+		reason ? eq(safetyReports.reason, reason) : undefined,
+	].filter((filter) => filter !== undefined);
+	const rows = await queueSelection(db)
+		.where(filters.length > 0 ? and(...filters) : undefined)
 		.orderBy(desc(safetyReports.createdAt), desc(safetyReports.id))
 		.limit(limit + 1)
 		.offset(offset);
 	return SafetyReportQueueResponseSchema.parse({
-		reports: rows.slice(0, limit).map((row) => ({
-			id: row.id,
-			roomId: row.roomId,
-			flightDesignator: `${row.carrierCode}${row.flightNumber}`,
-			departureLocalDate: row.departureLocalDate,
-			reporterPseudonym: row.reporterPseudonym,
-			targetPseudonym: row.targetPseudonym,
-			messageId: row.messageId,
-			reason: row.reason,
-			note: row.note,
-			status: row.status,
-			evidenceSnapshot: row.evidenceSnapshot,
-			createdAt: row.createdAt.toISOString(),
-		})),
+		reports: rows.slice(0, limit).map(queueItemFromRow),
 		hasMore: rows.length > limit,
 	});
+}
+
+/**
+ * Closes or reopens a report. The decision is idempotent and carries its own
+ * audit trail; reopening clears that trail so `resolved` and a recorded
+ * reviewer never drift apart. Everything the reporter submitted stays
+ * immutable — triage may only move the status.
+ */
+export async function setSafetyReportStatus(
+	db: RoomDatabase,
+	input: {
+		reportId: string;
+		operatorId: string;
+		status: SafetyReportStatus;
+		now?: Date;
+	},
+): Promise<{ report: SafetyReportQueueItem; changed: boolean } | null> {
+	const resolving = input.status === "resolved";
+	const updated = await db
+		.update(safetyReports)
+		.set({
+			status: input.status,
+			resolvedAt: resolving ? (input.now ?? new Date()) : null,
+			resolvedBy: resolving ? input.operatorId : null,
+		})
+		.where(and(eq(safetyReports.id, input.reportId), ne(safetyReports.status, input.status)))
+		.returning({ id: safetyReports.id });
+	const [row] = await queueSelection(db).where(eq(safetyReports.id, input.reportId)).limit(1);
+	if (!row) return null;
+	return { report: queueItemFromRow(row), changed: updated.length > 0 };
 }
 
 export async function countSafetyReports(db: RoomDatabase): Promise<number> {

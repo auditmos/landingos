@@ -84,6 +84,29 @@ describe("safety privacy and configuration boundary", () => {
 		expect(readFileSync("apps/data-service/src/hono/app.ts", "utf8")).toContain(
 			'App.route("/operator/reports", operatorReports)',
 		);
+		// The acting operator comes from the verified session, never the request body.
+		expect(handlers).toContain('operatorId: c.get("operatorUserId")');
+		expect(handlers).not.toMatch(/operatorId:\s*(?:parsed|body|input)\./);
+	});
+
+	it("lets triage move only the status, never the reported evidence", () => {
+		const schema = readFileSync("packages/data-ops/src/safety/schema.ts", "utf8");
+		const patchStart = schema.indexOf("export const SafetyReportStatusPatchSchema");
+		const patch = schema.slice(patchStart, schema.indexOf("});", patchStart) + 3);
+		expect(patch).toContain("z.strictObject");
+		expect(patch).not.toMatch(/note|reason|evidence|messageText|Pseudonym/i);
+
+		const queries = readFileSync("packages/data-ops/src/safety/queries.ts", "utf8");
+		const mutation = queries.slice(queries.indexOf("export async function setSafetyReportStatus"));
+		for (const immutable of [
+			"reason:",
+			"note:",
+			"evidenceSnapshot:",
+			"reporterId:",
+			"messageId:",
+		]) {
+			expect(mutation).not.toContain(immutable);
+		}
 	});
 
 	it("keeps history and realtime block filters on the server", () => {

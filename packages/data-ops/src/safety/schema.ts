@@ -108,6 +108,13 @@ export const SafetyReportEvidenceSchema = z.strictObject({
 	originalMessageAt: z.string().datetime({ offset: true }),
 });
 
+export const SafetyReportStatusSchema = z.enum(["open", "resolved"]);
+
+export const SAFETY_REPORT_STATUS_LABELS = {
+	open: "Otwarte",
+	resolved: "Zamknięte",
+} as const satisfies Record<z.infer<typeof SafetyReportStatusSchema>, string>;
+
 export const SafetyReportRecordSchema = z.strictObject({
 	id: z.string().uuid(),
 	roomId: z.string().uuid(),
@@ -116,23 +123,37 @@ export const SafetyReportRecordSchema = z.strictObject({
 	messageId: z.string().uuid().nullable(),
 	reason: SafetyReportReasonSchema,
 	note: SafetyReportNoteSchema.nullable(),
-	status: z.literal("open"),
+	status: SafetyReportStatusSchema,
 	evidenceSnapshot: SafetyReportEvidenceSchema.nullable(),
 	createdAt: z.string().datetime({ offset: true }),
 });
 
 export const SafetyReportCreateResponseSchema = z.strictObject({
 	reportId: z.string().uuid(),
-	status: z.literal("open"),
+	// A repeat report about the same target is deduplicated onto the existing
+	// row, which triage may already have closed — so this echoes the stored
+	// status rather than assuming a fresh `open`.
+	status: SafetyReportStatusSchema,
 	created: z.boolean(),
 });
 
 export const SAFETY_REPORT_QUEUE_PAGE_SIZE = 25;
 
+export const SafetyReportIdSchema = z.string().uuid("Nieprawidłowy identyfikator zgłoszenia.");
+
 export const SafetyReportQueueQuerySchema = z.strictObject({
+	status: SafetyReportStatusSchema.optional(),
 	reason: SafetyReportReasonSchema.optional(),
 	limit: z.coerce.number().int().min(1).max(100).default(SAFETY_REPORT_QUEUE_PAGE_SIZE),
 	offset: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * The only mutation the console can make to a report. Closing is reversible so
+ * a mis-click stays recoverable; the reason, note and evidence are immutable.
+ */
+export const SafetyReportStatusPatchSchema = z.strictObject({
+	status: SafetyReportStatusSchema,
 });
 
 /**
@@ -142,7 +163,7 @@ export const SafetyReportQueueQuerySchema = z.strictObject({
  * store is the frozen evidence snapshot of the reported message itself.
  */
 export const SafetyReportQueueItemSchema = z.strictObject({
-	id: z.string().uuid(),
+	id: SafetyReportIdSchema,
 	roomId: z.string().uuid(),
 	flightDesignator: z.string().min(1),
 	departureLocalDate: z.string().min(1),
@@ -151,9 +172,11 @@ export const SafetyReportQueueItemSchema = z.strictObject({
 	messageId: z.string().uuid().nullable(),
 	reason: SafetyReportReasonSchema,
 	note: SafetyReportNoteSchema.nullable(),
-	status: z.literal("open"),
+	status: SafetyReportStatusSchema,
 	evidenceSnapshot: SafetyReportEvidenceSchema.nullable(),
 	createdAt: z.string().datetime({ offset: true }),
+	resolvedAt: z.string().datetime({ offset: true }).nullable(),
+	resolvedByPseudonym: PseudonymSchema.nullable(),
 });
 
 export const SafetyReportQueueResponseSchema = z.strictObject({
@@ -171,6 +194,8 @@ export type SafetyReportCreateRequest = z.infer<typeof SafetyReportCreateRequest
 export type SafetyReportEvidence = z.infer<typeof SafetyReportEvidenceSchema>;
 export type SafetyReportRecord = z.infer<typeof SafetyReportRecordSchema>;
 export type SafetyReportCreateResponse = z.infer<typeof SafetyReportCreateResponseSchema>;
+export type SafetyReportStatus = z.infer<typeof SafetyReportStatusSchema>;
+export type SafetyReportStatusPatch = z.infer<typeof SafetyReportStatusPatchSchema>;
 export type SafetyReportQueueQuery = z.input<typeof SafetyReportQueueQuerySchema>;
 export type SafetyReportQueueItem = z.infer<typeof SafetyReportQueueItemSchema>;
 export type SafetyReportQueueResponse = z.infer<typeof SafetyReportQueueResponseSchema>;

@@ -1,19 +1,35 @@
 import {
 	SAFETY_REPORT_QUEUE_PAGE_SIZE,
 	SAFETY_REPORT_REASON_LABELS,
+	SAFETY_REPORT_STATUS_LABELS,
 	type SafetyReportQueueItem,
 	type SafetyReportReason,
 	SafetyReportReasonSchema,
+	type SafetyReportStatus,
+	SafetyReportStatusSchema,
 } from "@repo/data-ops/safety";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { Flag, MessageSquareWarning, Plane, ShieldAlert, UserRound } from "lucide-react";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+	CheckCircle2,
+	Flag,
+	MessageSquareWarning,
+	Plane,
+	RotateCcw,
+	ShieldAlert,
+	UserRound,
+} from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { listSafetyReports, OperatorReportsApiError } from "@/lib/operator-reports-api";
+import {
+	listSafetyReports,
+	OperatorReportsApiError,
+	setSafetyReportStatus,
+} from "@/lib/operator-reports-api";
 
+const reportsQueryKey = ["operator", "safety-reports"] as const;
 const ANONYMOUS_LABEL = "konto usunięte";
 
 function formatMoment(iso: string): string {
@@ -93,13 +109,24 @@ function ReportEvidence({ report }: { report: SafetyReportQueueItem }) {
 	);
 }
 
-function ReportCard({ report }: { report: SafetyReportQueueItem }) {
+function ReportCard({
+	report,
+	onStatusChange,
+	pending,
+}: {
+	report: SafetyReportQueueItem;
+	onStatusChange(status: SafetyReportStatus): void;
+	pending: boolean;
+}) {
+	const resolved = report.status === "resolved";
 	return (
-		<Card>
+		<Card className={resolved ? "opacity-70" : undefined}>
 			<CardHeader className="gap-2">
 				<div className="flex flex-wrap items-center gap-2">
 					<Badge variant="warning">{SAFETY_REPORT_REASON_LABELS[report.reason]}</Badge>
-					<Badge variant="outline">Otwarte</Badge>
+					<Badge variant={resolved ? "success" : "outline"}>
+						{SAFETY_REPORT_STATUS_LABELS[report.status]}
+					</Badge>
 					{report.messageId ? (
 						<Badge variant="secondary" className="gap-1">
 							<MessageSquareWarning className="size-3.5" aria-hidden="true" />
@@ -136,6 +163,36 @@ function ReportCard({ report }: { report: SafetyReportQueueItem }) {
 				<p className="text-xs text-muted-foreground">
 					Pokój <code className="font-mono text-muted-foreground">{report.roomId}</code>
 				</p>
+				<div className="flex flex-wrap items-center gap-3 border-t pt-3">
+					{resolved ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={pending}
+							onClick={() => onStatusChange("open")}
+						>
+							<RotateCcw className="size-4" />
+							Otwórz ponownie
+						</Button>
+					) : (
+						<Button
+							type="button"
+							size="sm"
+							disabled={pending}
+							onClick={() => onStatusChange("resolved")}
+						>
+							<CheckCircle2 className="size-4" />
+							Zamknij zgłoszenie
+						</Button>
+					)}
+					{resolved && report.resolvedAt ? (
+						<span className="text-xs text-muted-foreground">
+							Zamknięte {formatMoment(report.resolvedAt)}
+							{report.resolvedByPseudonym ? ` · ${report.resolvedByPseudonym}` : ""}
+						</span>
+					) : null}
+				</div>
 			</CardContent>
 		</Card>
 	);
@@ -143,10 +200,13 @@ function ReportCard({ report }: { report: SafetyReportQueueItem }) {
 
 export function OperatorReportsConsole() {
 	const [reason, setReason] = useState<SafetyReportReason | "">("");
+	const [status, setStatus] = useState<SafetyReportStatus | "">("open");
+	const queryClient = useQueryClient();
 	const query = useInfiniteQuery({
-		queryKey: ["operator", "safety-reports", reason] as const,
+		queryKey: [...reportsQueryKey, status, reason] as const,
 		queryFn: ({ pageParam }) =>
 			listSafetyReports({
+				...(status ? { status } : {}),
 				...(reason ? { reason } : {}),
 				limit: SAFETY_REPORT_QUEUE_PAGE_SIZE,
 				offset: pageParam,
@@ -154,6 +214,14 @@ export function OperatorReportsConsole() {
 		initialPageParam: 0,
 		getNextPageParam: (lastPage, pages) =>
 			lastPage.hasMore ? pages.length * SAFETY_REPORT_QUEUE_PAGE_SIZE : undefined,
+	});
+
+	// Closing a report moves it out of the open view, so both filtered lists are
+	// stale afterwards — invalidate the whole prefix rather than one key.
+	const statusMutation = useMutation({
+		mutationFn: (input: { reportId: string; next: SafetyReportStatus }) =>
+			setSafetyReportStatus(input.reportId, input.next),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: reportsQueryKey }),
 	});
 
 	// Offset paging over a queue that keeps growing can hand back the same report
@@ -184,6 +252,27 @@ export function OperatorReportsConsole() {
 			</div>
 
 			<div className="flex flex-wrap items-end gap-3">
+				<div>
+					<label className="block text-sm font-medium" htmlFor="report-status-filter">
+						Status
+					</label>
+					<select
+						id="report-status-filter"
+						className="mt-1 h-10 rounded-md border bg-background px-3 text-sm"
+						value={status}
+						onChange={(event) => {
+							const parsed = SafetyReportStatusSchema.safeParse(event.target.value);
+							setStatus(parsed.success ? parsed.data : "");
+						}}
+					>
+						{SafetyReportStatusSchema.options.map((option) => (
+							<option key={option} value={option}>
+								{SAFETY_REPORT_STATUS_LABELS[option]}
+							</option>
+						))}
+						<option value="">Wszystkie statusy</option>
+					</select>
+				</div>
 				<div>
 					<label className="block text-sm font-medium" htmlFor="report-reason-filter">
 						Powód
@@ -234,9 +323,20 @@ export function OperatorReportsConsole() {
 				</Card>
 			) : null}
 
+			{statusMutation.isError ? (
+				<Alert variant="destructive">
+					<AlertDescription>{queueError(statusMutation.error).description}</AlertDescription>
+				</Alert>
+			) : null}
+
 			<div className="space-y-4">
 				{reports.map((report) => (
-					<ReportCard key={report.id} report={report} />
+					<ReportCard
+						key={report.id}
+						report={report}
+						pending={statusMutation.isPending}
+						onStatusChange={(next) => statusMutation.mutate({ reportId: report.id, next })}
+					/>
 				))}
 			</div>
 

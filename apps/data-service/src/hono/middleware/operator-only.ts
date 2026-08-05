@@ -9,7 +9,17 @@ export interface OperatorOnlyOptions {
 	getUserRole(userId: string): Promise<"operator" | "user" | null>;
 }
 
-export function operatorOnly(options: OperatorOnlyOptions): MiddlewareHandler {
+/**
+ * Published to the routes behind the gate so an audited mutation can record who
+ * made it without re-reading the session.
+ */
+export interface OperatorVariables {
+	operatorUserId: string;
+}
+
+export function operatorOnly(
+	options: OperatorOnlyOptions,
+): MiddlewareHandler<{ Bindings: Env; Variables: OperatorVariables }> {
 	return async (c, next) => {
 		let session: OperatorSession | null = null;
 		try {
@@ -29,6 +39,7 @@ export function operatorOnly(options: OperatorOnlyOptions): MiddlewareHandler {
 		} catch {
 			return c.json({ code: "UNAUTHORIZED", error: "Nie udało się potwierdzić uprawnień." }, 401);
 		}
+		c.set("operatorUserId", userId);
 		await next();
 	};
 }
