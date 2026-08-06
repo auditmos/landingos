@@ -40,4 +40,22 @@ describe("landing page visual baseline", () => {
 		await act(async () => root.unmount());
 		container.remove();
 	});
+
+	it("offers a way back to the signed-in flight rooms", async () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const appLinks = [...container.querySelectorAll<HTMLAnchorElement>('a[href="/app"]')];
+
+		expect(appLinks.length).toBeGreaterThan(0);
+		expect(container.querySelector("header")?.querySelector('a[href="/app"]')).not.toBeNull();
+		for (const link of appLinks) {
+			expect(link.textContent?.trim()).not.toBe("");
+		}
+
+		await act(async () => root.unmount());
+		container.remove();
+	});
 });

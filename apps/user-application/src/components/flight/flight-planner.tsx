@@ -4,7 +4,7 @@ import {
 	FlightLookupRequestSchema,
 	type FlightResolveResult,
 } from "@repo/data-ops/flight";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { PlannerResults } from "@/components/flight/flight-planner-results";
@@ -141,8 +141,8 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 						<img src="/landingos-icon.svg" alt="" className="size-9" width="36" height="36" />
 						<span className="text-lg font-bold text-foreground">LandingOS</span>
 					</a>
-					<div className="flex items-center gap-4">
-						<p className="hidden text-xs font-bold uppercase text-muted-foreground md:block">
+					<div className="flex items-center gap-2 sm:gap-4">
+						<p className="hidden text-xs font-bold uppercase text-muted-foreground lg:block">
 							Polska
 							<span className="px-1.5 text-primary" aria-hidden="true">
 								→
@@ -153,6 +153,14 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 							</span>
 							Mediolan
 						</p>
+						{/* Way back into the signed-in area: someone who leaves a flight room by
+						    accident has no other clue that /app is where their rooms live. */}
+						<Button asChild variant="outline" size="sm" className="font-bold">
+							<a href="/app">
+								<MessageCircle className="size-4" aria-hidden="true" />
+								Pokoje lotu
+							</a>
+						</Button>
 						<ThemeToggle />
 					</div>
 				</div>
@@ -352,7 +360,15 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 					<p className="font-bold text-foreground">
 						LandingOS <span aria-hidden="true">·</span> lot, przejazd, pokój lotu
 					</p>
-					<p>Zaczynamy od lotów z Polski do Mediolanu-Bergamo. Kolejne kierunki wkrótce.</p>
+					<div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-5">
+						<p>Zaczynamy od lotów z Polski do Mediolanu-Bergamo. Kolejne kierunki wkrótce.</p>
+						<a
+							href="/app"
+							className="font-bold text-foreground underline underline-offset-4 hover:text-primary"
+						>
+							Wróć do swoich pokoi lotu
+						</a>
+					</div>
 				</div>
 			</footer>
 		</div>
