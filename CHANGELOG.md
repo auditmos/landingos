@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/auditmos/landingos/compare/v1.29.0...v1.30.0) (2026-08-06)
+
+
+### Features
+
+* **app:** treat an operator account as staff, not a customer ([5226340](https://github.com/auditmos/landingos/commit/5226340a4ec171bcf4139a7ea8472802ffe1eddf))
+
 # [1.29.0](https://github.com/auditmos/landingos/compare/v1.28.2...v1.29.0) (2026-08-06)
 
 
