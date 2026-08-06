@@ -6,7 +6,10 @@ export interface NavigationItem {
 	icon: ComponentType<{ className?: string }>;
 	href: string;
 	badge?: string | number;
+	/** Staff surface — hidden from travelers. */
 	operatorOnly?: boolean;
+	/** Customer surface — hidden from staff, who have no flight of their own. */
+	travelerOnly?: boolean;
 	indent?: boolean;
 }
 
@@ -25,11 +28,13 @@ const navigationItems: NavigationItem[] = [
 		name: "Pokoje lotu",
 		icon: MessageCircle,
 		href: "/app",
+		travelerOnly: true,
 	},
 	{
 		name: "Moje loty",
 		icon: PlaneLanding,
 		href: "/app/flights",
+		travelerOnly: true,
 		indent: true,
 	},
 	{
@@ -52,7 +57,9 @@ export function visibleNavigationItems(viewer: {
 	openRoomCount: number;
 }): NavigationItem[] {
 	return navigationItems
-		.filter((item) => !item.operatorOnly || viewer.isOperator)
+		.filter((item) =>
+			item.operatorOnly ? viewer.isOperator : !item.travelerOnly || !viewer.isOperator,
+		)
 		.map((item) =>
 			item.href === "/app" && viewer.openRoomCount > 0
 				? { ...item, badge: viewer.openRoomCount }

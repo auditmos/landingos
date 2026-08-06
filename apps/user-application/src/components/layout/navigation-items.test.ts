@@ -14,13 +14,23 @@ describe("navigation items", () => {
 		]);
 	});
 
-	it("gives operators both consoles, including the report queue", () => {
-		expect(names({ isOperator: true, openRoomCount: 0 })).toContain("Katalog transferów");
-		expect(names({ isOperator: true, openRoomCount: 0 })).toContain("Zgłoszenia");
+	it("gives operators the consoles only — staff are not customers", () => {
+		expect(names({ isOperator: true, openRoomCount: 0 })).toEqual([
+			"Start",
+			"Katalog transferów",
+			"Zgłoszenia",
+		]);
 		const reports = visibleNavigationItems({ isOperator: true, openRoomCount: 0 }).find(
 			(item) => item.name === "Zgłoszenia",
 		);
 		expect(reports?.href).toBe("/operator/reports");
+	});
+
+	it("never offers an operator a traveler surface, badged or not", () => {
+		const operatorWithRooms = visibleNavigationItems({ isOperator: true, openRoomCount: 4 });
+		expect(operatorWithRooms.map((item) => item.href)).not.toContain("/app");
+		expect(operatorWithRooms.map((item) => item.href)).not.toContain("/app/flights");
+		expect(operatorWithRooms.every((item) => item.badge === undefined)).toBe(true);
 	});
 
 	it("badges the room list only when rooms are open", () => {
