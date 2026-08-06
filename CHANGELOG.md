@@ -1,3 +1,10 @@
+# [1.29.0](https://github.com/auditmos/landingos/compare/v1.28.2...v1.29.0) (2026-08-06)
+
+
+### Features
+
+* **app:** send operators from /app to their console ([829e91e](https://github.com/auditmos/landingos/commit/829e91ee4a1bdeecea6b5bb5f08234212c8ee829))
+
 ## [1.28.2](https://github.com/auditmos/landingos/compare/v1.28.1...v1.28.2) (2026-08-06)
 
 
