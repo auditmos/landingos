@@ -18,6 +18,50 @@ import { currentDateInPoland, formatPolishDateTimeInput } from "@/lib/polish-dat
 export { FlightSummary } from "@/components/flight/flight-planner-results";
 
 type FieldErrors = Partial<Record<"flightNumber" | "departureLocalDate", string>>;
+
+/** Hero destinations in the Polish locative ("w …"). Only Milan is live today. */
+const HERO_DESTINATIONS = [
+	{ city: "Mediolanie", available: true },
+	{ city: "Madrycie", available: false },
+	{ city: "Paryżu", available: false },
+	{ city: "Rzymie", available: false },
+	{ city: "Barcelonie", available: false },
+] as const;
+
+const DESTINATION_ROTATION_MS = 2600;
+
+/**
+ * Cycles the hero destination through upcoming cities as a teaser. Milan — the
+ * only city that actually works today — is the one tinted with the primary
+ * color; the others render in the plain heading color.
+ */
+function RotatingDestination() {
+	const [index, setIndex] = useState(0);
+
+	useEffect(() => {
+		if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+		const interval = setInterval(() => {
+			setIndex((current) => (current + 1) % HERO_DESTINATIONS.length);
+		}, DESTINATION_ROTATION_MS);
+		return () => clearInterval(interval);
+	}, []);
+
+	const destination = HERO_DESTINATIONS[index % HERO_DESTINATIONS.length] ?? HERO_DESTINATIONS[0];
+
+	return (
+		// Remounting on city change restarts the fade-in animation.
+		<span
+			key={destination.city}
+			className={
+				destination.available
+					? "inline-block animate-destination-in text-primary motion-reduce:animate-none"
+					: "inline-block animate-destination-in motion-reduce:animate-none"
+			}
+		>
+			{destination.city}
+		</span>
+	);
+}
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
 function parseLookupForm(
@@ -142,17 +186,6 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 						<span className="text-lg font-bold text-foreground">LandingOS</span>
 					</a>
 					<div className="flex items-center gap-2 sm:gap-4">
-						<p className="hidden text-xs font-bold uppercase text-muted-foreground lg:block">
-							Polska
-							<span className="px-1.5 text-primary" aria-hidden="true">
-								→
-							</span>
-							BGY
-							<span className="px-1.5 text-primary" aria-hidden="true">
-								→
-							</span>
-							Mediolan
-						</p>
 						{/* Way back into the signed-in area: someone who leaves a flight room by
 						    accident has no other clue that /app is where their rooms live. */}
 						<Button asChild variant="outline" size="sm" className="font-bold">
@@ -177,7 +210,10 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 							id="hero-title"
 							className="mt-6 max-w-xl text-balance font-serif text-5xl font-medium leading-[0.95] text-foreground sm:text-6xl lg:text-7xl"
 						>
-							Z lotniska prosto do celu w Mediolanie
+							Z lotniska prosto do celu <span className="sr-only">w Mediolanie</span>
+							<span aria-hidden="true" className="block">
+								w <RotatingDestination />
+							</span>
 						</h1>
 						<p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
 							Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy maksymalnie
@@ -361,7 +397,7 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 						LandingOS <span aria-hidden="true">·</span> lot, przejazd, pokój lotu
 					</p>
 					<div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-5">
-						<p>Zaczynamy od lotów z Polski do Mediolanu-Bergamo. Kolejne kierunki wkrótce.</p>
+						<p>Kolejne kierunki wkrótce.</p>
 						<a
 							href="/app"
 							className="font-bold text-foreground underline underline-offset-4 hover:text-primary"

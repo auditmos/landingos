@@ -41,6 +41,38 @@ describe("landing page visual baseline", () => {
 		container.remove();
 	});
 
+	it("rotates the hero destination and highlights Milan as the only live city", async () => {
+		vi.useFakeTimers();
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const heading = container.querySelector("h1");
+		const rotating = heading?.querySelector('[aria-hidden="true"]');
+
+		// Initial paint: Milan, tinted as the only city that actually works.
+		expect(rotating?.querySelector(".text-primary")?.textContent).toBe("Mediolanie");
+		// Screen readers get a stable heading, not the teaser carousel.
+		expect(heading?.querySelector(".sr-only")?.textContent).toBe("w Mediolanie");
+
+		await act(async () => {
+			vi.advanceTimersByTime(2700);
+		});
+
+		// Next city is a teaser: plain heading color, no primary tint.
+		expect(rotating?.textContent).toContain("Madrycie");
+		expect(rotating?.querySelector(".text-primary")).toBeNull();
+
+		// The corridor line left the header; the footer lost the Milan-only sentence.
+		expect(container.querySelector("header")?.textContent).not.toContain("BGY");
+		expect(container.querySelector("footer")?.textContent).not.toContain("Zaczynamy od lotów");
+
+		await act(async () => root.unmount());
+		container.remove();
+		vi.useRealTimers();
+	});
+
 	it("offers a way back to the signed-in flight rooms", async () => {
 		const container = document.createElement("div");
 		document.body.appendChild(container);

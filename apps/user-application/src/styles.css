@@ -220,6 +220,22 @@
   --font-serif: Georgia, "Times New Roman", serif;
 }
 
+/* Fade-in for the rotating destination city in the landing hero. */
+@theme {
+	--animate-destination-in: destination-in 0.45s ease-out both;
+
+	@keyframes destination-in {
+		from {
+			opacity: 0;
+			transform: translateY(0.3em);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+}
+
 /* Signature hard offset shadow from the holding page ("hero-visual"). */
 @utility shadow-press {
 	box-shadow: 0.4rem 0.4rem 0 0 var(--shadow-ink);
