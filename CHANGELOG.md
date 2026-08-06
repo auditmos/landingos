@@ -1,3 +1,10 @@
+## [1.28.1](https://github.com/auditmos/landingos/compare/v1.28.0...v1.28.1) (2026-08-06)
+
+
+### Bug Fixes
+
+* **app:** share one navigation list between sidebar and mobile header ([9d36717](https://github.com/auditmos/landingos/commit/9d3671763ead5cb2d380fdbd35850182affcaffb))
+
 # [1.28.0](https://github.com/auditmos/landingos/compare/v1.27.0...v1.28.0) (2026-08-05)
 
 
