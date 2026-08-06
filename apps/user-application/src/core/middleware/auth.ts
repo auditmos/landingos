@@ -6,7 +6,10 @@ async function getAuthContext() {
 	const auth = getAuth();
 	const req = getRequest();
 
-	const session = await auth.api.getSession(req);
+	// Better Auth reads `headers` off its argument — handing it the bare Request
+	// throws "Headers is required", which TanStack Start serialises into a 200
+	// response body, so the failure never surfaces as a Worker error.
+	const session = await auth.api.getSession({ headers: req.headers });
 	if (!session) {
 		throw new Error("Unauthorized");
 	}
