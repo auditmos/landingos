@@ -1,3 +1,10 @@
+# [1.31.0](https://github.com/auditmos/landingos/compare/v1.30.0...v1.31.0) (2026-08-06)
+
+
+### Features
+
+* **app:** link the landing page back to the flight rooms ([8aa2c13](https://github.com/auditmos/landingos/commit/8aa2c13b7344cb532c41d42a2f4a2a739e76f57e))
+
 # [1.30.0](https://github.com/auditmos/landingos/compare/v1.29.0...v1.30.0) (2026-08-06)
 
 
