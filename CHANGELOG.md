@@ -1,3 +1,10 @@
+## [1.28.2](https://github.com/auditmos/landingos/compare/v1.28.1...v1.28.2) (2026-08-06)
+
+
+### Bug Fixes
+
+* **auth:** pass headers to Better Auth in the protected server-fn middleware ([75ae5ed](https://github.com/auditmos/landingos/commit/75ae5ed89db97fad0aae94c9de44c8ffc4f78ca8))
+
 ## [1.28.1](https://github.com/auditmos/landingos/compare/v1.28.0...v1.28.1) (2026-08-06)
 
 
