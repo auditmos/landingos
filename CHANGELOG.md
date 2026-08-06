@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/auditmos/landingos/compare/v1.31.0...v1.32.0) (2026-08-06)
+
+
+### Features
+
+* **app:** tease upcoming destinations in the landing hero ([45d8f71](https://github.com/auditmos/landingos/commit/45d8f714792488fba8364a20fd29a4a81825568b))
+
 # [1.31.0](https://github.com/auditmos/landingos/compare/v1.30.0...v1.31.0) (2026-08-06)
 
 
