@@ -1,3 +1,10 @@
+# [1.33.0](https://github.com/auditmos/landingos/compare/v1.32.0...v1.33.0) (2026-08-06)
+
+
+### Features
+
+* **app:** turn the corridor line into a route status board ([768afa2](https://github.com/auditmos/landingos/commit/768afa2b8e32d9d635be41caa6629034e4c8112c))
+
 # [1.32.0](https://github.com/auditmos/landingos/compare/v1.31.0...v1.32.0) (2026-08-06)
 
 
