@@ -148,3 +148,5 @@ vite.config.ts.timestamp-*
 
 # Local pnpm package store
 .pnpm-store/
+
+dogfood-output
