@@ -1,52 +1,12 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bus, Home, Menu, MessageCircle, PlaneLanding, ShieldAlert } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOpenRoomCount } from "@/lib/use-my-rooms";
 import { useViewerContext } from "@/lib/use-viewer";
 import { cn } from "@/lib/utils";
-
-interface NavigationItem {
-	name: string;
-	icon: React.ComponentType<{ className?: string }>;
-	href: string;
-	badge?: string | number;
-	operatorOnly?: boolean;
-	indent?: boolean;
-}
-
-const navigationItems: NavigationItem[] = [
-	{
-		name: "Start",
-		icon: Home,
-		href: "/",
-	},
-	{
-		name: "Pokoje lotu",
-		icon: MessageCircle,
-		href: "/app",
-	},
-	{
-		name: "Moje loty",
-		icon: PlaneLanding,
-		href: "/app/flights",
-		indent: true,
-	},
-	{
-		name: "Katalog transferów",
-		icon: Bus,
-		href: "/operator",
-		operatorOnly: true,
-	},
-	{
-		name: "Zgłoszenia",
-		icon: ShieldAlert,
-		href: "/operator/reports",
-		operatorOnly: true,
-		indent: true,
-	},
-];
+import { visibleNavigationItems } from "./navigation-items";
 
 interface SidebarProps {
 	className?: string;
@@ -59,11 +19,7 @@ export function Sidebar({ className }: SidebarProps) {
 	const [isCollapsed, setIsCollapsed] = useState(false);
 	const { isOperator } = useViewerContext();
 	const openRoomCount = useOpenRoomCount();
-	const visibleItems = navigationItems
-		.filter((item) => !item.operatorOnly || isOperator)
-		.map((item) =>
-			item.href === "/app" && openRoomCount > 0 ? { ...item, badge: openRoomCount } : item,
-		);
+	const visibleItems = visibleNavigationItems({ isOperator, openRoomCount });
 
 	return (
 		<>

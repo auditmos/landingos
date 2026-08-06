@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { useOpenRoomCount } from "@/lib/use-my-rooms";
 import { useViewerContext } from "@/lib/use-viewer";
 import { cn } from "@/lib/utils";
+import { visibleNavigationItems } from "./navigation-items";
 
 interface HeaderProps {
 	className?: string;
@@ -72,27 +73,24 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 					aria-label="Nawigacja mobilna"
 					className="absolute left-4 top-14 z-50 grid min-w-56 gap-1 rounded-lg border bg-background p-2 shadow-lg lg:hidden"
 				>
-					<Button asChild variant="ghost" className="justify-start">
-						<a href="/">Start</a>
-					</Button>
-					<Button asChild variant="ghost" className="justify-start">
-						<a href="/app">
-							Pokoje lotu
-							{openRoomCount > 0 ? (
-								<span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-									{openRoomCount}
-								</span>
-							) : null}
-						</a>
-					</Button>
-					<Button asChild variant="ghost" className="justify-start pl-8">
-						<a href="/app/flights">Moje loty</a>
-					</Button>
-					{isOperator ? (
-						<Button asChild variant="ghost" className="justify-start">
-							<a href="/operator">Katalog transferów</a>
+					{visibleNavigationItems({ isOperator, openRoomCount }).map((item) => (
+						<Button
+							key={item.name}
+							asChild
+							variant="ghost"
+							className={cn("justify-start", item.indent && "pl-8")}
+						>
+							<a href={item.href}>
+								<item.icon className="size-4 shrink-0" />
+								{item.name}
+								{item.badge ? (
+									<span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+										{item.badge}
+									</span>
+								) : null}
+							</a>
 						</Button>
-					) : null}
+					))}
 				</nav>
 			) : null}
 
