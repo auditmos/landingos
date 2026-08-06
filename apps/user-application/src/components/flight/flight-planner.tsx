@@ -4,7 +4,7 @@ import {
 	FlightLookupRequestSchema,
 	type FlightResolveResult,
 } from "@repo/data-ops/flight";
-import { ArrowRight, MessageCircle } from "lucide-react";
+import { ArrowRight, MessageCircle, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { PlannerResults } from "@/components/flight/flight-planner-results";
@@ -219,17 +219,43 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 							Podaj numer lotu i datę wylotu. Dopasujemy czas przylotu, a potem pokażemy maksymalnie
 							trzy sensowne warianty przejazdu.
 						</p>
-						<p className="mt-5 text-xs font-bold uppercase text-muted-foreground">
-							<span className="text-primary">Pierwsza trasa:</span> Polska
-							<span className="px-1.5 text-primary" aria-hidden="true">
-								→
-							</span>
-							BGY
-							<span className="px-1.5 text-primary" aria-hidden="true">
-								→
-							</span>
-							Mediolan · kolejne kierunki wkrótce
-						</p>
+						{/* Route board: one corridor is live today, the rest are on the way —
+						    a status pair instead of a sentence, so the split is legible at a glance. */}
+						<div className="mt-6 flex flex-wrap items-stretch gap-3">
+							<p className="flex items-center gap-3 border border-foreground bg-card px-4 py-2.5 shadow-press-sm">
+								<span className="relative flex size-2.5" aria-hidden="true">
+									<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75 motion-reduce:hidden" />
+									<span className="relative inline-flex size-2.5 rounded-full bg-success" />
+								</span>
+								<span>
+									<span className="block text-[10px] font-extrabold uppercase tracking-wider text-success">
+										Dostępne teraz
+									</span>
+									<span className="block text-xs font-bold uppercase text-foreground">
+										Polska
+										<span className="px-1.5 text-primary" aria-hidden="true">
+											→
+										</span>
+										BGY
+										<span className="px-1.5 text-primary" aria-hidden="true">
+											→
+										</span>
+										Mediolan
+									</span>
+								</span>
+							</p>
+							<p className="flex items-center gap-3 border border-dashed border-border px-4 py-2.5">
+								<Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+								<span>
+									<span className="block text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+										Kolejne kierunki wkrótce
+									</span>
+									<span className="block text-xs font-bold uppercase text-muted-foreground">
+										Madryt · Paryż · Rzym…
+									</span>
+								</span>
+							</p>
+						</div>
 
 						<ol
 							className="mt-10 grid list-none border-t border-border sm:mt-12 sm:grid-cols-3"

@@ -73,6 +73,30 @@ describe("landing page visual baseline", () => {
 		vi.useRealTimers();
 	});
 
+	it("splits the route board into a live corridor and a coming-soon teaser", async () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const live = [...container.querySelectorAll("p")].find((p) =>
+			p.textContent?.includes("Dostępne teraz"),
+		);
+		const soon = [...container.querySelectorAll("p")].find((p) =>
+			p.textContent?.includes("Kolejne kierunki wkrótce"),
+		);
+
+		// The live chip carries the corridor and the success pulse dot.
+		expect(live?.textContent).toContain("Mediolan");
+		expect(live?.querySelector(".bg-success")).not.toBeNull();
+		// The teaser chip is visually secondary (dashed) and names the next cities.
+		expect(soon?.className).toContain("border-dashed");
+		expect(soon?.textContent).toContain("Madryt");
+
+		await act(async () => root.unmount());
+		container.remove();
+	});
+
 	it("offers a way back to the signed-in flight rooms", async () => {
 		const container = document.createElement("div");
 		document.body.appendChild(container);
