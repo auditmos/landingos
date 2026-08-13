@@ -1,3 +1,10 @@
+## [1.33.2](https://github.com/auditmos/landingos/compare/v1.33.1...v1.33.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* **operator:** publish current catalog form values ([0376477](https://github.com/auditmos/landingos/commit/0376477ca6e467aaef8ed968f30207344849a417))
+
 ## [1.33.1](https://github.com/auditmos/landingos/compare/v1.33.0...v1.33.1) (2026-08-13)
 
 
