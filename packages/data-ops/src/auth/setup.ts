@@ -136,6 +136,27 @@ export const createBetterAuth = (config: {
 		verification: {
 			modelName: "auth_verification",
 		},
+		databaseHooks: {
+			verification: {
+				create: {
+					// Better Auth resolves a code with "newest row for this identifier
+					// wins", ordering on a millisecond-precision `createdAt`, and
+					// `resendStrategy: "rotate"` leaves the previous row in place. Two
+					// rows written in the same millisecond hand the winner to the storage
+					// layer's tie-break, which revives a superseded OTP (#22). Dropping
+					// the previous row keeps at most one live code per identifier, so
+					// supersession stops depending on clock resolution or adapter
+					// ordering. The hook receives the endpoint context, so the adapter
+					// sits one level in, at `ctx.context`.
+					before: async (verification, ctx) => {
+						await ctx?.context.internalAdapter.deleteVerificationByIdentifier(
+							verification.identifier,
+						);
+						return { data: verification };
+					},
+				},
+			},
+		},
 		account: {
 			modelName: "auth_account",
 		},

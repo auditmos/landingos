@@ -140,6 +140,17 @@ describe("LandingOS Better Auth email OTP", () => {
 		await sendOtp(auth, "latest@example.com", "203.0.113.2");
 		const [superseded, latest] = sent;
 
+		// A resend must supersede the previous code by removing it, not by
+		// out-ranking it. Better Auth resolves an OTP with "newest row for this
+		// identifier wins", ordering on a millisecond-precision `createdAt`, so
+		// two surviving rows leave the winner to the storage layer's tie-break
+		// (see #22). Assert the single-row invariant, then flatten the remaining
+		// timestamps so no ordering signal is left to accidentally save us.
+		expect(db.auth_verification).toHaveLength(1);
+		for (const row of db.auth_verification ?? []) {
+			row.createdAt = new Date(0);
+		}
+
 		const oldResponse = await signIn(
 			auth,
 			"latest@example.com",
