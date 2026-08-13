@@ -1,3 +1,11 @@
+## [1.33.3](https://github.com/auditmos/landingos/compare/v1.33.2...v1.33.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* **flight:** clarify fallback and record live coverage ([7d031c5](https://github.com/auditmos/landingos/commit/7d031c5c37d0dca509268d205091e59f8fc36414))
+* **flight:** normalize manual arrival in Rome ([d2e784e](https://github.com/auditmos/landingos/commit/d2e784ef30420160caf98144b7e2391d7a8a1f2a))
+
 ## [1.33.2](https://github.com/auditmos/landingos/compare/v1.33.1...v1.33.2) (2026-08-13)
 
 
