@@ -10,6 +10,8 @@ import {
 } from "@repo/data-ops/destination";
 import {
 	containsCoordinate,
+	contextDiagnostic,
+	type DiagnosticContext,
 	type Place,
 	type PlaceSuggestion,
 	type PlacesProvider,
@@ -44,6 +46,7 @@ function privatePrediction(prediction: PlaceSuggestion): DestinationPrediction {
 
 function autocompleteResult(
 	result: ProviderResult<PlaceSuggestion[], PlaceSuggestion>,
+	diagnostics: DiagnosticContext | undefined,
 ): DestinationAutocompleteResult {
 	if (result.status === "success") {
 		return {
@@ -57,18 +60,23 @@ function autocompleteResult(
 			predictions: result.options.map(privatePrediction),
 		};
 	}
+	const diagnostic = contextDiagnostic(diagnostics, result);
 	return {
 		status: "autocomplete_unavailable",
 		reason: unavailableReason(result),
+		...(diagnostic ? { diagnostic } : {}),
 	};
 }
 
 function selectionUnavailable(
 	result: Exclude<ProviderResult<Place>, { status: "success" }>,
+	diagnostics: DiagnosticContext | undefined,
 ): DestinationSelectionResult {
+	const diagnostic = contextDiagnostic(diagnostics, result);
 	return {
 		status: "destination_unavailable",
 		reason: result.status === "ambiguous" ? "incomplete" : unavailableReason(result),
+		...(diagnostic ? { diagnostic } : {}),
 	};
 }
 
@@ -77,7 +85,10 @@ export interface DestinationService {
 	select(input: DestinationSelectionRequest): Promise<DestinationSelectionResult>;
 }
 
-export function createDestinationService(provider: PlacesProvider): DestinationService {
+export function createDestinationService(
+	provider: PlacesProvider,
+	diagnostics?: DiagnosticContext,
+): DestinationService {
 	return {
 		autocomplete: async (rawInput) => {
 			const input = DestinationAutocompleteRequestSchema.parse(rawInput);
@@ -87,7 +98,7 @@ export function createDestinationService(provider: PlacesProvider): DestinationS
 				regionCode: "IT",
 				sessionToken: input.sessionToken,
 			});
-			return autocompleteResult(result);
+			return autocompleteResult(result, diagnostics);
 		},
 		select: async (rawInput) => {
 			const input = DestinationSelectionRequestSchema.parse(rawInput);
@@ -98,7 +109,7 @@ export function createDestinationService(provider: PlacesProvider): DestinationS
 				sessionToken: input.sessionToken,
 			});
 			if (result.status !== "success") {
-				return selectionUnavailable(result);
+				return selectionUnavailable(result, diagnostics);
 			}
 			if (!containsCoordinate(result.value.coordinate, provider.viewport)) {
 				return {

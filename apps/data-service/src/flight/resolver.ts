@@ -7,7 +7,14 @@ import {
 	ManualFlightRequestSchema,
 	splitFlightNumber,
 } from "@repo/data-ops/flight";
-import type { FlightProvider, ProviderFlight, ProviderResult } from "../providers";
+import {
+	contextDiagnostic,
+	type DiagnosticContext,
+	type FlightProvider,
+	type ProviderDiagnostic,
+	type ProviderFlight,
+	type ProviderResult,
+} from "../providers";
 
 export interface FlightInstanceRepository {
 	save(input: FlightInstanceWrite): Promise<FlightInstance>;
@@ -16,6 +23,7 @@ export interface FlightInstanceRepository {
 interface ResolverDependencies {
 	provider: FlightProvider;
 	repository: FlightInstanceRepository;
+	diagnostics?: DiagnosticContext;
 }
 
 interface ManualDependencies {
@@ -24,12 +32,17 @@ interface ManualDependencies {
 
 type ManualReason = "not_found" | "timeout" | "rate_limited" | "provider_error" | "incomplete";
 
-function manualRequired(input: FlightLookupRequest, reason: ManualReason) {
+function manualRequired(
+	input: FlightLookupRequest,
+	reason: ManualReason,
+	diagnostic?: ProviderDiagnostic,
+) {
 	return {
 		status: "manual_required" as const,
 		reason,
 		flightNumber: input.flightNumber,
 		departureLocalDate: input.departureLocalDate,
+		...(diagnostic ? { diagnostic } : {}),
 	};
 }
 
@@ -142,18 +155,36 @@ export async function resolveFlight(
 			date: input.departureLocalDate,
 		});
 	} catch (error) {
-		const reason =
-			error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")
-				? "timeout"
-				: "provider_error";
-		return manualRequired(input, reason);
+		const thrownAsTimeout =
+			error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+		const thrown = thrownAsTimeout
+			? ({ status: "timeout", retryable: true } as const)
+			: ({ status: "provider_error", httpStatus: 0, retryable: true } as const);
+		return manualRequired(
+			input,
+			thrownAsTimeout ? "timeout" : "provider_error",
+			contextDiagnostic(dependencies.diagnostics, thrown),
+		);
 	}
 	if (result.status !== "success") {
-		return manualRequired(input, providerFailureReason(result));
+		return manualRequired(
+			input,
+			providerFailureReason(result),
+			contextDiagnostic(dependencies.diagnostics, result),
+		);
 	}
 	const normalized = await normalizeProviderFlight(result.value, input);
 	if (!normalized) {
-		return manualRequired(input, "incomplete");
+		// A payload that survives transport but not normalization is an incomplete
+		// provider response, not a traveler input error.
+		return manualRequired(
+			input,
+			"incomplete",
+			contextDiagnostic(dependencies.diagnostics, {
+				status: "incomplete_response",
+				missingFields: ["flightInstance"],
+			}),
+		);
 	}
 	const persisted = await dependencies.repository.save(normalized);
 	return {

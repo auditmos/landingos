@@ -20,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProviderFailureNotice } from "@/components/ui/provider-failure-notice";
 import { formatDepartureDate } from "@/lib/flight-planner";
 import {
 	formatJourneyArrival,
@@ -31,6 +32,7 @@ import {
 	recommendJourneysApi,
 } from "@/lib/journey-planner";
 import { savePrivateDropOff } from "@/lib/private-drop-off";
+import { journeyOutcomeGuidance } from "@/lib/provider-diagnostics";
 import { publicSelectionFromJourneyVariant, saveRoomIntent } from "@/lib/room-intent";
 import { cn } from "@/lib/utils";
 
@@ -271,7 +273,11 @@ function JourneyFailure({
 		<Alert variant="destructive">
 			<AlertTitle className="text-balance">Nie udało się przygotować rekomendacji</AlertTitle>
 			<AlertDescription>
-				<p className="text-pretty">{journeyFailureCopy[result.reason]}</p>
+				<ProviderFailureNotice
+					message={journeyFailureCopy[result.reason]}
+					guidance={journeyOutcomeGuidance[result.reason]}
+					diagnostic={result.diagnostic}
+				/>
 				<div className="mt-3 flex flex-wrap gap-2">
 					<Button type="button" size="sm" variant="outline" onClick={onRetry}>
 						<RotateCcw className="size-4" />

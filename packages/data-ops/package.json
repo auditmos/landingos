@@ -23,6 +23,10 @@
 			"types": "./dist/destination/index.d.ts",
 			"default": "./dist/destination/index.js"
 		},
+		"./diagnostics": {
+			"types": "./dist/diagnostics/index.d.ts",
+			"default": "./dist/diagnostics/index.js"
+		},
 		"./journey": {
 			"types": "./dist/journey/index.d.ts",
 			"default": "./dist/journey/index.js"

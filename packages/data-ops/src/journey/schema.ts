@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProviderDiagnosticSchema } from "../diagnostics/schema";
 import { ApprovedJourneyExternalUrlSchema } from "./external-links";
 
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
@@ -94,11 +95,13 @@ export const JourneyRecommendationResultSchema = z.discriminatedUnion("status", 
 		status: z.literal("no_trustworthy_route"),
 		reason: z.enum(["zero_result", "no_post_arrival_route", "no_complete_itinerary"]),
 		manualAlternatives: z.array(JourneyExternalLinkSchema),
+		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 	z.strictObject({
 		status: z.literal("recommendation_unavailable"),
 		reason: z.enum(["timeout", "rate_limited", "provider_error", "incomplete"]),
 		manualAlternatives: z.array(JourneyExternalLinkSchema),
+		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 ]);
 

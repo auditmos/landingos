@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldInfo, PolishPicker } from "@/components/ui/field-controls";
 import { Input } from "@/components/ui/input";
+import { ProviderFailureNotice } from "@/components/ui/provider-failure-notice";
 import { formatArrivalInRome, formatDepartureDate, manualReasonCopy } from "@/lib/flight-planner";
+import { flightOutcomeGuidance } from "@/lib/provider-diagnostics";
 
 export function FlightSummary({ flight }: { flight: FlightInstance }) {
 	return (
@@ -102,9 +104,11 @@ export function PlannerResults({
 					<CardHeader>
 						<CardTitle>Uzupełnij przylot ręcznie</CardTitle>
 						<CardDescription>
-							{manualReasonCopy[manualResult.reason]} Nie otrzymaliśmy godziny przylotu od dostawcy.
-							Zachowaliśmy numer {manualResult.flightNumber} i datę{" "}
-							{formatDepartureDate(manualResult.departureLocalDate)}.
+							<ProviderFailureNotice
+								message={`${manualReasonCopy[manualResult.reason]} Nie otrzymaliśmy godziny przylotu od dostawcy. Zachowaliśmy numer ${manualResult.flightNumber} i datę ${formatDepartureDate(manualResult.departureLocalDate)}.`}
+								guidance={flightOutcomeGuidance[manualResult.reason]}
+								diagnostic={manualResult.diagnostic}
+							/>
 						</CardDescription>
 					</CardHeader>
 					<CardContent>

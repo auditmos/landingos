@@ -48,12 +48,14 @@ interface ProviderTimeout {
 interface ProviderRateLimited {
 	status: "rate_limited";
 	retryable: true;
+	signal?: ProviderErrorSignal;
 }
 
 interface ProviderError {
 	status: "provider_error";
 	httpStatus: number;
 	retryable: boolean;
+	signal?: ProviderErrorSignal;
 }
 
 interface ProviderIncompleteResponse {
@@ -192,3 +194,4 @@ export interface ProviderAdapters {
 }
 
 import type { TransferCatalogEntry as JourneyTransferCatalogEntry } from "@repo/data-ops/journey";
+import type { ProviderErrorSignal } from "./diagnostics";

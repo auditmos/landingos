@@ -1,5 +1,6 @@
 import { getDb } from "@repo/data-ops/database/setup";
 import {
+	type JourneyExternalLink,
 	type JourneyRecommendationRequest,
 	JourneyRecommendationRequestSchema,
 	type JourneyRecommendationResult,
@@ -17,15 +18,20 @@ import { resolveCatalogFreshnessDays } from "../../operator/catalog-service";
 import {
 	createFixtureProviderAdapters,
 	createLiveProviderAdapters,
+	type DiagnosticContext,
 	resolveProviderConfig,
 	type TransitProvider,
 } from "../../providers";
+import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
 
 export interface JourneyHandlerOperations {
 	recommend(input: JourneyRecommendationRequest): Promise<JourneyRecommendationResult>;
 }
 
-export type JourneyOperationsFactory = (env: Env) => JourneyHandlerOperations;
+export type JourneyOperationsFactory = (
+	env: Env,
+	diagnostics: DiagnosticContext,
+) => JourneyHandlerOperations;
 export type JourneyAnalyticsFactory = (env: Env) => AnalyticsTracker;
 
 function unavailableTransit(): TransitProvider {
@@ -38,7 +44,7 @@ function unavailableTransit(): TransitProvider {
 	};
 }
 
-function defaultOperations(env: Env): JourneyHandlerOperations {
+function defaultOperations(env: Env, diagnostics: DiagnosticContext): JourneyHandlerOperations {
 	const config = resolveProviderConfig(env as unknown as Record<string, string | undefined>);
 	let transit = unavailableTransit();
 	if (config.ok && config.config.mode === "fixture") {
@@ -50,6 +56,7 @@ function defaultOperations(env: Env): JourneyHandlerOperations {
 	}
 	return createJourneyService(transit, getDb(), {
 		freshnessDays: resolveCatalogFreshnessDays(env),
+		diagnostics,
 	});
 }
 
@@ -96,6 +103,10 @@ function publicVariant(variant: JourneyVariant): JourneyVariant {
 	};
 }
 
+function publicLink(link: JourneyExternalLink): JourneyExternalLink {
+	return { kind: link.kind, label: link.label, url: link.url };
+}
+
 function publicResult(result: JourneyRecommendationResult): JourneyRecommendationResult {
 	if (result.status === "recommendations") {
 		return {
@@ -108,21 +119,15 @@ function publicResult(result: JourneyRecommendationResult): JourneyRecommendatio
 		return {
 			status: result.status,
 			reason: result.reason,
-			manualAlternatives: result.manualAlternatives.map((link) => ({
-				kind: link.kind,
-				label: link.label,
-				url: link.url,
-			})),
+			manualAlternatives: result.manualAlternatives.map(publicLink),
+			...publicDiagnostic(result.diagnostic),
 		};
 	}
 	return {
 		status: result.status,
 		reason: result.reason,
-		manualAlternatives: result.manualAlternatives.map((link) => ({
-			kind: link.kind,
-			label: link.label,
-			url: link.url,
-		})),
+		manualAlternatives: result.manualAlternatives.map(publicLink),
+		...publicDiagnostic(result.diagnostic),
 	};
 }
 
@@ -143,7 +148,9 @@ export function createJourneyHandlers(
 				400,
 			);
 		}
-		const result = await operationsFactory(c.env).recommend(parsed.data);
+		const result = await operationsFactory(c.env, requestDiagnosticContext(c, "trasa")).recommend(
+			parsed.data,
+		);
 		if (result.status === "recommendations") {
 			const funnelId = await analyticsFactory(c.env).track(readRequestedFunnelId(c.req.raw), {
 				eventName: "recommendations_viewed",

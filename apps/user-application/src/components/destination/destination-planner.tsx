@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ProviderFailureNotice } from "@/components/ui/provider-failure-notice";
 import {
 	autocompleteDestinationApi,
 	createDestinationSearchScheduler,
@@ -17,6 +18,7 @@ import {
 	destinationReasonCopy,
 	selectDestinationApi,
 } from "@/lib/destination-planner";
+import { destinationOutcomeGuidance } from "@/lib/provider-diagnostics";
 
 export function DestinationPredictionList({
 	predictions,
@@ -142,9 +144,10 @@ export function DestinationPlanner({
 		inputRef.current?.select();
 	}
 
-	const unavailableReason =
-		autocompleteFault?.reason ??
-		(selectionResult?.status === "destination_unavailable" ? selectionResult.reason : undefined);
+	const selectionFault =
+		selectionResult?.status === "destination_unavailable" ? selectionResult : undefined;
+	const unavailableReason = autocompleteFault?.reason ?? selectionFault?.reason;
+	const unavailableDiagnostic = autocompleteFault?.diagnostic ?? selectionFault?.diagnostic;
 
 	return (
 		<Card>
@@ -189,7 +192,11 @@ export function DestinationPlanner({
 					<Alert className="mt-4" variant="destructive">
 						<AlertTitle>Nie udało się znaleźć miejsca</AlertTitle>
 						<AlertDescription>
-							<p>{destinationReasonCopy[unavailableReason]}</p>
+							<ProviderFailureNotice
+								message={destinationReasonCopy[unavailableReason]}
+								guidance={destinationOutcomeGuidance[unavailableReason]}
+								diagnostic={unavailableDiagnostic}
+							/>
 							<div className="mt-3 flex flex-wrap gap-2">
 								<Button
 									type="button"

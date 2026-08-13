@@ -1,3 +1,16 @@
+export {
+	buildProviderDiagnostic,
+	classifyProviderOutcome,
+	contextDiagnostic,
+	type DiagnosticContext,
+	type DiagnosticExposure,
+	diagnosticExposure,
+	type ProviderClass,
+	type ProviderDiagnostic,
+	type ProviderDiagnosticCategory,
+	type ProviderErrorSignal,
+	readProviderErrorSignal,
+} from "./diagnostics";
 export { createFixtureProviderAdapters } from "./fixture-adapters";
 export {
 	FIXTURE_PROVENANCE,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProviderDiagnosticSchema } from "../diagnostics/schema";
 
 const SessionTokenSchema = z
 	.string()
@@ -42,6 +43,7 @@ export const DestinationAutocompleteResultSchema = z.discriminatedUnion("status"
 	z.strictObject({
 		status: z.literal("autocomplete_unavailable"),
 		reason: DestinationUnavailableReasonSchema,
+		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 ]);
 
@@ -67,6 +69,7 @@ export const DestinationSelectionResultSchema = z.discriminatedUnion("status", [
 	z.strictObject({
 		status: z.literal("destination_unavailable"),
 		reason: DestinationUnavailableReasonSchema,
+		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 ]);
 

@@ -19,17 +19,22 @@ import { createFlightService } from "../../flight/service";
 import {
 	createFixtureProviderAdapters,
 	createLiveProviderAdapters,
+	type DiagnosticContext,
 	type FlightProvider,
 	resolveProviderConfig,
 } from "../../providers";
 import { turnstileGuard } from "../middleware/turnstile";
+import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
 
 export interface FlightHandlerOperations {
 	resolve(input: FlightLookupRequest): Promise<FlightResolveResult>;
 	completeManual(input: ManualFlightRequest): Promise<FlightResolveResult>;
 }
 
-export type FlightOperationsFactory = (env: Env) => FlightHandlerOperations;
+export type FlightOperationsFactory = (
+	env: Env,
+	diagnostics: DiagnosticContext,
+) => FlightHandlerOperations;
 export type FlightAnalyticsFactory = (env: Env) => AnalyticsTracker;
 
 function unavailableProvider(): FlightProvider {
@@ -42,7 +47,7 @@ function unavailableProvider(): FlightProvider {
 	};
 }
 
-function defaultOperations(env: Env): FlightHandlerOperations {
+function defaultOperations(env: Env, diagnostics: DiagnosticContext): FlightHandlerOperations {
 	const runtimeEnv = env as unknown as Record<string, string | undefined>;
 	const config = resolveProviderConfig(runtimeEnv);
 	let provider: FlightProvider = unavailableProvider();
@@ -53,7 +58,7 @@ function defaultOperations(env: Env): FlightHandlerOperations {
 			fetch(input, init),
 		).flight;
 	}
-	return createFlightService(provider, getDb());
+	return createFlightService(provider, getDb(), diagnostics);
 }
 
 function publicFlight(flight: FlightInstance): FlightInstance {
@@ -88,6 +93,7 @@ function publicResult(result: FlightResolveResult): FlightResolveResult {
 		reason: result.reason,
 		flightNumber: result.flightNumber,
 		departureLocalDate: result.departureLocalDate,
+		...publicDiagnostic(result.diagnostic),
 	};
 }
 
@@ -117,7 +123,9 @@ export function createFlightHandlers(
 		}
 		const tracker = analyticsFactory(c.env);
 		let funnelId = await tracker.begin(readRequestedFunnelId(c.req.raw));
-		const result = await operationsFactory(c.env).resolve(parsed.data);
+		const result = await operationsFactory(c.env, requestDiagnosticContext(c, "lot")).resolve(
+			parsed.data,
+		);
 		if (result.status === "recognized") {
 			funnelId = await tracker.track(funnelId, { eventName: "flight_recognized" });
 		}
@@ -133,7 +141,10 @@ export function createFlightHandlers(
 		}
 		const tracker = analyticsFactory(c.env);
 		let funnelId = await tracker.begin(readRequestedFunnelId(c.req.raw));
-		const result = await operationsFactory(c.env).completeManual(parsed.data);
+		const result = await operationsFactory(
+			c.env,
+			requestDiagnosticContext(c, "lot"),
+		).completeManual(parsed.data);
 		if (result.status === "recognized") {
 			funnelId = await tracker.track(funnelId, { eventName: "flight_recognized" });
 		}

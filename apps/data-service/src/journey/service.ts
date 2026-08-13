@@ -3,7 +3,7 @@ import {
 	type JourneyRecommendationResult,
 	listPublishedTransferCatalog,
 } from "@repo/data-ops/journey";
-import type { TransitProvider } from "../providers";
+import type { DiagnosticContext, TransitProvider } from "../providers";
 import { recommendJourneys } from "./engine";
 
 type JourneyDatabase = Parameters<typeof listPublishedTransferCatalog>[0];
@@ -11,7 +11,7 @@ type JourneyDatabase = Parameters<typeof listPublishedTransferCatalog>[0];
 export function createJourneyService(
 	transit: TransitProvider,
 	db: JourneyDatabase,
-	options: { now?: () => Date; freshnessDays?: number } = {},
+	options: { now?: () => Date; freshnessDays?: number; diagnostics?: DiagnosticContext } = {},
 ): {
 	recommend(input: JourneyRecommendationRequest): Promise<JourneyRecommendationResult>;
 } {

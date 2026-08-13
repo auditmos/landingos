@@ -11,17 +11,22 @@ import { createDestinationService } from "../../destination/service";
 import {
 	createFixtureProviderAdapters,
 	createLiveProviderAdapters,
+	type DiagnosticContext,
 	MILAN_MUNICIPALITY_VIEWPORT,
 	type PlacesProvider,
 	resolveProviderConfig,
 } from "../../providers";
+import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
 
 export interface DestinationHandlerOperations {
 	autocomplete(input: DestinationAutocompleteRequest): Promise<DestinationAutocompleteResult>;
 	select(input: DestinationSelectionRequest): Promise<DestinationSelectionResult>;
 }
 
-export type DestinationOperationsFactory = (env: Env) => DestinationHandlerOperations;
+export type DestinationOperationsFactory = (
+	env: Env,
+	diagnostics: DiagnosticContext,
+) => DestinationHandlerOperations;
 
 function unavailableProvider(): PlacesProvider {
 	return {
@@ -39,7 +44,7 @@ function unavailableProvider(): PlacesProvider {
 	};
 }
 
-function defaultOperations(env: Env): DestinationHandlerOperations {
+function defaultOperations(env: Env, diagnostics: DiagnosticContext): DestinationHandlerOperations {
 	const config = resolveProviderConfig(env as unknown as Record<string, string | undefined>);
 	let provider = unavailableProvider();
 	if (config.ok && config.config.mode === "fixture") {
@@ -49,14 +54,14 @@ function defaultOperations(env: Env): DestinationHandlerOperations {
 			fetch(input, init),
 		).places;
 	}
-	return createDestinationService(provider);
+	return createDestinationService(provider, diagnostics);
 }
 
 function publicAutocompleteResult(
 	result: DestinationAutocompleteResult,
 ): DestinationAutocompleteResult {
 	if (result.status === "autocomplete_unavailable") {
-		return { status: result.status, reason: result.reason };
+		return { status: result.status, reason: result.reason, ...publicDiagnostic(result.diagnostic) };
 	}
 	return {
 		status: "suggestions",
@@ -76,7 +81,7 @@ function publicSelectionResult(result: DestinationSelectionResult): DestinationS
 		};
 	}
 	if (result.status === "destination_unavailable") {
-		return { status: result.status, reason: result.reason };
+		return { status: result.status, reason: result.reason, ...publicDiagnostic(result.diagnostic) };
 	}
 	return {
 		status: "destination_selected",
@@ -112,9 +117,8 @@ export function createDestinationHandlers(
 		if (!parsed.success) {
 			return c.json(validationResponse(parsed.error), 400);
 		}
-		return c.json(
-			publicAutocompleteResult(await operationsFactory(c.env).autocomplete(parsed.data)),
-		);
+		const operations = operationsFactory(c.env, requestDiagnosticContext(c, "miejsce"));
+		return c.json(publicAutocompleteResult(await operations.autocomplete(parsed.data)));
 	});
 
 	destinations.post("/select", async (c) => {
@@ -123,7 +127,8 @@ export function createDestinationHandlers(
 		if (!parsed.success) {
 			return c.json(validationResponse(parsed.error), 400);
 		}
-		return c.json(publicSelectionResult(await operationsFactory(c.env).select(parsed.data)));
+		const operations = operationsFactory(c.env, requestDiagnosticContext(c, "miejsce"));
+		return c.json(publicSelectionResult(await operations.select(parsed.data)));
 	});
 
 	return destinations;

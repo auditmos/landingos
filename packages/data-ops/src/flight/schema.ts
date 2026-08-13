@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProviderDiagnosticSchema } from "../diagnostics/schema";
 
 const FLIGHT_NUMBER_PATTERN = /^([A-Z0-9]{2})(\d{1,4})$/;
 const IATA_INPUT_PATTERN = /^([A-Z0-9]{2})(?:[ -]?)(\d{1,4})$/;
@@ -203,6 +204,7 @@ export const FlightResolveResultSchema = z.discriminatedUnion("status", [
 		reason: z.enum(["not_found", "timeout", "rate_limited", "provider_error", "incomplete"]),
 		flightNumber: FlightNumberSchema,
 		departureLocalDate: DepartureLocalDateSchema,
+		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 ]);
 

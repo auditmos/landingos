@@ -10,7 +10,14 @@ import {
 	sanitizeJourneyExternalUrl,
 	type TransferCatalogEntry,
 } from "@repo/data-ops/journey";
-import type { ProviderResult, TransitProvider, TransitRoute } from "../providers";
+import {
+	contextDiagnostic,
+	type DiagnosticContext,
+	type ProviderDiagnostic,
+	type ProviderResult,
+	type TransitProvider,
+	type TransitRoute,
+} from "../providers";
 
 const BGY_COORDINATES = { latitude: 45.6739, longitude: 9.7042 };
 const DEFAULT_FRESHNESS_DAYS = 30;
@@ -25,6 +32,7 @@ interface EngineDependencies {
 	catalog: TransferCatalogRepository;
 	now?: () => Date;
 	freshnessDays?: number;
+	diagnostics?: DiagnosticContext;
 }
 
 interface Candidate extends Omit<JourneyVariant, "id" | "badges"> {
@@ -309,13 +317,17 @@ function manualAlternatives(entries: TransferCatalogEntry[]): JourneyExternalLin
 function providerFailure(
 	result: Exclude<ProviderResult<TransitRoute[], TransitRoute>, { status: "success" }>,
 	entries: TransferCatalogEntry[],
+	diagnostics: DiagnosticContext | undefined,
 ): JourneyRecommendationResult {
 	const alternatives = manualAlternatives(entries);
+	const diagnostic = contextDiagnostic(diagnostics, result);
+	const attached = diagnostic ? { diagnostic } : {};
 	if (result.status === "zero_result") {
 		return {
 			status: "no_trustworthy_route",
 			reason: "zero_result",
 			manualAlternatives: alternatives,
+			...attached,
 		};
 	}
 	if (result.status === "timeout" || result.status === "rate_limited") {
@@ -323,6 +335,7 @@ function providerFailure(
 			status: "recommendation_unavailable",
 			reason: result.status,
 			manualAlternatives: alternatives,
+			...attached,
 		};
 	}
 	if (result.status === "provider_error") {
@@ -330,13 +343,24 @@ function providerFailure(
 			status: "recommendation_unavailable",
 			reason: "provider_error",
 			manualAlternatives: alternatives,
+			...attached,
 		};
 	}
 	return {
 		status: "recommendation_unavailable",
 		reason: "incomplete",
 		manualAlternatives: alternatives,
+		...attached,
 	};
+}
+
+// A trustworthy-route dead end is a coverage outcome, not a transport fault: the
+// provider answered, the answer just does not reach the traveler's destination.
+function coverageDiagnostic(
+	diagnostics: DiagnosticContext | undefined,
+): { diagnostic: ProviderDiagnostic } | Record<string, never> {
+	const diagnostic = contextDiagnostic(diagnostics, { status: "zero_result" });
+	return diagnostic ? { diagnostic } : {};
 }
 
 export async function recommendJourneys(
@@ -354,7 +378,7 @@ export async function recommendJourneys(
 		dependencies.catalog.listPublished(),
 	]);
 	if (providerResult.status !== "success") {
-		return providerFailure(providerResult, catalogEntries);
+		return providerFailure(providerResult, catalogEntries, dependencies.diagnostics);
 	}
 	const postArrivalRoutes = providerResult.value.filter(
 		(route) => new Date(route.departureTime).getTime() >= new Date(departureTime).getTime(),
@@ -364,6 +388,7 @@ export async function recommendJourneys(
 			status: "no_trustworthy_route",
 			reason: "no_post_arrival_route",
 			manualAlternatives: manualAlternatives(catalogEntries),
+			...coverageDiagnostic(dependencies.diagnostics),
 		};
 	}
 	const now = dependencies.now?.() ?? new Date();
@@ -382,6 +407,7 @@ export async function recommendJourneys(
 			status: "no_trustworthy_route",
 			reason: "no_complete_itinerary",
 			manualAlternatives: manualAlternatives(catalogEntries),
+			...coverageDiagnostic(dependencies.diagnostics),
 		};
 	}
 	const variants = rank(candidates);
