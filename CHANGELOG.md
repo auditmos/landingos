@@ -1,3 +1,10 @@
+## [1.33.4](https://github.com/auditmos/landingos/compare/v1.33.3...v1.33.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* **safety:** expose message reporting handoff ([3a22adf](https://github.com/auditmos/landingos/commit/3a22adf2038dd29c5ec896a9e79288878cc86b72))
+
 ## [1.33.3](https://github.com/auditmos/landingos/compare/v1.33.2...v1.33.3) (2026-08-13)
 
 
