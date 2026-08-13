@@ -73,6 +73,13 @@ describe("provider readiness evidence", () => {
 			resultQuality: {
 				status: "unreviewed_against_official_sources" as const,
 			},
+			flightRecognition: {
+				total: 10,
+				correct: 10,
+				requiredCorrect: 9,
+				status: "passing" as const,
+				requiredDecision: null,
+			},
 			callCount: 25,
 			latencyMs: { sampleCount: 25, p50: 100, p95: 200 },
 			billing: {
@@ -112,6 +119,38 @@ describe("provider readiness evidence", () => {
 		expect(validateProviderEvidence(evidence)).toEqual({
 			valid: true,
 			issues: [],
+		});
+
+		const failingEvidence = createCompleteProviderEvidence(
+			fixtureSummary,
+			{
+				...completeLiveEvidence,
+				flightRecognition: {
+					total: 10,
+					correct: 8,
+					requiredCorrect: 9,
+					status: "failing",
+					requiredDecision:
+						"reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider",
+				},
+			},
+			"2026-07-27",
+		);
+		expect(failingEvidence.productionReadiness.blockers).toContain(
+			"flight_recognition_below_9_of_10",
+		);
+		expect(
+			validateProviderEvidence({
+				...failingEvidence,
+				productionReadiness: {
+					ready: true,
+					decision: "GO",
+					blockers: [],
+				},
+			}),
+		).toEqual({
+			valid: false,
+			issues: ["9/10 correct live flight recognition is required before a GO decision"],
 		});
 	});
 });

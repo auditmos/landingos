@@ -85,9 +85,11 @@ export const manualReasonCopy: Record<
 	Exclude<FlightResolveResult, { status: "recognized" }>["reason"],
 	string
 > = {
-	not_found: "Nie znaleźliśmy tego lotu.",
-	timeout: "Dostawca danych nie odpowiedział na czas.",
-	rate_limited: "Dostawca danych jest chwilowo przeciążony.",
-	provider_error: "Dostawca danych jest chwilowo niedostępny.",
-	incomplete: "Dane lotu są niepełne.",
+	not_found: "Nie znaleźliśmy tego lotu. Sprawdź numer i datę albo wpisz przylot ręcznie.",
+	timeout: "Dostawca danych nie odpowiedział na czas. Spróbuj ponownie albo wpisz przylot ręcznie.",
+	rate_limited:
+		"Dostawca danych jest chwilowo przeciążony. Odczekaj chwilę i spróbuj ponownie albo wpisz przylot ręcznie.",
+	provider_error:
+		"Dostawca danych jest chwilowo niedostępny. Spróbuj ponownie później albo wpisz przylot ręcznie.",
+	incomplete: "Dane lotu są niepełne. Sprawdź dane na bilecie i wpisz przylot ręcznie.",
 };

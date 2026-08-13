@@ -6,9 +6,9 @@ Recorded on 2026-07-27 for issue #2. This report separates deterministic fixture
 
 Production readiness: NOT READY.
 
-No live GO or measured provider-quality claim is recorded. The unresolved gates are:
+No live GO or provider-suitability claim is recorded. The unresolved gates are:
 
-- live provider measurement;
+- a passing live flight-provider measurement;
 - billing/cost and official-result quality review;
 - commercial and licensing acceptance by a person with billing authority;
 - independent privacy/compliance approval before a production pilot.
@@ -30,30 +30,69 @@ The route set includes Milano Centrale, Duomo, Navigli, Porta Garibaldi, Milano 
 
 ## Live measurement status
 
-`live_status: not_run_missing_credentials`
+`live_status: complete_failing`
 
-The credential-free command test verifies that `pnpm run spike:data` exits exactly 2, emits `external_prerequisite_missing`, and prints no stack trace. Resume with:
+The latest credentialed `pnpm run spike:data` measurement ran on 2026-08-12 and exited 1. It
+made 25 provider calls: 10 flight, 5 place-autocomplete, and 10 transit calls. The flight
+runner emitted a heartbeat every 30 seconds while enforcing a 60-second interval between
+Aviationstack future-schedule calls.
 
-```bash
-pnpm run spike:data
-```
+- Flight recognition: 9/10 normalized successfully and 7/10 correct against the versioned
+  Milan Bergamo Airport references.
+- Seven flights matched exactly. FR8845 and FR9094 returned different scheduled-arrival
+  times, while the overnight FR3505 lookup normalized to `provider_error`.
+- Places: 0/5 successful (four `ambiguous`, one `incomplete_response`).
+- Transit: 9/10 successful (one `incomplete_response`).
+- Cost remains `not_calculated_billing_export_required`.
 
-Required server-only variables:
+The adapter diagnosis is conclusive about endpoint compatibility. The prior future-date call
+to `/v1/flights` returned HTTP 403; the same credential returned HTTP 200 and one match from
+the documented `/v1/flightsFuture` endpoint. The live future response uses
+`YYYY-MM-DD HH:mm:ss` local timestamps, while the published schema example uses a time-only
+value. The adapter now selects `/v1/flightsFuture` only for future dates, keeps `/v1/flights`
+for today/past dates, normalizes both timestamp forms, and filters BGY arrivals by airline and
+flight number. The spike pacing follows Aviationstack's documented Free-plan interval.
 
-- `LANDINGOS_FLIGHT_PROVIDER`
-- `LANDINGOS_PLACES_PROVIDER`
-- `LANDINGOS_TRANSIT_PROVIDER`
-- `AVIATIONSTACK_ACCESS_KEY`
-- `GOOGLE_MAPS_API_KEY`
+The 7/10 correctness result remains below the required 9/10 gate. The chosen adapter
+reconfiguration fixed endpoint access and normalization, but did not establish provider data
+quality for this corridor. The required decision therefore remains
+`reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider`.
 
-Because live measurement did not run, live coverage, result quality, call count, p50/p95 latency, billed cost, and provider suitability remain unmeasured. The implemented runner records those fields when explicitly configured; it does not infer cost or GO.
+The sanitized per-flight evidence is
+[`data/issue16-live-flight-results.json`](./data/issue16-live-flight-results.json). It contains
+no raw provider payloads or credentials. Provider suitability remains failing, the broader
+official-result-quality review remains unresolved, and the measurement does not imply production GO.
 
 Candidate references for a later measured run:
 
-- Aviationstack documentation and terms: <https://aviationstack.com/documentation>, <https://aviationstack.com/terms>
+- Aviationstack OpenAPI, FAQ, pricing, and terms: <https://api.swaggerhub.com/apis/apilayer-863/AviationstackAPI/1.0.0/swagger.json>, <https://aviationstack.com/faq>, <https://aviationstack.com/pricing>, <https://aviationstack.com/terms>
 - Google Places (New): <https://developers.google.com/maps/documentation/places/web-service/place-autocomplete>
 - Google Routes transit: <https://developers.google.com/maps/documentation/routes/transit-route>
 - Google Maps Platform terms: <https://cloud.google.com/maps-platform/terms>
+
+## Issue #16 remediation evidence
+
+Recorded on 2026-08-12. The credentialed live gate was measured and is failing; no
+provider suitability or production-readiness claim is inferred from fixture data.
+
+| Acceptance criterion | Status | Evidence |
+| --- | --- | --- |
+| Manual fallback starts without an arbitrary arrival time and requires traveler confirmation | verified | The component test asserts an empty native time input, a disabled confirmation action, no `12:00`, and the traveler-entered UTC value in `POST /flights/manual`. |
+| All five fallback reasons are distinct, actionable, and Polish | verified | The table-driven component test covers `not_found`, `provider_timeout`, `rate_limited`, `provider_error`, and `incomplete_result`, while preserving the submitted flight number and date. |
+| A versioned sample contains at least 10 current scheduled direct Poland-to-BGY flights, including W61431, with per-call live evidence | verified | [`live-flight-sample.ts`](../../apps/data-service/src/providers/live-flight-sample.ts) contains exactly 10 cases and source metadata. The sanitized [live result](./data/issue16-live-flight-results.json) records every input, normalized outcome, access time, correlation ID, and match result. |
+| At least 9 of 10 sample flights are recognized correctly by the real live provider | failing | After the endpoint adapter fix, 9/10 normalized successfully but only 7/10 matched the airport references. FR8845 and FR9094 had arrival-time mismatches; overnight FR3505 returned `provider_error`. The runner exited 1 and records `reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider`. |
+| Five provider faults produce safe typed outcomes with no unhandled exception | verified | Resolver-level fault injection covers timeout/abort, HTTP 429, HTTP 500, incomplete result, and zero result through the real live adapter boundary. |
+| Fixture mode is fail-closed outside local/CI and secrets/raw payloads do not leak | verified | Environment-matrix tests cover explicit and implicit fixture rejection in staging/production; response, source, raw-payload, and production-browser-bundle scans pass. |
+| Required repository verification | verified | `pnpm run types` exited 0. The full suite exited 0 with 120 files and 688 tests passed (one file and two tests skipped by their normal-suite conditions). Biome checked 384 files; the provider security scan passed 3/3 tests; the opt-in production bundle scan passed 2/2 tests. |
+
+The scheduled sample uses the official Milan Bergamo Airport September 2026 arrival
+timetables for [Warsaw](https://www.milanbergamoairport.it/en/seasonal-flights-timetable/calendar/linea/arr/WAW/?m=09&y=2026),
+[Krakow](https://www.milanbergamoairport.it/en/seasonal-flights-timetable/calendar/linea/arr/KRK/?m=09&y=2026),
+[Wroclaw](https://www.milanbergamoairport.it/en/seasonal-flights-timetable/calendar/linea/arr/WRO/?m=09&y=2026),
+and [Gdansk](https://www.milanbergamoairport.it/en/seasonal-flights-timetable/calendar/linea/arr/GDN/?m=09&y=2026),
+accessed at `2026-08-12T16:26:56.000Z`. For every credentialed flight call, the runner
+emits a line-delimited progress heartbeat on stderr and records the input, normalized outcome, access time,
+correlation ID, reference expectation, and match result in the evidence JSON.
 
 ## Milan municipality viewport
 

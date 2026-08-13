@@ -36,6 +36,11 @@ describe("provider runtime configuration", () => {
 		});
 		expect(implicitProduction.ok).toBe(false);
 		expect(implicitProduction.ok ? implicitProduction.config.mode : undefined).not.toBe("live");
+		const implicitStaging = resolveProviderConfig({
+			CLOUDFLARE_ENV: "staging",
+		});
+		expect(implicitStaging.ok).toBe(false);
+		expect(implicitStaging.ok ? implicitStaging.config.mode : undefined).not.toBe("fixture");
 	});
 
 	it("requires explicit provider selections and server-only credentials for live mode", () => {

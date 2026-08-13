@@ -80,6 +80,9 @@ export function createCompleteProviderEvidence(
 			ready: false,
 			decision: "not_recorded",
 			blockers: [
+				...(liveEvidence.flightRecognition.status === "failing"
+					? ["flight_recognition_below_9_of_10"]
+					: []),
 				"official_result_quality_review_missing",
 				"billing_cost_evidence_missing",
 				"commercial_licensing_acceptance_missing",
@@ -96,6 +99,13 @@ export function validateProviderEvidence(evidence: ProviderEvidence): EvidenceVa
 		(evidence.productionReadiness.ready || evidence.productionReadiness.decision === "GO")
 	) {
 		issues.push("live evidence is required before a GO decision");
+	}
+	if (
+		evidence.live.status === "complete" &&
+		evidence.live.flightRecognition.status === "failing" &&
+		(evidence.productionReadiness.ready || evidence.productionReadiness.decision === "GO")
+	) {
+		issues.push("9/10 correct live flight recognition is required before a GO decision");
 	}
 	return {
 		valid: issues.length === 0,

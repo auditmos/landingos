@@ -1,0 +1,157 @@
+{
+	"schemaVersion": "issue16-live-flight-recognition-v1",
+	"generatedAt": "2026-08-12T18:37:44.093Z",
+	"provider": "aviationstack",
+	"commandExitCode": 1,
+	"sanitization": "normalized outcomes only; no raw payloads or credentials",
+	"summary": {
+		"total": 10,
+		"successful": 9,
+		"correct": 7,
+		"requiredCorrect": 9,
+		"status": "failing",
+		"requiredDecision": "reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider"
+	},
+	"normalizedDiagnostic": {
+		"endpoint": "/v1/flightsFuture",
+		"httpStatus": 200,
+		"resultCount": 1,
+		"timestampMask": "YYYY-MM-DD HH:mm:ss"
+	},
+	"cases": [
+		{
+			"scenarioId": "flight:w61431:2026-09-01",
+			"input": { "flightNumber": "W61431", "date": "2026-09-01" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "WAW",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-01T08:05:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:w61431:2026-09-01:20260812T183744093Z",
+			"matchesExpected": true
+		},
+		{
+			"scenarioId": "flight:w61433:2026-09-01",
+			"input": { "flightNumber": "W61433", "date": "2026-09-01" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "WAW",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-01T20:05:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:w61433:2026-09-01:20260812T183744093Z",
+			"matchesExpected": true
+		},
+		{
+			"scenarioId": "flight:fr889:2026-09-01",
+			"input": { "flightNumber": "FR889", "date": "2026-09-01" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "KRK",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-01T13:15:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr889:2026-09-01:20260812T183744093Z",
+			"matchesExpected": true
+		},
+		{
+			"scenarioId": "flight:fr3536:2026-09-01",
+			"input": { "flightNumber": "FR3536", "date": "2026-09-01" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "KRK",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-01T23:45:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr3536:2026-09-01:20260812T183744093Z",
+			"matchesExpected": true
+		},
+		{
+			"scenarioId": "flight:fr8845:2026-09-01",
+			"input": { "flightNumber": "FR8845", "date": "2026-09-01" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "WRO",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-01T19:50:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr8845:2026-09-01:20260812T183744093Z",
+			"matchesExpected": false
+		},
+		{
+			"scenarioId": "flight:fr3279:2026-09-01",
+			"input": { "flightNumber": "FR3279", "date": "2026-09-01" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "GDN",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-01T22:20:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr3279:2026-09-01:20260812T183744093Z",
+			"matchesExpected": true
+		},
+		{
+			"scenarioId": "flight:fr9094:2026-09-02",
+			"input": { "flightNumber": "FR9094", "date": "2026-09-02" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "GDN",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-02T14:30:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr9094:2026-09-02:20260812T183744093Z",
+			"matchesExpected": false
+		},
+		{
+			"scenarioId": "flight:fr3505:2026-09-02",
+			"input": { "flightNumber": "FR3505", "date": "2026-09-02" },
+			"normalizedOutcome": { "status": "provider_error" },
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr3505:2026-09-02:20260812T183744093Z",
+			"matchesExpected": false
+		},
+		{
+			"scenarioId": "flight:fr6258:2026-09-03",
+			"input": { "flightNumber": "FR6258", "date": "2026-09-03" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "KRK",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-03T11:30:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr6258:2026-09-03:20260812T183744093Z",
+			"matchesExpected": true
+		},
+		{
+			"scenarioId": "flight:fr9195:2026-09-04",
+			"input": { "flightNumber": "FR9195", "date": "2026-09-04" },
+			"normalizedOutcome": {
+				"status": "success",
+				"originIata": "WRO",
+				"destinationIata": "BGY",
+				"scheduledArrival": "2026-09-04T08:15:00+02:00",
+				"timeZone": "Europe/Rome"
+			},
+			"accessedAt": "2026-08-12T18:37:44.093Z",
+			"correlationId": "flight:fr9195:2026-09-04:20260812T183744093Z",
+			"matchesExpected": true
+		}
+	]
+}

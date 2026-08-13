@@ -6,6 +6,7 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import type { FlightProvider, ProviderFlight } from "../providers";
 import { createFixtureProviderAdapters } from "../providers";
+import { createLiveFlightProvider } from "../providers/live-flight";
 import { completeManualFlight, type FlightInstanceRepository, resolveFlight } from "./resolver";
 
 function memoryRepository(): FlightInstanceRepository & { rows: Map<string, FlightInstance> } {
@@ -73,6 +74,40 @@ describe("flight context resolver", () => {
 			reason,
 			flightNumber,
 			departureLocalDate: "2026-09-14",
+		});
+	});
+
+	it.each([
+		[
+			"timeout",
+			"timeout",
+			async () => {
+				throw new DOMException("aborted", "AbortError");
+			},
+		],
+		["429", "rate_limited", async () => new Response("", { status: 429 })],
+		["provider error", "provider_error", async () => new Response("", { status: 500 })],
+		[
+			"incomplete response",
+			"incomplete",
+			async () => Response.json({ data: [{ flight: { iataNumber: "W61431" } }] }),
+		],
+		["zero result", "not_found", async () => Response.json({ data: [] })],
+	] as const)("fails safely into manual entry after live-provider %s", async (_case, reason, fetchImpl) => {
+		const provider = createLiveFlightProvider(
+			{ aviationstackAccessKey: "server-only-test-key" },
+			fetchImpl,
+		);
+		const result = await resolveFlight(
+			{ flightNumber: "W61431", departureLocalDate: "2026-09-16" },
+			{ provider, repository: memoryRepository() },
+		);
+
+		expect(result).toEqual({
+			status: "manual_required",
+			reason,
+			flightNumber: "W61431",
+			departureLocalDate: "2026-09-16",
 		});
 	});
 

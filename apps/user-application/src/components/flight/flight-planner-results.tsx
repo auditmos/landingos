@@ -102,8 +102,9 @@ export function PlannerResults({
 					<CardHeader>
 						<CardTitle>Uzupełnij przylot ręcznie</CardTitle>
 						<CardDescription>
-							{manualReasonCopy[manualResult.reason]} Zachowaliśmy numer {manualResult.flightNumber}{" "}
-							i datę {formatDepartureDate(manualResult.departureLocalDate)}.
+							{manualReasonCopy[manualResult.reason]} Nie otrzymaliśmy godziny przylotu od dostawcy.
+							Zachowaliśmy numer {manualResult.flightNumber} i datę{" "}
+							{formatDepartureDate(manualResult.departureLocalDate)}.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>

@@ -16,6 +16,7 @@ interface ExecuteProviderSpikeOptions {
 	nowMs: () => number;
 	generatedAt: string;
 	onProgress: (message: string) => void;
+	sleep?: (milliseconds: number) => Promise<void>;
 }
 
 export interface ProviderSpikeCommandResult {
@@ -65,6 +66,7 @@ export async function executeProviderSpike(
 		nowMs: options.nowMs,
 		generatedAt: options.generatedAt,
 		onProgress: options.onProgress,
+		sleep: options.sleep,
 	});
 	const evidence = createCompleteProviderEvidence(
 		fixtureSummary,
@@ -72,13 +74,17 @@ export async function executeProviderSpike(
 		options.generatedAt.slice(0, 10),
 	);
 	const validation = validateProviderEvidence(evidence);
-	return validation.valid
-		? { exitCode: 0, payload: evidence }
-		: {
-				exitCode: 1,
-				payload: {
-					status: "invalid_evidence",
-					issues: validation.issues,
-				},
-			};
+	if (!validation.valid) {
+		return {
+			exitCode: 1,
+			payload: {
+				status: "invalid_evidence",
+				issues: validation.issues,
+			},
+		};
+	}
+	return {
+		exitCode: liveEvidence.flightRecognition.status === "passing" ? 0 : 1,
+		payload: evidence,
+	};
 }

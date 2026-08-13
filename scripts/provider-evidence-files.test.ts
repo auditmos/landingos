@@ -38,11 +38,17 @@ describe("checked-in S0 provider evidence", () => {
 		);
 	});
 
-	it("documents exact boundary provenance and unresolved release gates", () => {
+	it("documents exact boundary provenance, measured live failure, and unresolved release gates", () => {
 		const report = readFileSync("docs/evidence/s0-provider-readiness.md", "utf8");
+		const liveFlightEvidence = JSON.parse(
+			readFileSync("docs/evidence/data/issue16-live-flight-results.json", "utf8"),
+		);
 
 		expect(report).toContain("synthetic_recorded_for_testing");
-		expect(report).toContain("not_run_missing_credentials");
+		expect(report).toContain("complete_failing");
+		expect(report).toContain("7/10 correct");
+		expect(report).toContain("9/10 normalized successfully");
+		expect(report).toContain("/v1/flightsFuture");
 		expect(report).toContain("pnpm run spike:data");
 		expect(report).toContain("2026-07-27");
 		expect(report).toContain("45.38672482115768");
@@ -50,9 +56,23 @@ describe("checked-in S0 provider evidence", () => {
 		expect(report).toContain(
 			"https://dati.comune.milano.it/dataset/ds2841-confini-amministrativi-del-comune-di-milano",
 		);
-		for (const variable of REQUIRED_LIVE_VARIABLES) {
-			expect(report).toContain(variable);
-		}
+		expect(liveFlightEvidence).toMatchObject({
+			schemaVersion: "issue16-live-flight-recognition-v1",
+			summary: {
+				total: 10,
+				successful: 9,
+				correct: 7,
+				requiredCorrect: 9,
+				status: "failing",
+			},
+			normalizedDiagnostic: {
+				endpoint: "/v1/flightsFuture",
+				httpStatus: 200,
+				resultCount: 1,
+				timestampMask: "YYYY-MM-DD HH:mm:ss",
+			},
+		});
+		expect(liveFlightEvidence.cases).toHaveLength(10);
 		expect(report).toContain("Production readiness: NOT READY");
 		expect(report).not.toContain("Production readiness: GO");
 	});

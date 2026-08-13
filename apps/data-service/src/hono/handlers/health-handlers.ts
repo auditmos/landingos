@@ -17,7 +17,7 @@ health.get("/ready", async (c) => {
 	const response: ReadinessResponse = {
 		status: dbStatus === "connected" ? "ok" : "degraded",
 		env: c.env.CLOUDFLARE_ENV,
-		service: "saas-on-cf",
+		service: "landingos",
 		time: new Date().toISOString(),
 		database: dbStatus,
 	};

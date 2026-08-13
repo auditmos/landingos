@@ -36,6 +36,8 @@ describe("provider security boundaries", () => {
 	it("keeps raw provider payload markers out of fixtures and evidence", () => {
 		const fixtureAndEvidenceFiles = [
 			"apps/data-service/src/providers/fixture-data.ts",
+			"apps/data-service/src/providers/live-flight-sample.ts",
+			"apps/data-service/src/providers/live-spike.ts",
 			...filesUnder("docs/evidence"),
 		];
 		expect(

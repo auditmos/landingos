@@ -6,13 +6,28 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { FlightPlanner } from "./flight-planner";
 import { PlannerResults } from "./flight-planner-results";
 
+/*
+ * Issue #16 assumptions approved before RED:
+ * - input: a normalized manual_required result always carries the entered designator/date;
+ * - output: provider fallback contributes no arrival value, suggestion, or hidden default;
+ * - confirmation: entering a valid local arrival and submitting is the explicit confirmation;
+ * - boundary: every new manual result starts empty, including retries and a different flight/date;
+ * - excluded here: measured live-provider recognition and commercial/provider suitability.
+ */
+
 function setInputValue(input: HTMLInputElement, value: string) {
 	const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
 	setter?.call(input, value);
 	input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-describe("FlightPlanner designator input", () => {
+async function settle() {
+	await act(async () => {
+		await Promise.resolve();
+	});
+}
+
+describe("FlightPlanner manual fallback", () => {
 	let container: HTMLDivElement;
 	let root: Root;
 
@@ -28,6 +43,38 @@ describe("FlightPlanner designator input", () => {
 		container.remove();
 		delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 		vi.unstubAllGlobals();
+	});
+
+	it("requires the traveler to enter an arrival after provider fallback", async () => {
+		const fetchSpy = vi.fn(async () =>
+			Response.json({
+				status: "manual_required",
+				reason: "not_found",
+				flightNumber: "W61431",
+				departureLocalDate: "2026-09-16",
+			}),
+		);
+		vi.stubGlobal("fetch", fetchSpy);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		const departureDate = container.querySelector<HTMLInputElement>("#departure-date-native");
+		await act(async () => {
+			setInputValue(flightNumber as HTMLInputElement, "W61431");
+			setInputValue(departureDate as HTMLInputElement, "2026-09-16");
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		const arrival = container.querySelector<HTMLInputElement>("#arrival-native");
+		const manualSubmit = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+			(button) => button.textContent?.includes("Zapisz i kontynuuj"),
+		);
+		expect(arrival?.value).toBe("");
+		expect(manualSubmit?.disabled).toBe(true);
+		expect(container.textContent).toContain("Nie otrzymaliśmy godziny przylotu od dostawcy");
+		expect(container.textContent).not.toContain("12:00");
+		expect(fetchSpy).toHaveBeenCalledOnce();
 	});
 
 	it("previews and normalizes a pasted designator without a hard input mask", async () => {
@@ -69,6 +116,112 @@ describe("FlightPlanner designator input", () => {
 		expect(container.textContent).toContain(copy);
 		expect(flightNumber?.getAttribute("aria-invalid")).toBe("true");
 		expect(flightNumber?.getAttribute("aria-describedby")).toContain("flight-number-error");
+	});
+
+	it("uses the traveler-entered arrival as the explicit manual confirmation", async () => {
+		const fetchSpy = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				Response.json({
+					status: "manual_required",
+					reason: "not_found",
+					flightNumber: "W61431",
+					departureLocalDate: "2026-09-16",
+				}),
+			)
+			.mockResolvedValueOnce(
+				Response.json({
+					status: "recognized",
+					flight: {
+						id: "manual-flight-id",
+						marketingCarrierCode: "W6",
+						marketingCarrierName: "W6",
+						marketingFlightNumber: "1431",
+						operatingCarrierCode: null,
+						operatingFlightNumber: null,
+						departureLocalDate: "2026-09-16",
+						originIata: "ZZZ",
+						destinationIata: "BGY",
+						scheduledArrivalUtc: "2026-09-16T08:30:00.000Z",
+						displayTimezone: "Europe/Rome",
+						source: "manual",
+					},
+				}),
+			);
+		vi.stubGlobal("fetch", fetchSpy);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		const departureDate = container.querySelector<HTMLInputElement>("#departure-date-native");
+		await act(async () => {
+			setInputValue(flightNumber as HTMLInputElement, "W61431");
+			setInputValue(departureDate as HTMLInputElement, "2026-09-16");
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		const arrival = container.querySelector<HTMLInputElement>("#arrival-native");
+		await act(async () => setInputValue(arrival as HTMLInputElement, "2026-09-16T10:30"));
+		const manualSubmit = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+			(button) => button.textContent?.includes("Zapisz i kontynuuj"),
+		);
+		expect(manualSubmit?.disabled).toBe(false);
+		await act(async () => {
+			manualSubmit?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+		const manualCall = fetchSpy.mock.calls[1];
+		expect(new URL(String(manualCall?.[0])).pathname).toBe("/flights/manual");
+		expect(JSON.parse(String(manualCall?.[1]?.body))).toEqual({
+			flightNumber: "W61431",
+			departureLocalDate: "2026-09-16",
+			destinationIata: "BGY",
+			scheduledArrivalUtc: "2026-09-16T08:30:00.000Z",
+		});
+		expect(container.textContent).toContain("Lot rozpoznany");
+	});
+
+	it.each([
+		["not_found", "Nie znaleźliśmy tego lotu. Sprawdź numer i datę albo wpisz przylot ręcznie."],
+		[
+			"timeout",
+			"Dostawca danych nie odpowiedział na czas. Spróbuj ponownie albo wpisz przylot ręcznie.",
+		],
+		[
+			"rate_limited",
+			"Dostawca danych jest chwilowo przeciążony. Odczekaj chwilę i spróbuj ponownie albo wpisz przylot ręcznie.",
+		],
+		[
+			"provider_error",
+			"Dostawca danych jest chwilowo niedostępny. Spróbuj ponownie później albo wpisz przylot ręcznie.",
+		],
+		["incomplete", "Dane lotu są niepełne. Sprawdź dane na bilecie i wpisz przylot ręcznie."],
+	] as const)("renders actionable Polish copy for %s and preserves input", (reason, copy) => {
+		const html = renderToStaticMarkup(
+			createElement(PlannerResults, {
+				error: "",
+				result: {
+					status: "manual_required",
+					reason,
+					flightNumber: "W61431",
+					departureLocalDate: "2026-09-16",
+				},
+				manualArrival: "",
+				manualArrivalError: "",
+				loading: false,
+				onManualArrivalChange: () => undefined,
+				onManualSubmit: () => undefined,
+				onRetry: () => undefined,
+				onDestinationChange: () => undefined,
+			}),
+		);
+
+		expect(html).toContain(copy);
+		expect(html).toContain("W61431");
+		expect(html).toContain("16.09.2026");
+		expect(html).not.toContain("12:00");
 	});
 
 	it("shows the shared first arrival when a later manual entry conflicts", () => {

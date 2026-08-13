@@ -126,8 +126,8 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 
 	function applyLookupResult(next: FlightResolveResult) {
 		setResult(next);
-		if (next.status === "manual_required" && !manualArrival) {
-			setManualArrival(`${next.departureLocalDate}T12:00`);
+		if (next.status === "manual_required") {
+			setManualArrival("");
 			setManualArrivalError("");
 		}
 	}
@@ -317,7 +317,7 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 												Numer lotu
 											</label>
 											<FieldInfo label="format numeru lotu">
-												Format: dwuznakowy kod przewoźnika i od 1 do 4 cyfr, np. FR1234.
+												Format: kod przewoźnika i od 1 do 4 cyfr, np. W6 1431 lub FR1234.
 											</FieldInfo>
 										</div>
 										<Input

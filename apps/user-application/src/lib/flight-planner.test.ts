@@ -32,7 +32,7 @@ describe("anonymous flight planner UI integration", () => {
 		expect(html).toContain(`value="${today}"`);
 		expect(html).toContain(formatPolishDateInput(today));
 		expect(html).toContain("Format: DD.MM.RRRR, np. 04.08.2026.");
-		expect(html).toContain("Format: dwuznakowy kod przewoźnika i od 1 do 4 cyfr, np. FR1234.");
+		expect(html).toContain("Format: kod przewoźnika i od 1 do 4 cyfr, np. W6 1431 lub FR1234.");
 	});
 
 	it("renders manual arrival using Polish date order and 24-hour time", () => {
