@@ -1,3 +1,10 @@
+## [1.35.1](https://github.com/auditmos/landingos/compare/v1.35.0...v1.35.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **auth:** reject superseded email OTP codes deterministically ([e22f96c](https://github.com/auditmos/landingos/commit/e22f96c751661a5cb32bab88fe60f8c3064e2b93)), closes [#22](https://github.com/auditmos/landingos/issues/22)
+
 # [1.35.0](https://github.com/auditmos/landingos/compare/v1.34.0...v1.35.0) (2026-08-13)
 
 
