@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/auditmos/landingos/compare/v1.33.4...v1.34.0) (2026-08-13)
+
+
+### Features
+
+* **diagnostics:** explain MVP provider limits with safe QA detail ([37231ae](https://github.com/auditmos/landingos/commit/37231ae7d6714abef563561ffbbba6731eb6ff92)), closes [#16](https://github.com/auditmos/landingos/issues/16) [#20](https://github.com/auditmos/landingos/issues/20)
+
 ## [1.33.4](https://github.com/auditmos/landingos/compare/v1.33.3...v1.33.4) (2026-08-13)
 
 
