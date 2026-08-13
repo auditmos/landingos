@@ -4,6 +4,7 @@ import {
 	formatPolishDateTimeInput,
 	parsePolishDateInput,
 	parsePolishDateTimeInput,
+	romeLocalDateTimeToUtc,
 } from "./polish-date";
 
 describe("Polish date inputs", () => {
@@ -32,5 +33,14 @@ describe("Polish date inputs", () => {
 	it("rejects AM/PM and invalid 24-hour times", () => {
 		expect(parsePolishDateTimeInput("04.08.2026, 12:00 PM")).toBeNull();
 		expect(parsePolishDateTimeInput("04.08.2026, 24:00")).toBeNull();
+	});
+
+	it("converts a BGY-local arrival to UTC without using the host timezone", () => {
+		expect(romeLocalDateTimeToUtc("2026-09-16T10:30")).toBe("2026-09-16T08:30:00.000Z");
+		expect(romeLocalDateTimeToUtc("2026-01-16T10:30")).toBe("2026-01-16T09:30:00.000Z");
+	});
+
+	it("rejects a Rome-local time skipped by the daylight-saving transition", () => {
+		expect(romeLocalDateTimeToUtc("2026-03-29T02:30")).toBeNull();
 	});
 });

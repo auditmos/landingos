@@ -3,6 +3,16 @@ const POLISH_DATE_PATTERN = /^\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})\s*$/;
 const LOCAL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 const POLISH_DATE_TIME_PATTERN =
 	/^\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})\s*,?\s*(\d{1,2}):(\d{2})\s*$/;
+const ROME_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+	timeZone: "Europe/Rome",
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+	hour: "2-digit",
+	minute: "2-digit",
+	second: "2-digit",
+	hourCycle: "h23",
+});
 
 function validDate(year: number, month: number, day: number): boolean {
 	const candidate = new Date(Date.UTC(year, month - 1, day));
@@ -72,4 +82,48 @@ export function formatPolishDateTimeInput(value: string): string {
 		return "";
 	}
 	return `${day}.${month}.${year}, ${hour}:${minute}`;
+}
+
+export function romeLocalDateTimeToUtc(value: string): string | null {
+	const match = LOCAL_DATE_TIME_PATTERN.exec(value);
+	if (!match) return null;
+	const [, yearValue, monthValue, dayValue, hourValue, minuteValue] = match;
+	const target = {
+		year: Number(yearValue),
+		month: Number(monthValue),
+		day: Number(dayValue),
+		hour: Number(hourValue),
+		minute: Number(minuteValue),
+	};
+	if (!validDate(target.year, target.month, target.day) || target.hour > 23 || target.minute > 59) {
+		return null;
+	}
+
+	const targetAsUtc = Date.UTC(
+		target.year,
+		target.month - 1,
+		target.day,
+		target.hour,
+		target.minute,
+	);
+	let instant = targetAsUtc;
+	for (let attempt = 0; attempt < 4; attempt += 1) {
+		const parts = Object.fromEntries(
+			ROME_DATE_TIME_FORMATTER.formatToParts(new Date(instant)).map((part) => [
+				part.type,
+				part.value,
+			]),
+		);
+		const renderedAsUtc = Date.UTC(
+			Number(parts.year),
+			Number(parts.month) - 1,
+			Number(parts.day),
+			Number(parts.hour),
+			Number(parts.minute),
+		);
+		const correction = targetAsUtc - renderedAsUtc;
+		if (correction === 0) return new Date(instant).toISOString();
+		instant += correction;
+	}
+	return null;
 }

@@ -14,7 +14,11 @@ import { Button } from "@/components/ui/button";
 import { FieldInfo, PolishPicker } from "@/components/ui/field-controls";
 import { Input } from "@/components/ui/input";
 import { completeManualFlightApi, resolveFlightApi } from "@/lib/flight-planner";
-import { currentDateInPoland, formatPolishDateTimeInput } from "@/lib/polish-date";
+import {
+	currentDateInPoland,
+	formatPolishDateTimeInput,
+	romeLocalDateTimeToUtc,
+} from "@/lib/polish-date";
 
 export { FlightSummary } from "@/components/flight/flight-planner-results";
 
@@ -163,7 +167,8 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 		event.preventDefault();
 		if (result?.status !== "manual_required") return;
 		setError("");
-		if (!formatPolishDateTimeInput(manualArrival)) {
+		const manualArrivalUtc = romeLocalDateTimeToUtc(manualArrival);
+		if (!formatPolishDateTimeInput(manualArrival) || !manualArrivalUtc) {
 			setManualArrivalError("Podaj prawidłową datę i godzinę w formacie DD.MM.RRRR, GG:MM.");
 			return;
 		}
@@ -174,7 +179,7 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 				flightNumber: result.flightNumber,
 				departureLocalDate: result.departureLocalDate,
 				destinationIata: "BGY",
-				scheduledArrivalUtc: new Date(manualArrival).toISOString(),
+				scheduledArrivalUtc: manualArrivalUtc,
 			});
 			setResult(completed);
 		} catch (caught) {
