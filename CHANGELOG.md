@@ -1,3 +1,10 @@
+# [1.35.0](https://github.com/auditmos/landingos/compare/v1.34.0...v1.35.0) (2026-08-13)
+
+
+### Features
+
+* **operator:** standardise field help and make every catalog field operational ([06367cc](https://github.com/auditmos/landingos/commit/06367cc717e71625acccc0e83c140b6e2251bdde)), closes [#21](https://github.com/auditmos/landingos/issues/21)
+
 # [1.34.0](https://github.com/auditmos/landingos/compare/v1.33.4...v1.34.0) (2026-08-13)
 
 
