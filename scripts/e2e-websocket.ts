@@ -88,7 +88,7 @@ export class TestWebSocketConnection {
 		const payload = Buffer.alloc(2 + reasonBytes.length);
 		payload.writeUInt16BE(code, 0);
 		reasonBytes.copy(payload, 2);
-		this.socket.end(frame(8, payload));
+		this.socket.end(frame(8, payload), () => this.socket.destroy());
 		this.finish();
 	}
 

@@ -15,7 +15,7 @@ const passThrough: MiddlewareHandler = async (_c, next) => next();
 
 function buildApp(
 	serviceOverrides: Partial<SafetyService> = {},
-	mutationLimiter: MiddlewareHandler = passThrough,
+	mutationLimiter: MiddlewareHandler | null = passThrough,
 ) {
 	const service: SafetyService = {
 		getRulesStatus: vi.fn(async () => ({
@@ -46,17 +46,17 @@ function buildApp(
 		})),
 		...serviceOverrides,
 	};
-	const handlers = createSafetyHandlers(
-		{
-			createService: () => service,
-			getSession: vi.fn(async (request) =>
-				request.headers.get("cookie") || request.headers.get("authorization")
-					? { user: { id: "user-a" } }
-					: null,
-			),
-		},
-		mutationLimiter,
-	);
+	const dependencies = {
+		createService: () => service,
+		getSession: vi.fn(async (request) =>
+			request.headers.get("cookie") || request.headers.get("authorization")
+				? { user: { id: "user-a" } }
+				: null,
+		),
+	};
+	const handlers = mutationLimiter
+		? createSafetyHandlers(dependencies, mutationLimiter)
+		: createSafetyHandlers(dependencies);
 	const app = new Hono();
 	app.route("/safety", handlers);
 	return { app, service };
@@ -179,5 +179,52 @@ describe("authenticated community safety API", () => {
 		}
 		expect(service.block).not.toHaveBeenCalled();
 		expect(service.report).not.toHaveBeenCalled();
+	});
+
+	it("allows 10 safety actions per minute and recovers after the controlled window", async () => {
+		let nowMs = 0;
+		let windowStartedAt = 0;
+		let used = 0;
+		const binding = {
+			limit: vi.fn(async () => {
+				if (nowMs - windowStartedAt >= 60_000) {
+					windowStartedAt = nowMs;
+					used = 0;
+				}
+				used += 1;
+				return { success: used <= 10 };
+			}),
+		} as unknown as RateLimit;
+		const { app, service } = buildApp({}, null);
+		const env = { RATE_LIMITER: binding } as Env;
+		const request = () =>
+			app.fetch(
+				new Request(`http://localhost/safety/rooms/${ROOM_ID}/reports`, {
+					method: "POST",
+					headers: cookieHeaders,
+					body: JSON.stringify({
+						targetType: "member",
+						targetPseudonym: "Bartek BGY",
+						reason: "other",
+					}),
+				}),
+				env,
+			);
+
+		for (let action = 1; action <= 10; action += 1) {
+			expect((await request()).status, `action ${action}`).toBe(201);
+		}
+		const blocked = await request();
+		expect(blocked.status).toBe(429);
+		expect(blocked.headers.get("Retry-After")).toBe("60");
+		expect(await blocked.json()).toEqual({
+			code: "safety_rate_limited",
+			error: "Zbyt wiele operacji bezpieczeństwa. Spróbuj ponownie za 60 sekund.",
+		});
+		expect(service.report).toHaveBeenCalledTimes(10);
+
+		nowMs = 60_000;
+		expect((await request()).status).toBe(201);
+		expect(service.report).toHaveBeenCalledTimes(11);
 	});
 });

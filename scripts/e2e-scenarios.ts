@@ -300,6 +300,7 @@ export async function runViewportScenarios(context: ScenarioContext) {
 	const main = createAgent(context, `main-${suffix}`);
 	const peer = createAgent(context, `peer-${suffix}`);
 	const otherRoom = createAgent(context, `other-room-${suffix}`);
+	const operatorReports = createAgent(context, `operator-reports-${suffix}`);
 	try {
 		await runFlightInputContract(context);
 		await runManualRoomIdentity(context, suffix);
@@ -361,15 +362,91 @@ export async function runViewportScenarios(context: ScenarioContext) {
 			}`,
 		);
 
+		const reportedMessage = `Oferta przejazdu do zgłoszenia ${suffix}`;
+		await peer.fill("#room-message", reportedMessage);
+		await Promise.all([
+			peer.clickText("Wyślij"),
+			main.waitFor(`document.body.innerText.includes(${JSON.stringify(reportedMessage)})`),
+		]);
+		await login(operatorReports, context, `operator-reports-${suffix}@example.test`);
+		await operatorReports.open(`${context.baseUrl}/operator/reports`);
+		await operatorReports.waitForText("Zgłoszenia bezpieczeństwa");
+		await operatorReports.waitForText("Brak zgłoszeń");
+
+		await main.eval(`(() => {
+			const triggers = [...document.querySelectorAll("button")]
+				.filter((button) => button.textContent?.trim() === "Zgłoś wiadomość");
+			const trigger = triggers.at(-1);
+			if (!(trigger instanceof HTMLButtonElement)) throw new Error("Missing message report action");
+			trigger.scrollIntoView({ block: "end" });
+			const rect = trigger.getBoundingClientRect();
+			if (rect.top < 0 || rect.bottom > innerHeight) throw new Error("Report action is not visible");
+			const scroller = document.querySelector("main");
+			window.__landingosReportScrollTop = scroller?.scrollTop ?? 0;
+			trigger.click();
+		})()`);
+		await main.waitForText("Zgłoszenie trafi do ograniczonego magazynu bezpieczeństwa.");
+		await main.eval(`(() => {
+			const dialog = document.querySelector('[role="dialog"]');
+			const reason = document.querySelector("#report-reason");
+			const scroller = document.querySelector("main");
+			if (!(dialog instanceof HTMLElement) || !(reason instanceof HTMLSelectElement)) {
+				throw new Error("Focused report dialog is missing");
+			}
+			const rect = dialog.getBoundingClientRect();
+			if (rect.top < 0 || rect.bottom > innerHeight) throw new Error("Report dialog left the viewport");
+			if (document.activeElement !== reason) throw new Error("Report reason did not receive focus");
+			if (reason.options.length !== 7) throw new Error("Expected all seven report reasons");
+			if (!dialog.innerText.includes("Ryś${suffix}") ||
+				!dialog.innerText.includes(${JSON.stringify(reportedMessage)})) {
+				throw new Error("Selected message context is missing");
+			}
+			if ((scroller?.scrollTop ?? 0) !== window.__landingosReportScrollTop) {
+				throw new Error("Opening the report changed the page scroll position");
+			}
+		})()`);
+		await main.assertScreen("Wyślij zgłoszenie", context.viewport.mobile);
+		await main.fill("#report-note", "ą".repeat(501));
+		await main.waitForText("Notatka może mieć najwyżej 500 znaków.");
+		await main.eval(`(() => {
+			const submit = [...document.querySelectorAll("button")]
+				.find((button) => button.textContent?.trim() === "Wyślij zgłoszenie");
+			if (!(submit instanceof HTMLButtonElement) || !submit.disabled) {
+				throw new Error("A 501-character note was not rejected before POST");
+			}
+		})()`);
+		const reportNotePrefix = "Automatyczny test bezpieczeństwa";
+		const reportNote = reportNotePrefix + "ą".repeat(500 - reportNotePrefix.length);
+		await main.fill("#report-note", reportNote);
+		await main.waitForText("500/500");
+		await main.clickText("Wyślij zgłoszenie");
+		await main.waitForText("Zgłoszenie zapisane. Status: Otwarte.");
+		await main.eval(`(() => {
+			if (document.activeElement?.textContent?.trim() !== "Zgłoś wiadomość") {
+				throw new Error("Focus did not return to the reported message");
+			}
+		})()`);
+		await operatorReports.waitForText(reportedMessage);
+		await operatorReports.waitForText(reportNotePrefix);
+		await operatorReports.eval(`(() => {
+			const text = document.body.innerText;
+			for (const expected of ["Sokół${suffix}", "Ryś${suffix}", "Inny problem", "FR500", "2026-09-14"]) {
+				if (!text.includes(expected)) throw new Error("Missing operator handoff: " + expected);
+			}
+			for (const forbidden of [
+				"traveler-${suffix}@example.test", "Duomo di Milano", "Cześć z pokoju ${suffix}"
+			]) {
+				if (text.includes(forbidden)) throw new Error("Private or unrelated data leaked: " + forbidden);
+			}
+		})()`);
+
+		await main.clickText("Zgłoś wiadomość");
+		await main.waitForText("Zgłoszenie trafi do ograniczonego magazynu bezpieczeństwa.");
+		await main.clickText("Wyślij zgłoszenie");
+		await main.waitForText("Zgłoszenie już istnieje. Status: Otwarte.");
 		await main.clickText("Zablokuj");
 		await main.waitForText("Ta osoba została zablokowana");
 		await main.assertScreen("Odblokuj", context.viewport.mobile);
-		await main.clickText("Zgłoś osobę");
-		await main.waitForText("Zgłoś problem");
-		await main.assertScreen("Wyślij zgłoszenie", context.viewport.mobile);
-		await main.fill("#report-note", "Automatyczny test bezpieczeństwa");
-		await main.clickText("Wyślij zgłoszenie");
-		await main.waitForText("Zgłoszenie zostało zapisane");
 
 		await main.eval(`(() => {
 			const trigger = document.querySelector('button[aria-label="Otwórz konto"]');
@@ -400,6 +477,6 @@ export async function runViewportScenarios(context: ScenarioContext) {
 			assertRuntimeClean(otherRoom),
 		]);
 	} finally {
-		await Promise.all([main.close(), peer.close(), otherRoom.close()]);
+		await Promise.all([main.close(), peer.close(), otherRoom.close(), operatorReports.close()]);
 	}
 }

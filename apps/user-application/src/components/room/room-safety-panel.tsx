@@ -15,12 +15,20 @@ import {
 	TramFront,
 	Users,
 } from "lucide-react";
+import { useRef } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { dropOffMapsUrl } from "@/lib/private-drop-off";
 import { cn } from "@/lib/utils";
 import { pseudonymColor, pseudonymInitials } from "./pseudonym-visuals";
@@ -243,7 +251,7 @@ function MemberRow({
 						className="size-11 text-muted-foreground hover:text-foreground"
 						aria-label="Zgłoś osobę"
 						title="Zgłoś osobę"
-						onClick={() => safety.startMemberReport(member.pseudonym)}
+						onClick={(event) => safety.startMemberReport(member.pseudonym, event.currentTarget)}
 					>
 						<Flag className="size-4" />
 					</Button>
@@ -290,57 +298,114 @@ export function RoomMembers({
 }
 
 export function ReportForm({ safety }: { safety: RoomSafetyController }) {
+	const reasonRef = useRef<HTMLSelectElement>(null);
 	if (!safety.reportTarget) return null;
+	const target = safety.reportTarget;
+	const noteLength = Array.from(safety.reportNote).length;
+	const noteTooLong = noteLength > 500;
+	const dismissLocked = safety.pending || safety.reportReason !== "other" || noteLength > 0;
 	return (
-		<Card className="border-primary/40">
-			<CardHeader>
-				<CardTitle className="text-lg">Zgłoś problem</CardTitle>
-				<CardDescription>
-					Zgłoszenie trafi do ograniczonego magazynu bezpieczeństwa.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-3">
-				<label className="block text-sm font-medium" htmlFor="report-reason">
-					Powód
-				</label>
-				<select
-					id="report-reason"
-					className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-					value={safety.reportReason}
-					onChange={(event) => {
-						const parsed = SafetyReportReasonSchema.safeParse(event.target.value);
-						if (parsed.success) safety.setReportReason(parsed.data);
-					}}
-				>
-					{SafetyReportReasonSchema.options.map((reason) => (
-						<option key={reason} value={reason}>
-							{SAFETY_REPORT_REASON_LABELS[reason]}
-						</option>
-					))}
-				</select>
-				<label className="block text-sm font-medium" htmlFor="report-note">
-					Notatka opcjonalna
-				</label>
-				<textarea
-					id="report-note"
-					className="min-h-24 w-full rounded-md border bg-background p-3 text-sm"
-					value={safety.reportNote}
-					onChange={(event) => safety.setReportNote(event.target.value)}
-				/>
-				<p className="text-xs text-muted-foreground">{Array.from(safety.reportNote).length}/500</p>
-				<div className="flex flex-wrap gap-2">
-					<Button
-						type="button"
-						disabled={safety.pending || Array.from(safety.reportNote).length > 500}
-						onClick={() => void safety.submitReport()}
-					>
-						Wyślij zgłoszenie
-					</Button>
-					<Button type="button" variant="outline" onClick={safety.cancelReport}>
-						Anuluj
-					</Button>
+		<Dialog open onOpenChange={(open) => !open && !dismissLocked && safety.cancelReport()}>
+			<DialogContent
+				showCloseButton={false}
+				className="inset-x-0 bottom-0 top-auto left-0 max-w-none translate-x-0 translate-y-0 rounded-b-none px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:top-1/2 sm:left-1/2 sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6"
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					reasonRef.current?.focus();
+				}}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					safety.restoreReportFocus();
+				}}
+				onEscapeKeyDown={(event) => {
+					if (dismissLocked) event.preventDefault();
+				}}
+				onPointerDownOutside={(event) => {
+					if (dismissLocked) event.preventDefault();
+				}}
+			>
+				<DialogHeader>
+					<DialogTitle className="text-balance">
+						{target.targetType === "message" ? "Zgłoś wiadomość" : "Zgłoś osobę"}
+					</DialogTitle>
+					<DialogDescription className="text-pretty">
+						Zgłoszenie trafi do ograniczonego magazynu bezpieczeństwa.
+					</DialogDescription>
+				</DialogHeader>
+				<div className="rounded-md border bg-muted/40 p-3 text-sm">
+					<p className="font-medium">{target.targetPseudonym}</p>
+					{target.targetType === "message" ? (
+						<p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">
+							{target.messagePreview}
+						</p>
+					) : null}
 				</div>
-			</CardContent>
-		</Card>
+				{safety.error ? (
+					<Alert variant="destructive">
+						<AlertDescription>{safety.error}</AlertDescription>
+					</Alert>
+				) : null}
+				{safety.pending ? (
+					<output className="block text-sm text-muted-foreground">Wysyłanie zgłoszenia…</output>
+				) : null}
+				<div className="space-y-3">
+					<label className="block text-sm font-medium" htmlFor="report-reason">
+						Powód
+					</label>
+					<select
+						ref={reasonRef}
+						id="report-reason"
+						className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+						value={safety.reportReason}
+						onChange={(event) => {
+							const parsed = SafetyReportReasonSchema.safeParse(event.target.value);
+							if (parsed.success) safety.setReportReason(parsed.data);
+						}}
+					>
+						{SafetyReportReasonSchema.options.map((reason) => (
+							<option key={reason} value={reason}>
+								{SAFETY_REPORT_REASON_LABELS[reason]}
+							</option>
+						))}
+					</select>
+					<label className="block text-sm font-medium" htmlFor="report-note">
+						Notatka opcjonalna
+					</label>
+					<textarea
+						id="report-note"
+						className="min-h-24 w-full rounded-md border bg-background p-3 text-sm"
+						value={safety.reportNote}
+						onChange={(event) => safety.setReportNote(event.target.value)}
+						aria-invalid={noteTooLong || undefined}
+						aria-describedby="report-note-help"
+					/>
+					<p
+						id="report-note-help"
+						className={cn("text-xs text-muted-foreground", noteTooLong && "text-destructive")}
+						aria-live="polite"
+					>
+						{noteLength}/500
+						{noteTooLong ? " — Notatka może mieć najwyżej 500 znaków." : ""}
+					</p>
+					<div className="flex flex-wrap gap-2">
+						<Button
+							type="button"
+							disabled={safety.pending || noteTooLong}
+							onClick={() => void safety.submitReport()}
+						>
+							Wyślij zgłoszenie
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={safety.pending}
+							onClick={safety.cancelReport}
+						>
+							Anuluj
+						</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
 	);
 }

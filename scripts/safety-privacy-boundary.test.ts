@@ -11,15 +11,40 @@ const runtimeFiles = [
 	"apps/user-application/src/lib/safety-api.ts",
 	"apps/user-application/src/components/room/use-room-safety.ts",
 	"apps/user-application/src/components/room/room-safety-panel.tsx",
+	"apps/user-application/src/components/room/room-panels.tsx",
 ] as const;
 
 const source = runtimeFiles.map((path) => readFileSync(path, "utf8")).join("\n");
+const forbiddenExactKeys = [
+	"email",
+	"destination",
+	"destinationText",
+	"destinationPlaceId",
+	"destinationCoordinates",
+	"placeId",
+	"coordinates",
+	"latitude",
+	"longitude",
+	"consent",
+	"marketingConsent",
+	"role",
+	"providerPayload",
+	"unrelatedMessages",
+] as const;
 
 describe("safety privacy and configuration boundary", () => {
-	it("contains no private planner, contact, consent, role, or provider fields", () => {
+	it("contains no private planner, contact, consent, or provider values", () => {
 		expect(source).not.toMatch(
-			/\b(email|destination|placeId|coordinates|latitude|longitude|consent|role|providerPayload|unrelated)\b/i,
+			/\b(email|destination|placeId|coordinates|latitude|longitude|consent|providerPayload|unrelatedMessages)\b/i,
 		);
+	});
+
+	it("contains none of the forbidden exact payload or snapshot keys", () => {
+		for (const key of forbiddenExactKeys) {
+			expect(source, `forbidden safety key: ${key}`).not.toMatch(
+				new RegExp(`(?:\\b${key}|["']${key}["'])\\s*:`),
+			);
+		}
 	});
 
 	it("keeps the immutable message evidence schema to exactly three bounded keys", () => {

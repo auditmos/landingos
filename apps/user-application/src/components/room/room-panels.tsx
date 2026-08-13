@@ -3,6 +3,10 @@ import type {
 	PublicTransportSelection,
 	RoomSelection,
 } from "@repo/data-ops/room";
+import {
+	SAFETY_REPORT_STATUS_LABELS,
+	type SafetyReportCreateResponse,
+} from "@repo/data-ops/safety";
 import { Bus, Car } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,10 +24,12 @@ export function ChatMessageItem({
 	message,
 	own,
 	onReport,
+	reportResult,
 }: {
 	message: PublicRoomMessage;
 	own: boolean;
-	onReport: () => void;
+	onReport: (origin: HTMLButtonElement) => void;
+	reportResult?: SafetyReportCreateResponse;
 }) {
 	return (
 		<div className={cn("flex items-end gap-2", own && "flex-row-reverse")}>
@@ -57,15 +63,23 @@ export function ChatMessageItem({
 					</span>
 				</div>
 				{own ? null : (
-					<Button
-						type="button"
-						size="sm"
-						variant="ghost"
-						className="mt-1 h-7 px-2 text-xs"
-						onClick={onReport}
-					>
-						Zgłoś wiadomość
-					</Button>
+					<>
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							className="mt-1 h-7 px-2 text-xs"
+							onClick={(event) => onReport(event.currentTarget)}
+						>
+							Zgłoś wiadomość
+						</Button>
+						{reportResult ? (
+							<output className="mt-1 block text-xs font-medium">
+								{reportResult.created ? "Zgłoszenie zapisane" : "Zgłoszenie już istnieje"}. Status:{" "}
+								{SAFETY_REPORT_STATUS_LABELS[reportResult.status]}.
+							</output>
+						) : null}
+					</>
 				)}
 			</div>
 		</div>

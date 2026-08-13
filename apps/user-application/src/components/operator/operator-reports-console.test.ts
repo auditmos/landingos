@@ -127,6 +127,14 @@ describe("operator report queue panel", () => {
 		);
 	});
 
+	it("refreshes the open queue so a traveler report arrives without a page reload", async () => {
+		const callsBeforePoll = mocks.list.mock.calls.length;
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 1_100));
+		});
+		expect(mocks.list.mock.calls.length).toBeGreaterThan(callsBeforePoll);
+	});
+
 	it("closes a report, drops it from the open queue, and reopens it from the closed view", async () => {
 		expect(container.textContent).toContain("Kup teraz mój bilet");
 

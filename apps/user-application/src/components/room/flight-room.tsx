@@ -279,7 +279,8 @@ export function FlightRoom({ roomId }: { roomId?: string }) {
 												key={item.id}
 												message={item}
 												own={item.pseudonym === snapshot.member.pseudonym}
-												onReport={() => safety.startMessageReport(item.id)}
+												onReport={(origin) => safety.startMessageReport(item, origin)}
+												reportResult={safety.messageReportResult(item.id)}
 											/>
 										))
 									)}

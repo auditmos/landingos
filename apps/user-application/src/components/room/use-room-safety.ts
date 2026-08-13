@@ -1,5 +1,7 @@
+import type { PublicRoomMessage } from "@repo/data-ops/room";
 import {
 	type CommunityRulesStatusResponse,
+	type SafetyReportCreateResponse,
 	SafetyReportNoteSchema,
 	type SafetyReportReason,
 } from "@repo/data-ops/safety";
@@ -15,7 +17,12 @@ import {
 
 type RoomReportTarget =
 	| { targetType: "member"; targetPseudonym: string }
-	| { targetType: "message"; messageId: string };
+	| {
+			targetType: "message";
+			messageId: string;
+			targetPseudonym: string;
+			messagePreview: string;
+	  };
 
 export interface RoomSafetyController {
 	rules: CommunityRulesStatusResponse | null;
@@ -29,9 +36,11 @@ export interface RoomSafetyController {
 	acceptRules(): Promise<void>;
 	block(pseudonym: string): Promise<void>;
 	unblock(pseudonym: string): Promise<void>;
-	startMemberReport(pseudonym: string): void;
-	startMessageReport(messageId: string): void;
+	startMemberReport(pseudonym: string, origin?: HTMLElement): void;
+	startMessageReport(message: PublicRoomMessage, origin?: HTMLElement): void;
 	cancelReport(): void;
+	restoreReportFocus(): void;
+	messageReportResult(messageId: string): SafetyReportCreateResponse | undefined;
 	setReportReason(reason: SafetyReportReason): void;
 	setReportNote(note: string): void;
 	submitReport(): Promise<void>;
@@ -53,7 +62,11 @@ export function useRoomSafety(
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState("");
 	const [notice, setNotice] = useState("");
+	const [reportResults, setReportResults] = useState<Record<string, SafetyReportCreateResponse>>(
+		{},
+	);
 	const visibilityChangeRef = useRef(onVisibilityChange);
+	const reportOriginRef = useRef<HTMLElement | null>(null);
 	visibilityChangeRef.current = onVisibilityChange;
 
 	useEffect(() => {
@@ -139,13 +152,34 @@ export function useRoomSafety(
 			return;
 		}
 		await run(async () => {
-			await reportRoomSafety(roomId, {
-				...reportTarget,
-				reason: reportReason,
-				...(parsedNote.data ? { note: parsedNote.data } : {}),
-			});
+			const note = parsedNote.data ? { note: parsedNote.data } : {};
+			const result = await reportRoomSafety(
+				roomId,
+				reportTarget.targetType === "member"
+					? {
+							targetType: "member",
+							targetPseudonym: reportTarget.targetPseudonym,
+							reason: reportReason,
+							...note,
+						}
+					: {
+							targetType: "message",
+							messageId: reportTarget.messageId,
+							reason: reportReason,
+							...note,
+						},
+			);
+			const reportKey =
+				reportTarget.targetType === "member"
+					? `member:${reportTarget.targetPseudonym}`
+					: `message:${reportTarget.messageId}`;
+			setReportResults((current) => ({ ...current, [reportKey]: result }));
 			cancelReport();
-			setNotice("Zgłoszenie zostało zapisane.");
+			setNotice(
+				result.created
+					? "Zgłoszenie zostało zapisane."
+					: "To zgłoszenie już istnieje. Pokazujemy zapisany status.",
+			);
 		});
 	}
 
@@ -161,10 +195,25 @@ export function useRoomSafety(
 		acceptRules,
 		block,
 		unblock,
-		startMemberReport: (targetPseudonym) =>
-			setReportTarget({ targetType: "member", targetPseudonym }),
-		startMessageReport: (messageId) => setReportTarget({ targetType: "message", messageId }),
+		startMemberReport: (targetPseudonym, origin) => {
+			reportOriginRef.current = origin ?? null;
+			setReportTarget({ targetType: "member", targetPseudonym });
+		},
+		startMessageReport: (message, origin) => {
+			reportOriginRef.current = origin ?? null;
+			setReportTarget({
+				targetType: "message",
+				messageId: message.id,
+				targetPseudonym: message.pseudonym,
+				messagePreview: Array.from(message.content).slice(0, 240).join(""),
+			});
+		},
 		cancelReport,
+		restoreReportFocus: () => {
+			reportOriginRef.current?.focus();
+			reportOriginRef.current = null;
+		},
+		messageReportResult: (messageId) => reportResults[`message:${messageId}`],
 		setReportReason,
 		setReportNote,
 		submitReport,

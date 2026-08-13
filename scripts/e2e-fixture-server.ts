@@ -373,8 +373,17 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 			if (reportsMatch && request.method === "POST") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
-				store.createReport(user.id, reportsMatch[1] ?? "", await body(request));
-				return json(response, 201, { reportId: randomUUID(), status: "open", created: true });
+				return json(
+					response,
+					201,
+					store.createReport(user.id, reportsMatch[1] ?? "", await body(request)),
+				);
+			}
+			if (url.pathname === "/operator/reports" && request.method === "GET") {
+				const user = requireUser(store, request, response);
+				if (!user) return;
+				if (user.role !== "operator") return json(response, 403, { error: "Brak uprawnień." });
+				return json(response, 200, store.listReports(Object.fromEntries(url.searchParams)));
 			}
 			if (url.pathname === "/operator/catalog" && request.method === "GET") {
 				const user = requireUser(store, request, response);
@@ -479,6 +488,7 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 		closeRoom: closeRoomConnections,
 		close: async () => {
 			for (const record of connections) record.connection.close();
+			server.closeAllConnections();
 			await new Promise<void>((resolve, reject) =>
 				server.close((error) => (error ? reject(error) : resolve())),
 			);

@@ -318,7 +318,7 @@ describe("Polish flight room UI", () => {
 		);
 		await act(async () => report?.click());
 		await settle();
-		const submit = Array.from(container.querySelectorAll("button")).find((button) =>
+		const submit = Array.from(document.querySelectorAll("button")).find((button) =>
 			button.textContent?.includes("Wyślij zgłoszenie"),
 		);
 		await act(async () => submit?.click());

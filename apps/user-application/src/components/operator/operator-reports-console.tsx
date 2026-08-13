@@ -214,6 +214,8 @@ export function OperatorReportsConsole() {
 		initialPageParam: 0,
 		getNextPageParam: (lastPage, pages) =>
 			lastPage.hasMore ? pages.length * SAFETY_REPORT_QUEUE_PAGE_SIZE : undefined,
+		refetchInterval: status === "open" ? 1_000 : false,
+		refetchIntervalInBackground: true,
 	});
 
 	// Closing a report moves it out of the open view, so both filtered lists are

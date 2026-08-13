@@ -57,6 +57,22 @@ type MessageRow = {
 	user_id: string;
 };
 
+type ReportBody = {
+	targetType?: string;
+	targetPseudonym?: string;
+	messageId?: string;
+	reason?: string;
+	note?: string;
+};
+
+type ReportRow = {
+	id: string;
+	user_id: string;
+	room_id: string;
+	body: string;
+	created_at: string;
+};
+
 const ROOM_ID = "10000000-0000-4000-8000-000000000001";
 const SECOND_ROOM_ID = "20000000-0000-4000-8000-000000000002";
 const MANUAL_ROOM_ID = "30000000-0000-4000-8000-000000000003";
@@ -328,9 +344,90 @@ export class FixtureStore {
 	}
 
 	createReport(userId: string, roomId: string, body: unknown) {
+		const input = body as ReportBody;
+		const duplicate = (
+			this.db
+				.prepare("SELECT * FROM reports WHERE user_id = ? AND room_id = ?")
+				.all(userId, roomId) as unknown as ReportRow[]
+		).find((row) => {
+			const stored = JSON.parse(row.body) as ReportBody;
+			return input.targetType === "message"
+				? stored.messageId === input.messageId
+				: stored.targetPseudonym === input.targetPseudonym;
+		});
+		if (duplicate) return { reportId: duplicate.id, status: "open" as const, created: false };
+
+		const id = randomUUID();
+		const createdAt = new Date().toISOString();
 		this.db
-			.prepare("INSERT INTO reports (id, user_id, room_id, body) VALUES (?, ?, ?, ?)")
-			.run(randomUUID(), userId, roomId, JSON.stringify(body));
+			.prepare(
+				"INSERT INTO reports (id, user_id, room_id, body, created_at) VALUES (?, ?, ?, ?, ?)",
+			)
+			.run(id, userId, roomId, JSON.stringify(body), createdAt);
+		return { reportId: id, status: "open" as const, created: true };
+	}
+
+	listReports(query: {
+		status?: string;
+		reason?: string;
+		limit?: number | string;
+		offset?: number | string;
+	}) {
+		const reports = (
+			this.db
+				.prepare("SELECT * FROM reports ORDER BY created_at DESC")
+				.all() as unknown as ReportRow[]
+		)
+			.map((row) => {
+				const input = JSON.parse(row.body) as ReportBody;
+				const room = this.db
+					.prepare("SELECT flight_instance_id FROM room_members WHERE room_id = ? LIMIT 1")
+					.get(row.room_id) as { flight_instance_id: string } | undefined;
+				const reporter = this.db
+					.prepare("SELECT pseudonym FROM room_members WHERE room_id = ? AND user_id = ?")
+					.get(row.room_id, row.user_id) as { pseudonym: string } | undefined;
+				const message = input.messageId
+					? (this.db.prepare("SELECT * FROM messages WHERE id = ?").get(input.messageId) as
+							| MessageRow
+							| undefined)
+					: undefined;
+				const flightDesignator = room?.flight_instance_id.startsWith("flight-")
+					? room.flight_instance_id.slice("flight-".length).toUpperCase()
+					: "FR500";
+				return {
+					id: row.id,
+					roomId: row.room_id,
+					flightDesignator,
+					departureLocalDate: "2026-09-14",
+					reporterPseudonym: reporter?.pseudonym ?? null,
+					targetPseudonym: message?.pseudonym ?? input.targetPseudonym ?? null,
+					messageId: message?.id ?? null,
+					reason: input.reason,
+					note: input.note?.trim() || null,
+					status: "open" as const,
+					evidenceSnapshot: message
+						? {
+								messageText: message.content,
+								authorPseudonym: message.pseudonym,
+								originalMessageAt: message.created_at,
+							}
+						: null,
+					createdAt: row.created_at,
+					resolvedAt: null,
+					resolvedByPseudonym: null,
+				};
+			})
+			.filter(
+				(report) =>
+					(!query.status || report.status === query.status) &&
+					(!query.reason || report.reason === query.reason),
+			);
+		const offset = Number(query.offset ?? 0);
+		const limit = Number(query.limit ?? 25);
+		return {
+			reports: reports.slice(offset, offset + limit),
+			hasMore: reports.length > offset + limit,
+		};
 	}
 
 	listCatalog() {
@@ -391,7 +488,7 @@ export class FixtureStore {
 			CREATE TABLE room_members (room_id TEXT, user_id TEXT, flight_instance_id TEXT, pseudonym TEXT, selection TEXT, PRIMARY KEY (room_id, user_id));
 			CREATE TABLE messages (id TEXT PRIMARY KEY, client_message_id TEXT UNIQUE, room_id TEXT, user_id TEXT, pseudonym TEXT, content TEXT, created_at TEXT);
 			CREATE TABLE blocks (blocker_user_id TEXT, target_user_id TEXT, PRIMARY KEY (blocker_user_id, target_user_id));
-			CREATE TABLE reports (id TEXT PRIMARY KEY, user_id TEXT, room_id TEXT, body TEXT);
+			CREATE TABLE reports (id TEXT PRIMARY KEY, user_id TEXT, room_id TEXT, body TEXT, created_at TEXT);
 			CREATE TABLE catalog (id TEXT PRIMARY KEY, payload TEXT, created_at TEXT);
 		`);
 	}

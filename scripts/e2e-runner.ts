@@ -32,11 +32,19 @@ async function waitForUrl(url: string, child?: ChildProcess) {
 
 async function stopChild(child: ChildProcess) {
 	if (child.exitCode !== null) return;
-	child.kill("SIGTERM");
+	const signalTree = (signal: NodeJS.Signals) => {
+		try {
+			if (child.pid) process.kill(-child.pid, signal);
+			else child.kill(signal);
+		} catch {
+			child.kill(signal);
+		}
+	};
+	signalTree("SIGTERM");
 	await Promise.race([
 		new Promise<void>((resolveExit) => child.once("exit", () => resolveExit())),
 		delay(3_000).then(() => {
-			if (child.exitCode === null) child.kill("SIGKILL");
+			if (child.exitCode === null) signalTree("SIGKILL");
 		}),
 	]);
 }
@@ -45,6 +53,7 @@ function startVite(useRealAuthClient: boolean) {
 	const output: string[] = [];
 	const child = spawn("pnpm", ["run", "e2e:serve"], {
 		cwd: USER_APP,
+		detached: true,
 		env: {
 			...process.env,
 			CLOUDFLARE_ENV: "development",
@@ -118,8 +127,8 @@ async function main() {
 					}
 				).count,
 			);
-			if (messageCount !== 1) {
-				throw new Error(`Expected one idempotent room message, found ${messageCount}`);
+			if (messageCount !== 2) {
+				throw new Error(`Expected two room messages, found ${messageCount}`);
 			}
 			const reportCount = Number(
 				(

@@ -32,7 +32,7 @@ const defaultMutationLimiter = rateLimiter({
 	limit: 10,
 	window: 60,
 	errorCode: "safety_rate_limited",
-	errorMessage: "Zbyt wiele operacji bezpieczeństwa. Spróbuj ponownie później.",
+	errorMessage: "Zbyt wiele operacji bezpieczeństwa. Spróbuj ponownie za 60 sekund.",
 });
 
 function unauthorized(c: Context) {

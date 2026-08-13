@@ -12,6 +12,7 @@ import { FlightPlanner } from "@/components/flight/flight-planner";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { OperatorCatalogConsole } from "@/components/operator/operator-catalog-console";
+import { OperatorReportsConsole } from "@/components/operator/operator-reports-console";
 import { FlightRoom } from "@/components/room/flight-room";
 import { authClient } from "@/lib/auth-client";
 
@@ -87,6 +88,11 @@ const operatorRoute = createRoute({
 	path: "/operator",
 	component: OperatorCatalogConsole,
 });
+const operatorReportsRoute = createRoute({
+	getParentRoute: () => authenticatedRoute,
+	path: "/operator/reports",
+	component: OperatorReportsConsole,
+});
 const dashboardRoute = createRoute({
 	getParentRoute: () => authenticatedRoute,
 	path: "/dashboard",
@@ -95,7 +101,7 @@ const dashboardRoute = createRoute({
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	signinRoute,
-	authenticatedRoute.addChildren([appRoute, operatorRoute, dashboardRoute]),
+	authenticatedRoute.addChildren([appRoute, operatorRoute, operatorReportsRoute, dashboardRoute]),
 ]);
 
 export function getE2ERouter() {
