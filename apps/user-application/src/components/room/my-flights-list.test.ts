@@ -96,7 +96,7 @@ describe("Moje loty page", () => {
 		expect(container.textContent).toContain("Moje loty");
 		expect(container.textContent).toContain("Otwarte pokoje");
 		const roomLink = Array.from(container.querySelectorAll("a")).find((anchor) =>
-			anchor.textContent?.includes("Ryanair FR1234"),
+			anchor.textContent?.includes("Ryanair FR 1234"),
 		);
 		expect(roomLink?.getAttribute("href")).toBe(`/app?roomId=${roomId}`);
 

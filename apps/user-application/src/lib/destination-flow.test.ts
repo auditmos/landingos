@@ -94,7 +94,7 @@ describe("anonymous flight-to-destination flow", () => {
 			await Promise.resolve();
 		});
 
-		expect(container.textContent).toContain("Ryanair FR1234");
+		expect(container.textContent).toContain("Ryanair FR 1234");
 		const destinationInput = container.querySelector<HTMLInputElement>("#destination-query");
 		expect(destinationInput).not.toBeNull();
 		await act(async () => {
@@ -111,7 +111,7 @@ describe("anonymous flight-to-destination flow", () => {
 		});
 
 		expect(container.textContent).toContain("Cel jeszcze nieobsługiwany");
-		expect(container.textContent).toContain("Ryanair FR1234");
+		expect(container.textContent).toContain("Ryanair FR 1234");
 		expect(destinationInput?.value).toBe("Lotnisko BGY");
 		expect(requestedPaths).not.toContain("/journeys/recommend");
 	});

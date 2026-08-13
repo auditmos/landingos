@@ -3,6 +3,7 @@ import {
 	type FlightLookupRequest,
 	FlightLookupRequestSchema,
 	type FlightResolveResult,
+	parseFlightDesignator,
 } from "@repo/data-ops/flight";
 import { ArrowRight, MessageCircle, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
@@ -96,6 +97,14 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 	const captchaRef = useRef<TurnstileHandle>(null);
 	const captchaRequired = Boolean(TURNSTILE_SITE_KEY);
 	const resultsRef = useRef<HTMLElement>(null);
+	const designatorPreview = parseFlightDesignator(flightNumber);
+	const flightNumberDescribedBy = [
+		"flight-number-help",
+		designatorPreview.status === "recognized" ? "flight-number-preview" : undefined,
+		fieldErrors.flightNumber ? "flight-number-error" : undefined,
+	]
+		.filter(Boolean)
+		.join(" ");
 
 	// Once a lookup resolves (or errors), bring the results into view so the answer
 	// is visible without scrolling — on mobile the form fills the first screen.
@@ -314,16 +323,37 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 										<Input
 											id="flight-number"
 											name="flightNumber"
-											placeholder="np. FR1234"
+											placeholder="W6 1431 lub FR1234"
 											autoComplete="off"
+											autoCapitalize="characters"
+											spellCheck={false}
+											maxLength={16}
 											value={flightNumber}
-											onChange={(event) => setFlightNumber(event.target.value)}
+											onChange={(event) => {
+												setFlightNumber(event.target.value);
+												setFieldErrors((current) => ({ ...current, flightNumber: undefined }));
+											}}
+											onBlur={() => {
+												if (designatorPreview.status === "recognized") {
+													setFlightNumber(designatorPreview.canonical);
+												}
+											}}
 											aria-invalid={Boolean(fieldErrors.flightNumber)}
-											aria-describedby={
-												fieldErrors.flightNumber ? "flight-number-error" : undefined
-											}
+											aria-describedby={flightNumberDescribedBy}
 											className="h-12 bg-background px-4 text-base"
 										/>
+										<p id="flight-number-help" className="mt-2 text-xs text-muted-foreground">
+											Numer lotu z biletu lub karty pokładowej — nie numer rezerwacji.
+										</p>
+										{designatorPreview.status === "recognized" ? (
+											<p
+												id="flight-number-preview"
+												className="mt-1 text-sm font-medium text-foreground"
+												aria-live="polite"
+											>
+												Rozpoznamy jako {designatorPreview.canonical}
+											</p>
+										) : null}
 										{fieldErrors.flightNumber ? (
 											<p id="flight-number-error" className="mt-2 text-sm text-destructive">
 												{fieldErrors.flightNumber}

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { parseFlightDesignator } from "../packages/data-ops/dist/flight/index.js";
 import {
 	COMMUNITY_RULES_TOPICS,
 	COMMUNITY_RULES_VERSION,
@@ -130,11 +131,18 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 			}
 			if (url.pathname === "/flights/resolve" && request.method === "POST") {
 				const input = await body(request);
-				const flightNumber = String(input.flightNumber ?? "");
+				const parsedDesignator = parseFlightDesignator(String(input.flightNumber ?? ""));
+				if (parsedDesignator.status !== "recognized") {
+					return json(response, 400, {
+						status: "validation_error",
+						fieldErrors: { flightNumber: [parsedDesignator.message] },
+					});
+				}
+				const flightNumber = parsedDesignator.canonical;
 				if (flightNumber === "FR500" && store.nextFlightAttempt(flightNumber) === 1) {
 					return json(response, 503, { error: "fixture_provider_error" });
 				}
-				if (flightNumber === "FR404") {
+				if (flightNumber === "FR404" || flightNumber === "W61431") {
 					return json(response, 200, {
 						status: "manual_required",
 						reason: "not_found",
@@ -146,7 +154,28 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 			}
 			if (url.pathname === "/flights/manual" && request.method === "POST") {
 				const input = await body(request);
-				return json(response, 200, fixtureFlight(String(input.flightNumber ?? "FR404"), true));
+				const parsedDesignator = parseFlightDesignator(String(input.flightNumber ?? ""));
+				if (parsedDesignator.status !== "recognized") {
+					return json(response, 400, { status: "validation_error" });
+				}
+				const departureLocalDate = String(input.departureLocalDate ?? "");
+				const scheduledArrivalUtc = String(input.scheduledArrivalUtc ?? "");
+				const manual = store.completeManualFlight(
+					parsedDesignator.canonical,
+					departureLocalDate,
+					scheduledArrivalUtc,
+				);
+				return json(
+					response,
+					200,
+					fixtureFlight(parsedDesignator.canonical, {
+						manual: true,
+						departureLocalDate,
+						scheduledArrivalUtc: manual.sharedScheduledArrivalUtc,
+						id: manual.id,
+						...(manual.conflict ? { manualArrivalConflict: manual.conflict } : {}),
+					}),
+				);
 			}
 			if (url.pathname === "/destinations/autocomplete" && request.method === "POST") {
 				const input = await body(request);
@@ -347,7 +376,7 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				store.createReport(user.id, reportsMatch[1] ?? "", await body(request));
 				return json(response, 201, { reportId: randomUUID(), status: "open", created: true });
 			}
-			if (url.pathname === "/operator/catalog/" && request.method === "GET") {
+			if (url.pathname === "/operator/catalog" && request.method === "GET") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
 				if (user.role !== "operator") {
@@ -355,7 +384,7 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				}
 				return json(response, 200, { entries: store.listCatalog() });
 			}
-			if (url.pathname === "/operator/catalog/" && request.method === "POST") {
+			if (url.pathname === "/operator/catalog" && request.method === "POST") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
 				if (user.role !== "operator") return json(response, 403, { error: "Brak uprawnień." });

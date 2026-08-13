@@ -1,5 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { AgentBrowser } from "./e2e-agent.ts";
+import { runFlightInputContract, runManualRoomIdentity } from "./e2e-flight-designator.ts";
 
 export type BrowserViewport = {
 	name: "mobile" | "desktop";
@@ -53,12 +54,7 @@ async function setIntent(agent: AgentBrowser, flightInstanceId: string) {
 	);
 }
 
-async function login(
-	agent: AgentBrowser,
-	context: ScenarioContext,
-	email: string,
-	expectedText: string,
-) {
+async function login(agent: AgentBrowser, context: ScenarioContext, email: string) {
 	await prepareAgent(agent, context, "/signin");
 	await agent.waitForText("Zaloguj się kodem");
 	await agent.assertScreen("Wyślij kod", context.viewport.mobile);
@@ -73,7 +69,7 @@ async function login(
 	})()`);
 	await agent.fill("#auth-otp", "246810");
 	await agent.clickText("Zaloguj się");
-	await agent.waitForText(expectedText);
+	await agent.waitForText("Znajdź swój lot");
 }
 
 async function loginAndJoin(
@@ -100,7 +96,7 @@ async function loginAndJoin(
 	await agent.waitForText("Połączono");
 	await agent.waitForText("Akceptuję zasady");
 	await agent.clickText("Akceptuję zasady");
-	await agent.waitForText("Zaakceptowano aktualną wersję");
+	await agent.waitForText("Zasady społeczności zostały zaakceptowane.");
 }
 
 async function assertRuntimeClean(agent: AgentBrowser) {
@@ -117,7 +113,7 @@ async function plannerErrorAndRoomJourney(
 	userSuffix: string,
 ) {
 	await prepareAgent(main, context);
-	await main.waitForText("Zacznij od swojego lotu");
+	await main.waitForText("Znajdź swój lot");
 	await main.assertScreen("Sprawdź lot", context.viewport.mobile);
 	await main.eval(`(async () => {
 		if (document.documentElement.lang !== "pl") throw new Error("Document language is not Polish");
@@ -147,7 +143,7 @@ async function plannerErrorAndRoomJourney(
 		return manifest.name;
 	})()`);
 	await main.fill("#flight-number", "FR500");
-	await main.fill("#departure-date", "2026-09-14");
+	await main.fill("#departure-date-native", "2026-09-14");
 	await main.clickText("Sprawdź lot");
 	await main.waitForText("Nie udało się wykonać operacji");
 	await main.assertScreen("Sprawdź lot", context.viewport.mobile);
@@ -177,7 +173,7 @@ async function plannerErrorAndRoomJourney(
 	await main.fill("#destination-query", "Duomo");
 	await main.waitForText("Duomo di Milano");
 	await main.clickContaining("Duomo di Milano");
-	await main.waitForText("Airport Bus Express");
+	await main.waitForText("Potwierdzenie pokoju lotu");
 	await main.assertScreen("Jadę tym wariantem — do pokoju", context.viewport.mobile);
 	await main.clickText("Jadę tym wariantem — do pokoju");
 	await main.waitForText("Zaloguj się kodem");
@@ -204,19 +200,20 @@ async function plannerErrorAndRoomJourney(
 	await main.waitForText("Połączono");
 	await main.assertScreen("Akceptuję zasady", context.viewport.mobile);
 	await main.clickText("Akceptuję zasady");
-	await main.waitForText("Zaakceptowano aktualną wersję");
+	await main.waitForText("Zasady społeczności zostały zaakceptowane.");
 }
 
 async function manualFallback(context: ScenarioContext, userSuffix: string) {
 	const agent = createAgent(context, `manual-${userSuffix}`);
 	try {
 		await prepareAgent(agent, context);
-		await agent.waitForText("Zacznij od swojego lotu");
+		await agent.waitForText("Znajdź swój lot");
 		await agent.fill("#flight-number", "FR404");
-		await agent.fill("#departure-date", "2026-09-14");
+		await agent.fill("#departure-date-native", "2026-09-14");
 		await agent.clickText("Sprawdź lot");
 		await agent.waitForText("Uzupełnij przylot ręcznie");
 		await agent.assertScreen("Zapisz i kontynuuj", context.viewport.mobile);
+		await agent.fill("#arrival-native", "2026-09-14T10:20");
 		await agent.clickText("Zapisz i kontynuuj");
 		await agent.waitForText("Lot rozpoznany");
 		await agent.assertScreen("Sprawdź lot", context.viewport.mobile);
@@ -231,17 +228,18 @@ async function operatorJourney(context: ScenarioContext, userSuffix: string) {
 	const operator = createAgent(context, `operator-${userSuffix}`);
 	const verificationDate = "2026-07-27T00:00";
 	try {
-		await login(regular, context, `regular-${userSuffix}@example.test`, "Panel podróżnego");
+		await login(regular, context, `regular-${userSuffix}@example.test`);
 		await regular.open(`${context.baseUrl}/operator`);
 		await regular.waitForText("Brak dostępu do katalogu");
+		await regular.waitForText("Brak uprawnień operatora.");
 		if (context.viewport.mobile) {
 			await regular.eval(`document.querySelector('button[aria-label="Otwórz menu"]')?.click()`);
 		}
 		await regular.assertScreen("Start", context.viewport.mobile);
 
-		await login(operator, context, `operator-${userSuffix}@example.test`, "Panel podróżnego");
+		await login(operator, context, `operator-${userSuffix}@example.test`);
 		await operator.open(`${context.baseUrl}/operator`);
-		await operator.waitForText("Katalog transferów z BGY");
+		await operator.waitForText("Katalog transferów");
 		await operator.assertScreen("Zapisz szkic", context.viewport.mobile);
 		const values: Array<[string, string]> = [
 			["#catalog-operatorName", "Operator E2E"],
@@ -280,13 +278,18 @@ async function publishedRecommendation(context: ScenarioContext, userSuffix: str
 	try {
 		await prepareAgent(agent, context);
 		await agent.fill("#flight-number", "FR1234");
-		await agent.fill("#departure-date", "2026-09-14");
+		await agent.fill("#departure-date-native", "2026-09-14");
 		await agent.clickText("Sprawdź lot");
 		await agent.waitForText("Lot rozpoznany");
 		await agent.fill("#destination-query", "Duomo");
 		await agent.waitForText("Duomo di Milano");
 		await agent.clickContaining("Duomo di Milano");
-		await agent.waitForText("E2E Express poprawiony");
+		await agent.waitForText("Potwierdzenie pokoju lotu");
+		await agent.eval(`(() => {
+			if (!document.body.textContent?.includes("E2E Express poprawiony")) {
+				throw new Error("Published catalog source is missing from recommendations");
+			}
+		})()`);
 		await agent.assertScreen("Jadę tym wariantem — do pokoju", context.viewport.mobile);
 		await assertRuntimeClean(agent);
 	} finally {
@@ -300,6 +303,8 @@ export async function runViewportScenarios(context: ScenarioContext) {
 	const peer = createAgent(context, `peer-${suffix}`);
 	const otherRoom = createAgent(context, `other-room-${suffix}`);
 	try {
+		await runFlightInputContract(context);
+		await runManualRoomIdentity(context, suffix);
 		await manualFallback(context, suffix);
 		await plannerErrorAndRoomJourney(context, main, suffix);
 		await loginAndJoin(
@@ -324,14 +329,14 @@ export async function runViewportScenarios(context: ScenarioContext) {
 			main.clickText("Dzielona taksówka"),
 			peer.waitFor(`document.body.innerText.includes("Sokół${suffix}") &&
 				[...document.querySelectorAll("li")].some((item) =>
-					item.innerText.includes("Sokół${suffix}") && item.innerText.includes("Dzielona taksówka"))`),
+					item.innerText.includes("Sokół${suffix}") && item.innerText.includes("Szuka taksówki"))`),
 		]);
 		if (performance.now() - selectionStarted > 5_000) {
 			throw new Error("Transport selection synchronization exceeded 5 seconds");
 		}
 		await main.clickText("Transport publiczny");
 		await peer.waitFor(`[...document.querySelectorAll("li")].some((item) =>
-			item.innerText.includes("Sokół${suffix}") && item.innerText.includes("Airport Bus Express"))`);
+			item.innerText.includes("Sokół${suffix}") && item.querySelector('[aria-label="Autobus"]'))`);
 		await peer.assertTextCount(`Sokół${suffix}`, 1);
 		await otherRoom.eval(
 			`if (document.body.innerText.includes("Sokół${suffix}")) {
@@ -368,12 +373,16 @@ export async function runViewportScenarios(context: ScenarioContext) {
 		await main.clickText("Wyślij zgłoszenie");
 		await main.waitForText("Zgłoszenie zostało zapisane");
 
-		await main.clickContaining("Aktywny");
+		await main.eval(`(() => {
+			const trigger = document.querySelector('button[aria-label="Otwórz konto"]');
+			if (!(trigger instanceof HTMLButtonElement)) throw new Error("Missing account trigger");
+			trigger.click();
+		})()`);
 		await main.waitForText("Usuń konto");
 		await main.assertScreen("Usuń konto bezpowrotnie", context.viewport.mobile);
 		await main.fill("#account-delete-confirmation", "USUŃ KONTO");
 		await main.clickText("Usuń konto bezpowrotnie");
-		await main.waitForText("Zacznij od swojego lotu");
+		await main.waitForText("Znajdź swój lot");
 
 		await fetch(
 			`${context.fixtureOrigin}/test-control/rooms/10000000-0000-4000-8000-000000000001/close`,

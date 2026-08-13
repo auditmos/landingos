@@ -20,15 +20,15 @@ export async function runRealAuthOtpRegression(context: AuthRegressionContext) {
 	try {
 		await agent.open(context.baseUrl);
 		await agent.viewport(context.viewport.width, context.viewport.height);
-		await agent.waitForText("Zacznij od lotu");
+		await agent.waitForText("Znajdź swój lot");
 		await agent.fill("#flight-number", "FR1234");
-		await agent.fill("#departure-date", "2026-09-14");
+		await agent.fill("#departure-date-native", "2026-09-14");
 		await agent.clickText("Sprawdź lot");
 		await agent.waitForText("Lot rozpoznany");
 		await agent.fill("#destination-query", "Duomo");
 		await agent.waitForText("Duomo di Milano");
 		await agent.clickContaining("Duomo di Milano");
-		await agent.waitForText("Airport Bus Express");
+		await agent.waitForText("Potwierdzenie pokoju lotu");
 		await agent.clickText("Jadę tym wariantem — do pokoju");
 		await agent.waitForText("Zaloguj się kodem");
 
@@ -88,7 +88,7 @@ export async function runRealAuthOtpRegression(context: AuthRegressionContext) {
 
 		await agent.eval(`sessionStorage.removeItem("landingos.room-intent")`);
 		await agent.open(`${context.baseUrl}/signin`);
-		await agent.waitForText("Zacznij od lotu");
+		await agent.waitForText("Znajdź swój lot");
 		await agent.eval(
 			`if (location.pathname !== "/") throw new Error("Valid session without intent did not recover /")`,
 		);

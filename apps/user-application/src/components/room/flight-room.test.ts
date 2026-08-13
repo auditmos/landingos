@@ -387,7 +387,7 @@ describe("room re-entry without planner intent", () => {
 		]);
 		await mountRoom();
 		expect(container.textContent).toContain("Poprzednie loty");
-		expect(container.textContent).toContain("Ryanair FR1234");
+		expect(container.textContent).toContain("Ryanair FR 1234");
 		expect(container.textContent).toContain("WAW → BGY · 19.07.2026");
 		const replan = Array.from(container.querySelectorAll("a")).find((anchor) =>
 			anchor.textContent?.includes("Zaplanuj ponownie"),

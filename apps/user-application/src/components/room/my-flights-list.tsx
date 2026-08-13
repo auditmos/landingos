@@ -1,3 +1,4 @@
+import { canonicalFlightDesignator, formatFlightLabel } from "@repo/data-ops/flight";
 import type { PastFlightListing, RoomListing } from "@repo/data-ops/room";
 import { History, PlaneLanding } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { useMyRooms, usePastFlights } from "@/lib/use-my-rooms";
 
 function flightTitle(flight: RoomListing["flight"]): string {
 	if (!flight) return "Twój lot";
-	return `${flight.marketingCarrierName} ${flight.marketingCarrierCode}${flight.marketingFlightNumber}`;
+	return formatFlightLabel(flight);
 }
 
 function routeLabel(flight: RoomListing["flight"]): string | null {
@@ -26,7 +27,7 @@ function formatRoomClosing(closesAt: string, now = new Date()): string {
 }
 
 function replanHref(flight: PastFlightListing["flight"]): string {
-	const flightNumber = `${flight.marketingCarrierCode}${flight.marketingFlightNumber}`;
+	const flightNumber = canonicalFlightDesignator(flight);
 	return `/?flightNumber=${encodeURIComponent(flightNumber)}`;
 }
 

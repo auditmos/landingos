@@ -59,6 +59,7 @@ type MessageRow = {
 
 const ROOM_ID = "10000000-0000-4000-8000-000000000001";
 const SECOND_ROOM_ID = "20000000-0000-4000-8000-000000000002";
+const MANUAL_ROOM_ID = "30000000-0000-4000-8000-000000000003";
 const CLOSES_AT = "2026-09-15T08:20:00.000Z";
 
 function userFromRow(row: Record<string, unknown> | undefined): FixtureUser | undefined {
@@ -80,6 +81,7 @@ export class FixtureStore {
 	readonly tickets = new Map<string, string>();
 	private readonly otpByEmail = new Map<string, string>();
 	private readonly flightAttempts = new Map<string, number>();
+	private readonly manualArrivals = new Map<string, string>();
 
 	constructor() {
 		this.createSchema();
@@ -96,6 +98,7 @@ export class FixtureStore {
 		`);
 		this.otpByEmail.clear();
 		this.flightAttempts.clear();
+		this.manualArrivals.clear();
 		this.tickets.clear();
 		this.requests.length = 0;
 	}
@@ -171,7 +174,26 @@ export class FixtureStore {
 		return next;
 	}
 
+	completeManualFlight(
+		flightNumber: string,
+		departureLocalDate: string,
+		scheduledArrivalUtc: string,
+	) {
+		const key = `${flightNumber}:${departureLocalDate}:BGY`;
+		const sharedScheduledArrivalUtc = this.manualArrivals.get(key) ?? scheduledArrivalUtc;
+		this.manualArrivals.set(key, sharedScheduledArrivalUtc);
+		return {
+			id: `flight-manual-${flightNumber.toLowerCase()}-${departureLocalDate}`,
+			sharedScheduledArrivalUtc,
+			conflict:
+				sharedScheduledArrivalUtc === scheduledArrivalUtc
+					? undefined
+					: { requestedScheduledArrivalUtc: scheduledArrivalUtc, sharedScheduledArrivalUtc },
+		};
+	}
+
 	roomIdForFlight(flightInstanceId: string) {
+		if (flightInstanceId.startsWith("flight-manual-w61431-")) return MANUAL_ROOM_ID;
 		return flightInstanceId.includes("second") ? SECOND_ROOM_ID : ROOM_ID;
 	}
 

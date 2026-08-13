@@ -84,6 +84,46 @@ describe("anonymous flight routes", () => {
 		expect(payload.fieldErrors[field]?.[0]).toMatch(/^Podaj /);
 	});
 
+	it.each([
+		["FR", "Dokończ numer lotu: po kodzie przewoźnika wpisz od 1 do 4 cyfr."],
+		["FR12/34", "Podaj jeden numer lotu z biletu, np. W6 1431 lub FR1234."],
+		[
+			"EZY123",
+			"To wygląda jak trzy-literowy kod operacyjny. Podaj numer marketingowy z biletu lub karty pokładowej, np. W6 1431.",
+		],
+	] as const)("rejects %s with exact guidance before resolver or analytics", async (flightNumber, copy) => {
+		const service = operations();
+		const { app, analytics } = buildApp(service);
+		const response = await app.fetch(
+			post("/resolve", { flightNumber, departureLocalDate: "2026-09-14" }),
+			{} as Env,
+		);
+		expect(response.status).toBe(400);
+		expect(service.resolve).not.toHaveBeenCalled();
+		expect(analytics.begin).not.toHaveBeenCalled();
+		expect(await response.json()).toMatchObject({
+			status: "validation_error",
+			fieldErrors: { flightNumber: [copy] },
+		});
+	});
+
+	it.each([
+		["W6 W61431", "W61431"],
+		["WZZ1431", "W61431"],
+	] as const)("passes normalized %s to the provider as %s", async (flightNumber, canonical) => {
+		const service = operations();
+		const { app } = buildApp(service);
+		const response = await app.fetch(
+			post("/resolve", { flightNumber, departureLocalDate: "2026-09-14" }),
+			{} as Env,
+		);
+		expect(response.status).toBe(200);
+		expect(service.resolve).toHaveBeenCalledWith({
+			flightNumber: canonical,
+			departureLocalDate: "2026-09-14",
+		});
+	});
+
 	it("returns a recognized flight to a request with no auth or session", async () => {
 		const service = operations();
 		const { app, analytics } = buildApp(service);

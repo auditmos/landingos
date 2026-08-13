@@ -305,6 +305,7 @@ describe("interactive journey planner", () => {
 			root.render(createElement(JourneyPlanner, { flight, destination }));
 		});
 		expect(requests.map((request) => request.bufferMinutes)).toEqual([45]);
+		expect(container.textContent).toContain("Dołączasz do pokoju FR 1234 · 14.09.2026");
 		const range = container.querySelector<HTMLInputElement>("#journey-buffer");
 		expect(range).toMatchObject({ min: "15", max: "180", step: "5" });
 

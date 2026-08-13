@@ -1,21 +1,47 @@
-export function fixtureFlight(flightNumber = "FR1234", manual = false) {
-	const normalized = flightNumber.toUpperCase();
+import { parseFlightDesignator } from "../packages/data-ops/dist/flight/index.js";
+
+export function fixtureFlight(
+	flightNumber = "FR1234",
+	options: {
+		manual?: boolean;
+		departureLocalDate?: string;
+		scheduledArrivalUtc?: string;
+		id?: string;
+		manualArrivalConflict?: {
+			requestedScheduledArrivalUtc: string;
+			sharedScheduledArrivalUtc: string;
+		};
+	} = {},
+) {
+	const parsed = parseFlightDesignator(flightNumber);
+	if (parsed.status !== "recognized")
+		throw new Error(`Invalid fixture designator: ${flightNumber}`);
+	const normalized = parsed.canonical;
+	const manual = options.manual ?? false;
+	const carrierNames: Record<string, string> = { FR: "Ryanair", LO: "LOT", W6: "Wizz Air" };
 	return {
 		status: "recognized",
 		flight: {
-			id: normalized === "FR9999" ? "flight-second-room" : `flight-${normalized.toLowerCase()}`,
+			id:
+				options.id ??
+				(normalized === "FR9999" ? "flight-second-room" : `flight-${normalized.toLowerCase()}`),
 			marketingCarrierCode: normalized.slice(0, 2),
-			marketingCarrierName: manual ? "Lot wpisany ręcznie" : "Ryanair",
+			marketingCarrierName: manual
+				? normalized.slice(0, 2)
+				: (carrierNames[normalized.slice(0, 2)] ?? normalized.slice(0, 2)),
 			marketingFlightNumber: normalized.slice(2),
 			operatingCarrierCode: null,
 			operatingFlightNumber: null,
-			departureLocalDate: "2026-09-14",
+			departureLocalDate: options.departureLocalDate ?? "2026-09-14",
 			originIata: manual ? "ZZZ" : "WAW",
 			destinationIata: "BGY",
-			scheduledArrivalUtc: "2026-09-14T08:20:00Z",
+			scheduledArrivalUtc: options.scheduledArrivalUtc ?? "2026-09-14T08:20:00Z",
 			displayTimezone: "Europe/Rome",
 			source: manual ? "manual" : "provider",
 		},
+		...(options.manualArrivalConflict
+			? { manualArrivalConflict: options.manualArrivalConflict }
+			: {}),
 	};
 }
 

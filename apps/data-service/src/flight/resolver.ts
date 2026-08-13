@@ -155,9 +155,15 @@ export async function resolveFlight(
 	if (!normalized) {
 		return manualRequired(input, "incomplete");
 	}
+	const persisted = await dependencies.repository.save(normalized);
 	return {
 		status: "recognized" as const,
-		flight: await dependencies.repository.save(normalized),
+		flight: {
+			...persisted,
+			marketingCarrierCode: normalized.marketingCarrierCode,
+			marketingCarrierName: normalized.marketingCarrierName,
+			marketingFlightNumber: normalized.marketingFlightNumber,
+		},
 	};
 }
 
@@ -173,7 +179,6 @@ export async function completeManualFlight(
 		input.flightNumber.toLowerCase(),
 		input.departureLocalDate,
 		"bgy",
-		scheduledArrivalUtc,
 	].join(":");
 	const flight = await dependencies.repository.save({
 		id: await deterministicOpaqueId(canonicalKey),
@@ -190,5 +195,16 @@ export async function completeManualFlight(
 		displayTimezone: "Europe/Rome",
 		source: "manual",
 	});
-	return { status: "recognized" as const, flight };
+	const manualArrivalConflict =
+		flight.scheduledArrivalUtc === scheduledArrivalUtc
+			? undefined
+			: {
+					requestedScheduledArrivalUtc: scheduledArrivalUtc,
+					sharedScheduledArrivalUtc: flight.scheduledArrivalUtc,
+				};
+	return {
+		status: "recognized" as const,
+		flight,
+		...(manualArrivalConflict ? { manualArrivalConflict } : {}),
+	};
 }

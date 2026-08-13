@@ -226,7 +226,7 @@ function MemberRow({
 						type="button"
 						size="icon"
 						variant="ghost"
-						className="size-9 text-muted-foreground hover:text-foreground"
+						className="size-11 text-muted-foreground hover:text-foreground"
 						disabled={safety.pending}
 						aria-label={blocked ? "Odblokuj" : "Zablokuj"}
 						title={blocked ? "Odblokuj" : "Zablokuj"}
@@ -240,7 +240,7 @@ function MemberRow({
 						type="button"
 						size="icon"
 						variant="ghost"
-						className="size-9 text-muted-foreground hover:text-foreground"
+						className="size-11 text-muted-foreground hover:text-foreground"
 						aria-label="Zgłoś osobę"
 						title="Zgłoś osobę"
 						onClick={() => safety.startMemberReport(member.pseudonym)}

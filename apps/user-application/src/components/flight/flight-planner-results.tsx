@@ -1,5 +1,9 @@
 import type { PrivateDestination } from "@repo/data-ops/destination";
-import type { FlightInstance, FlightResolveResult } from "@repo/data-ops/flight";
+import {
+	type FlightInstance,
+	type FlightResolveResult,
+	formatFlightLabel,
+} from "@repo/data-ops/flight";
 import { CheckCircle2, MapPin, RotateCcw } from "lucide-react";
 import type { FormEvent } from "react";
 import { DestinationPlanner } from "@/components/destination/destination-planner";
@@ -13,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { formatArrivalInRome, formatDepartureDate, manualReasonCopy } from "@/lib/flight-planner";
 
 export function FlightSummary({ flight }: { flight: FlightInstance }) {
-	const flightLabel = `${flight.marketingCarrierCode}${flight.marketingFlightNumber}`;
 	return (
 		<Card className="border-success/30 bg-success/5" aria-live="polite">
 			<CardHeader>
@@ -21,14 +24,17 @@ export function FlightSummary({ flight }: { flight: FlightInstance }) {
 					<CheckCircle2 className="size-5 text-success" />
 					<Badge variant="success">Lot rozpoznany</Badge>
 				</div>
-				<CardTitle className="text-2xl">
-					{flight.marketingCarrierName} {flightLabel}
-				</CardTitle>
+				<CardTitle className="text-2xl">{formatFlightLabel(flight)}</CardTitle>
 				<CardDescription>
 					Data wylotu: {formatDepartureDate(flight.departureLocalDate)}
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
+				{flight.source === "manual" ? (
+					<p className="mb-4 text-sm font-medium text-muted-foreground">
+						Godzina przylotu podana przez podróżnych — niezweryfikowana przez dostawcę.
+					</p>
+				) : null}
 				<dl className="grid gap-4 sm:grid-cols-3">
 					<div>
 						<dt className="text-sm text-muted-foreground">Wylot</dt>
@@ -80,6 +86,8 @@ export function PlannerResults({
 }: PlannerResultsProps) {
 	const manualResult = result?.status === "manual_required" ? result : null;
 	const recognizedFlight = result?.status === "recognized" ? result.flight : null;
+	const manualArrivalConflict =
+		result?.status === "recognized" ? result.manualArrivalConflict : undefined;
 	return (
 		<>
 			{error ? (
@@ -148,6 +156,16 @@ export function PlannerResults({
 
 			{recognizedFlight ? (
 				<>
+					{manualArrivalConflict ? (
+						<Alert>
+							<AlertTitle>Wspólna godzina przylotu</AlertTitle>
+							<AlertDescription>
+								Podana godzina różni się od zapisanej wcześniej. Korzystamy ze wspólnej godziny
+								przylotu {formatArrivalInRome(manualArrivalConflict.sharedScheduledArrivalUtc)}. Ta
+								godzina wyznacza też zamknięcie pokoju 24 godziny po przylocie.
+							</AlertDescription>
+						</Alert>
+					) : null}
 					<FlightSummary flight={recognizedFlight} />
 					<DestinationPlanner onDestinationChange={onDestinationChange} />
 					{destination ? (

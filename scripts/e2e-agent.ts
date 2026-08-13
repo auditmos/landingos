@@ -57,8 +57,8 @@ export class AgentBrowser {
 			const diagnostic = await this.eval(`({
 				url: location.href,
 				title: document.title,
-				text: document.body?.innerText.slice(0, 800),
-				html: document.body?.innerHTML.slice(0, 800),
+				text: document.body?.innerText.slice(0, 3000),
+				html: document.body?.innerHTML.slice(0, 3000),
 				errors: window.__landingosE2eErrors,
 			})`).catch(() => ({ stdout: "page diagnostic unavailable" }));
 			throw new Error(

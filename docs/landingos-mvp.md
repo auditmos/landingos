@@ -83,7 +83,9 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 
 1. **Flight Context Resolver**
    - Stabilny interfejs przyjmuje numer lotu i datę.
+   - Numer lotu jest najpierw normalizowany przez wspólny parser: akceptowane są kod IATA przewoźnika i 1–4 cyfry niezależnie od wielkości liter oraz pojedynczego separatora, historyczny zapis z powtórzonym kodem przewoźnika i wyłącznie jawnie skonfigurowane aliasy ICAO. Nieprawidłowe lub nieobsługiwane dane kończą się polską walidacją przed wywołaniem providera.
    - Zwraca kanoniczny kontekst lotu: przewoźnik, numer, data, lotnisko początkowe, BGY, planowana godzina przylotu i strefa czasowa.
+   - Przy codeshare etykieta dla podróżnego zachowuje przewoźnika i numer marketingowy z biletu, natomiast tożsamość kanonicznej instancji nadal może wskazywać ten sam lot operacyjny.
    - Dostawca danych lotniczych jest ukryty za adapterem; pierwszym kandydatem jest Aviationstack lub równoważny komercyjny provider.
    - Brak rozpoznania nie blokuje planera: moduł zwraca jawny stan wymagający ręcznego wyboru lotniska i czasu.
    - MVP nie śledzi lotu na żywo i nie aktualizuje opóźnień.
@@ -100,6 +102,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 
 3. **Flight Room**
    - Jeden pokój jest identyfikowany przez kanoniczną instancję lotu, a nie sam tekst wpisany przez użytkownika.
+   - Dla ręcznego fallbacku klucz instancji składa się ze znormalizowanego numeru lotu, daty wylotu i BGY; wariant zapisu numeru ani podana godzina przylotu nie tworzą nowego pokoju. Pierwsza zapisana godzina przylotu pozostaje wspólną godziną instancji. Późniejsza sprzeczna godzina wywołuje jawny komunikat, nie zmienia instancji ani granicy zamknięcia pokoju.
    - Pokój zawiera członkostwa, pseudonimy, bieżący wybór transportu i jeden wspólny strumień wiadomości.
    - Nie powstają podgrupy, wiadomości prywatne ani trwałe profile społecznościowe.
    - Dokładny cel podróży pozostaje w prywatnym kontekście planera i nie jest zwracany przez interfejs pokoju. Jedyny wyjątek (decyzja z 2026-08-05): podróżny może dobrowolnie udostępnić tekstowy „punkt wysiadki” (`dropOffText`, do 120 znaków) w ramach własnej deklaracji transportu — domyślnie ukryty, odwoływalny w każdej chwili. Place ID i współrzędne nigdy nie trafiają do pokoju.
@@ -187,7 +190,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 
 | Story | Mechanizm weryfikacji | Kryterium zaliczenia |
 |---|---|---|
-| US-01 | Test formularza: poprawny numer i data, brak daty, nieprawidłowy format | Poprawne dane uruchamiają resolver; niepoprawne nie wywołują providera i pokazują błąd pola |
+| US-01 | Wspólne testy tabelaryczne parsera oraz test formularza: warianty IATA, zapis historyczny, jawne aliasy ICAO, brak daty i nieprawidłowy format | Wszystkie równoważne zapisy tworzą ten sam numer kanoniczny; niepoprawne dane nie wywołują providera i pokazują polski błąd pola |
 | US-02 | Test kontraktowy resolvera na fixture oraz sandboxie dostawcy | UI pokazuje przewoźnika, numer, BGY i planowany czas w lokalnej strefie; co najmniej 9/10 reprezentatywnych lotów jest rozpoznanych |
 | US-03 | Test błędu `not_found`, timeoutu i odpowiedzi niepełnej | Każdy przypadek oferuje ręczny wybór BGY i godziny bez utraty wpisanego celu |
 | US-04 | Test autocomplete dla adresu, hotelu i nazwy miejsca oraz dwóch nazw niejednoznacznych | Użytkownik wybiera jednoznaczny wynik z identyfikatorem i współrzędnymi; brak cichego wyboru pierwszego dopasowania |
@@ -200,7 +203,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 | US-11 | Test zerowych wyników, wyników po czasie przylotu i danych niekompletnych | Aplikacja nie generuje trasy; pokazuje kontrolowany komunikat, źródła alternatywne i możliwość zmiany parametrów |
 | US-12 | Integracyjny test OTP: poprawny kod, błędny kod, kod wygasły i limit prób | Tylko poprawny, niewygasły kod tworzy sesję; próby są ograniczone i nie ujawniają istnienia konta |
 | US-13 | Test długości, niedozwolonych znaków i pustego pseudonimu | Do pokoju trafia wyłącznie pseudonim spełniający reguły; e-mail nie jest publiczny |
-| US-14 | Test dwóch użytkowników tego samego lotu oraz lotów o tym samym numerze w dwóch dniach | Pierwsza para trafia do jednego pokoju; druga para jest całkowicie odizolowana |
+| US-14 | Test dwóch użytkowników tego samego lotu, równoważnych zapisów ręcznego numeru z różnymi godzinami oraz lotów o tym samym numerze w dwóch dniach | Pierwsza para trafia do jednego pokoju i zachowuje pierwszą godzinę zamknięcia; konflikt czasu jest widoczny. Inna data lub inny numer tworzą całkowicie odizolowany pokój |
 | US-15 | Test odpowiedzi listy członków | Odpowiedź zawiera pseudonim i wybór transportu, ale nie zawiera e-maila ani dokładnego celu |
 | US-16 | Test dwóch równoległych klientów wysyłających i odbierających wiadomości | Wiadomość pojawia się u drugiego klienta w ciągu 5 sekund, bez duplikatów i bez przecieku do innego pokoju |
 | US-17 | Test deklaracji transportu publicznego i dzielonej taksówki | Obie deklaracje są widoczne; w żadnej ścieżce nie istnieje formularz płatności ani automatyczne rozliczenie |

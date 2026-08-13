@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
+import { upsertFlightInstance } from "@/flight/queries";
 import {
 	consumeConnectionTicket,
 	countRoomMemberships,
@@ -53,6 +54,59 @@ async function createTestDatabase() {
 }
 
 describe("flight room persistence", () => {
+	it("keeps one manual room and its first +24h boundary across arrival conflicts", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const manual = {
+				id: "018f4c8e-5697-7df4-8f6e-c7644b137e5d",
+				canonicalKey: "manual:w61431:2026-09-14:bgy",
+				marketingCarrierCode: "W6",
+				marketingCarrierName: "W6",
+				marketingFlightNumber: "1431",
+				operatingCarrierCode: null,
+				operatingFlightNumber: null,
+				departureLocalDate: "2026-09-14",
+				originIata: "ZZZ",
+				destinationIata: "BGY" as const,
+				scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+				displayTimezone: "Europe/Rome" as const,
+				source: "manual" as const,
+			};
+			const first = await upsertFlightInstance(db, manual);
+			const conflicting = await upsertFlightInstance(db, {
+				...manual,
+				scheduledArrivalUtc: "2026-09-14T08:37:00.000Z",
+			});
+			expect(conflicting.id).toBe(first.id);
+			expect(conflicting.scheduledArrivalUtc).toBe("2026-09-14T08:20:00.000Z");
+
+			const [travelerA, travelerB] = await Promise.all([
+				joinFlightRoom(db, {
+					flightInstanceId: first.id,
+					userId: USER_A,
+					now: new Date("2026-09-15T08:19:59.999Z"),
+				}),
+				joinFlightRoom(db, {
+					flightInstanceId: conflicting.id,
+					userId: USER_B,
+					now: new Date("2026-09-15T08:19:59.999Z"),
+				}),
+			]);
+			expect(travelerB.room.id).toBe(travelerA.room.id);
+			expect(travelerA.room.closesAt).toBe("2026-09-15T08:20:00.000Z");
+			expect(await countRooms(db)).toBe(1);
+			await expect(
+				joinFlightRoom(db, {
+					flightInstanceId: first.id,
+					userId: USER_A,
+					now: new Date("2026-09-15T08:20:00.000Z"),
+				}),
+			).rejects.toMatchObject({ code: "ROOM_CLOSED" });
+		} finally {
+			await client.close();
+		}
+	});
+
 	it("allows direct access at closeAt - 1 ms and rejects it exactly at scheduled arrival +24h", async () => {
 		const { client, db } = await createTestDatabase();
 		try {

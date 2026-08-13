@@ -1,5 +1,9 @@
 import type { PrivateDestination } from "@repo/data-ops/destination";
-import type { FlightInstance } from "@repo/data-ops/flight";
+import {
+	canonicalFlightDesignator,
+	type FlightInstance,
+	formatFlightDesignator,
+} from "@repo/data-ops/flight";
 import type { JourneyRecommendationResult, JourneyVariant } from "@repo/data-ops/journey";
 import {
 	ChevronDown,
@@ -16,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDepartureDate } from "@/lib/flight-planner";
 import {
 	formatJourneyArrival,
 	formatJourneyCost,
@@ -416,6 +421,13 @@ export function JourneyPlanner({
 							<AlertDescription>{result.explanation}</AlertDescription>
 						</Alert>
 					) : null}
+					<Alert>
+						<AlertTitle>Potwierdzenie pokoju lotu</AlertTitle>
+						<AlertDescription>
+							Dołączasz do pokoju {formatFlightDesignator(canonicalFlightDesignator(flight))} ·{" "}
+							{formatDepartureDate(flight.departureLocalDate)}
+						</AlertDescription>
+					</Alert>
 					<JourneyVariantPicker
 						variants={variants}
 						selectedId={selectedVariant.id}

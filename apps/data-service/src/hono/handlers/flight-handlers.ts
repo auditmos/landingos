@@ -75,7 +75,13 @@ function publicFlight(flight: FlightInstance): FlightInstance {
 
 function publicResult(result: FlightResolveResult): FlightResolveResult {
 	if (result.status === "recognized") {
-		return { status: "recognized", flight: publicFlight(result.flight) };
+		return {
+			status: "recognized",
+			flight: publicFlight(result.flight),
+			...(result.manualArrivalConflict
+				? { manualArrivalConflict: result.manualArrivalConflict }
+				: {}),
+		};
 	}
 	return {
 		status: "manual_required",

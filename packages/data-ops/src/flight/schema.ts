@@ -1,14 +1,114 @@
 import { z } from "zod";
 
 const FLIGHT_NUMBER_PATTERN = /^([A-Z0-9]{2})(\d{1,4})$/;
+const IATA_INPUT_PATTERN = /^([A-Z0-9]{2})(?:[ -]?)(\d{1,4})$/;
+const LEGACY_INPUT_PATTERN = /^([A-Z0-9]{2})\s+\1(\d{1,4})$/;
+const ICAO_INPUT_PATTERN = /^([A-Z]{3})(?:[ -]?)(\d{1,4})$/;
+const SUPPORTED_ICAO_TO_IATA = {
+	LOT: "LO",
+	RYR: "FR",
+	WZZ: "W6",
+} as const;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
+export type FlightDesignatorParseResult =
+	| {
+			status: "recognized";
+			canonical: string;
+			display: string;
+			carrierCode: string;
+			flightNumber: string;
+			convention: "iata" | "legacy" | "icao";
+	  }
+	| {
+			status: "invalid";
+			reason: "empty" | "incomplete" | "malformed" | "unsupported_icao";
+			message: string;
+	  };
+
+function recognizedDesignator(
+	carrierCode: string,
+	flightNumber: string,
+	convention: "iata" | "legacy" | "icao",
+): FlightDesignatorParseResult {
+	return {
+		status: "recognized",
+		canonical: `${carrierCode}${flightNumber}`,
+		display: `${carrierCode} ${flightNumber}`,
+		carrierCode,
+		flightNumber,
+		convention,
+	};
+}
+
+export function parseFlightDesignator(value: string): FlightDesignatorParseResult {
+	const input = value.trim().toUpperCase();
+	const legacy = LEGACY_INPUT_PATTERN.exec(input);
+	if (legacy) {
+		return recognizedDesignator(legacy[1] as string, legacy[2] as string, "legacy");
+	}
+	const iata = IATA_INPUT_PATTERN.exec(input);
+	if (iata) {
+		return recognizedDesignator(iata[1] as string, iata[2] as string, "iata");
+	}
+	const icao = ICAO_INPUT_PATTERN.exec(input);
+	if (icao) {
+		const carrierCode = SUPPORTED_ICAO_TO_IATA[icao[1] as keyof typeof SUPPORTED_ICAO_TO_IATA];
+		if (carrierCode) {
+			return recognizedDesignator(carrierCode, icao[2] as string, "icao");
+		}
+	}
+	const isEmpty = input.length === 0;
+	const isIncomplete = /^[A-Z0-9]{1,2}[ -]?$/.test(input);
+	const isUnsupportedIcao = Boolean(icao);
+	const reason = isEmpty
+		? "empty"
+		: isIncomplete
+			? "incomplete"
+			: isUnsupportedIcao
+				? "unsupported_icao"
+				: "malformed";
+	const messages = {
+		empty: "Podaj numer lotu.",
+		incomplete: "Dokończ numer lotu: po kodzie przewoźnika wpisz od 1 do 4 cyfr.",
+		unsupported_icao:
+			"To wygląda jak trzy-literowy kod operacyjny. Podaj numer marketingowy z biletu lub karty pokładowej, np. W6 1431.",
+		malformed: "Podaj jeden numer lotu z biletu, np. W6 1431 lub FR1234.",
+	} as const;
+	return {
+		status: "invalid",
+		reason,
+		message: messages[reason],
+	};
+}
+
 export function normalizeFlightNumber(value: string): string {
-	return value
-		.trim()
-		.toUpperCase()
-		.replace(/^([A-Z0-9]{2})\s+(\d{1,4})$/, "$1$2");
+	const result = parseFlightDesignator(value);
+	return result.status === "recognized" ? result.canonical : value.trim().toUpperCase();
+}
+
+interface FlightDesignatorParts {
+	marketingCarrierCode: string;
+	marketingCarrierName: string;
+	marketingFlightNumber: string;
+}
+
+export function canonicalFlightDesignator(flight: FlightDesignatorParts): string {
+	return `${flight.marketingCarrierCode}${flight.marketingFlightNumber}`;
+}
+
+export function formatFlightDesignator(value: string): string {
+	const parsed = parseFlightDesignator(value);
+	return parsed.status === "recognized" ? parsed.display : value.trim().toUpperCase();
+}
+
+export function formatFlightLabel(flight: FlightDesignatorParts): string {
+	const designator = formatFlightDesignator(canonicalFlightDesignator(flight));
+	const carrierName = flight.marketingCarrierName.trim();
+	return carrierName && carrierName.toUpperCase() !== flight.marketingCarrierCode.toUpperCase()
+		? `${carrierName} ${designator}`
+		: designator;
 }
 
 export function splitFlightNumber(flightNumber: string): {
@@ -31,21 +131,12 @@ function isIsoDate(value: string): boolean {
 	);
 }
 
-const FlightNumberSchema = z.preprocess(
-	(value) => (typeof value === "string" ? normalizeFlightNumber(value) : value),
-	z.string().superRefine((value, context) => {
-		if (value.length === 0) {
-			context.addIssue({ code: "custom", message: "Podaj numer lotu." });
-			return;
-		}
-		if (!FLIGHT_NUMBER_PATTERN.test(value)) {
-			context.addIssue({
-				code: "custom",
-				message: "Podaj kod przewoźnika i od 1 do 4 cyfr, np. FR1234.",
-			});
-		}
-	}),
-);
+const FlightNumberSchema = z.string().transform((value, context) => {
+	const parsed = parseFlightDesignator(value);
+	if (parsed.status === "recognized") return parsed.canonical;
+	context.addIssue({ code: "custom", message: parsed.message });
+	return z.NEVER;
+});
 
 const DepartureLocalDateSchema = z.string().superRefine((value, context) => {
 	if (value.length === 0) {
@@ -96,10 +187,16 @@ export const FlightInstanceSchema = z.strictObject({
 	source: z.enum(["provider", "manual"]),
 });
 
+export const ManualArrivalConflictSchema = z.strictObject({
+	requestedScheduledArrivalUtc: ScheduledArrivalUtcSchema,
+	sharedScheduledArrivalUtc: ScheduledArrivalUtcSchema,
+});
+
 export const FlightResolveResultSchema = z.discriminatedUnion("status", [
 	z.strictObject({
 		status: z.literal("recognized"),
 		flight: FlightInstanceSchema,
+		manualArrivalConflict: ManualArrivalConflictSchema.optional(),
 	}),
 	z.strictObject({
 		status: z.literal("manual_required"),

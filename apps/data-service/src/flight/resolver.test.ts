@@ -91,6 +91,14 @@ describe("flight context resolver", () => {
 		expect(second.status).toBe("recognized");
 		if (first.status === "recognized" && second.status === "recognized") {
 			expect(second.flight.id).toBe(first.flight.id);
+			expect(first.flight).toMatchObject({
+				marketingCarrierCode: "FR",
+				marketingFlightNumber: "8123",
+			});
+			expect(second.flight).toMatchObject({
+				marketingCarrierCode: "W6",
+				marketingFlightNumber: "9000",
+			});
 		}
 		expect(repository.rows.size).toBe(1);
 	});
@@ -181,6 +189,62 @@ describe("flight context resolver", () => {
 			},
 		});
 		expect(repository.rows.size).toBe(1);
+	});
+
+	it("keeps one manual flight and the first arrival for equivalent input despite a later conflict", async () => {
+		const repository = memoryRepository();
+		const first = await completeManualFlight(
+			{
+				flightNumber: "w6-1431",
+				departureLocalDate: "2026-09-14",
+				destinationIata: "BGY",
+				scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+			},
+			{ repository },
+		);
+		const conflicting = await completeManualFlight(
+			{
+				flightNumber: "W6 W61431",
+				departureLocalDate: "2026-09-14",
+				destinationIata: "BGY",
+				scheduledArrivalUtc: "2026-09-14T08:37:00.000Z",
+			},
+			{ repository },
+		);
+
+		expect(repository.rows.size).toBe(1);
+		expect(conflicting.flight.id).toBe(first.flight.id);
+		expect(conflicting.flight.scheduledArrivalUtc).toBe("2026-09-14T08:20:00.000Z");
+		expect(conflicting).toMatchObject({
+			manualArrivalConflict: {
+				requestedScheduledArrivalUtc: "2026-09-14T08:37:00.000Z",
+				sharedScheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+			},
+		});
+	});
+
+	it("isolates manual flights by normalized designator and departure date", async () => {
+		const repository = memoryRepository();
+		const complete = (flightNumber: string, departureLocalDate: string) =>
+			completeManualFlight(
+				{
+					flightNumber,
+					departureLocalDate,
+					destinationIata: "BGY",
+					scheduledArrivalUtc: `${departureLocalDate}T08:20:00.000Z`,
+				},
+				{ repository },
+			);
+		const [base, differentDate, differentDesignator] = await Promise.all([
+			complete("W6 1431", "2026-09-14"),
+			complete("W61431", "2026-09-15"),
+			complete("FR1431", "2026-09-14"),
+		]);
+
+		expect(
+			new Set([base.flight.id, differentDate.flight.id, differentDesignator.flight.id]).size,
+		).toBe(3);
+		expect(repository.rows.size).toBe(3);
 	});
 
 	it("retries after a timeout without losing form data or duplicating rows", async () => {

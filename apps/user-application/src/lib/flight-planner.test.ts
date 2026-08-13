@@ -76,7 +76,7 @@ describe("anonymous flight planner UI integration", () => {
 		if (result.status !== "recognized") throw new Error("Expected recognized");
 		const html = renderToStaticMarkup(createElement(FlightSummary, { flight: result.flight }));
 		expect(html).toContain("Ryanair");
-		expect(html).toContain("FR1234");
+		expect(html).toContain("Ryanair FR 1234");
 		expect(html).toContain("WAW");
 		expect(html).toContain("BGY");
 		expect(html).toContain("14.09.2026");

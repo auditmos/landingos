@@ -98,7 +98,11 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 			<div className="flex items-center gap-2">
 				<ThemeToggle />
 				<AccountDialog>
-					<Button variant="ghost" className="flex items-center gap-2 px-3">
+					<Button
+						variant="ghost"
+						className="flex items-center gap-2 px-3"
+						aria-label="Otwórz konto"
+					>
 						<Avatar className="h-8 w-8">
 							<AvatarImage src={user?.image || undefined} alt={user?.name || "Użytkownik"} />
 							<AvatarFallback className="bg-primary text-primary-foreground text-sm">
