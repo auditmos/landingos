@@ -1,4 +1,5 @@
 import {
+	type CatalogTransferAlternative,
 	type JourneyCost,
 	type JourneyExternalLink,
 	type JourneyRecommendationRequest,
@@ -94,15 +95,40 @@ function candidateKey(candidate: {
 	});
 }
 
+/**
+ * Folds a stop label into a stable identity: diacritics, case, spacing, and separators
+ * are provider-side noise, so "Milano  Centrale" and "milano-centrale" are one stop.
+ */
+function normalizeStopIdentity(value: string): string {
+	return value
+		.normalize("NFD")
+		.replace(/[̀-ͯ]/g, "")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
+/**
+ * `destinationStopCode` is the stable merge key. The normalized display name is a
+ * documented fallback for providers that only expose a human label.
+ */
 function catalogMatchesRoute(entry: TransferCatalogEntry, route: TransitRoute): boolean {
-	const stop = entry.destinationStopName.toLocaleLowerCase("it");
+	const identities = new Set([
+		normalizeStopIdentity(entry.destinationStopCode),
+		normalizeStopIdentity(entry.destinationStopName),
+	]);
 	return (
 		entry.originIata === "BGY" &&
 		route.legs.some(
 			(leg) =>
-				leg.from.toLocaleLowerCase("it").includes("bgy") && leg.to.toLocaleLowerCase("it") === stop,
+				normalizeStopIdentity(leg.from).includes("bgy") &&
+				identities.has(normalizeStopIdentity(leg.to)),
 		)
 	);
+}
+
+function catalogSourceLabel(entry: TransferCatalogEntry): string {
+	return `${entry.operatorName} · ${entry.serviceName}`;
 }
 
 function freshness(checkedAt: string, now: Date, freshnessDays: number): "fresh" | "stale" {
@@ -161,7 +187,7 @@ function normalizeRoute(
 		const purchaseUrl = sanitizeJourneyExternalUrl(entry.purchaseUrl);
 		sourceReferences.push({
 			kind: "catalog",
-			label: entry.operatorName,
+			label: catalogSourceLabel(entry),
 			url: sourceUrl,
 			checkedAt: entry.checkedAt,
 		});
@@ -303,38 +329,83 @@ function rank(candidates: Candidate[]): JourneyVariant[] {
 	});
 }
 
+function purchaseLink(entry: TransferCatalogEntry): JourneyExternalLink | null {
+	const url = sanitizeJourneyExternalUrl(entry.purchaseUrl);
+	return url ? { kind: "purchase", label: `Sprawdź u ${entry.operatorName}`, url } : null;
+}
+
+/**
+ * Renders a published entry as a standalone, manually verified BGY → stop transfer.
+ * It carries no arrival time, no steps, and no badge, so it can never be read as an
+ * end-to-end route to the traveler's private destination.
+ */
+function catalogAlternatives(
+	entries: TransferCatalogEntry[],
+	now: Date,
+	freshnessDays: number,
+): CatalogTransferAlternative[] {
+	return entries.map((entry) => ({
+		id: entry.id,
+		kind: "manually_verified_transfer" as const,
+		operatorName: entry.operatorName,
+		serviceName: entry.serviceName,
+		destinationStopCode: entry.destinationStopCode,
+		destinationStopName: entry.destinationStopName,
+		durationMinutes: entry.durationMinutes,
+		transferCount: entry.transferCount,
+		walkingMinutes: entry.walkingMinutes,
+		walkingMeters: entry.walkingMeters,
+		cost: {
+			currency: "EUR" as const,
+			minorMin: entry.costMinorMin,
+			minorMax: entry.costMinorMax,
+			completeness: "partial" as const,
+		},
+		source: {
+			kind: "catalog" as const,
+			label: catalogSourceLabel(entry),
+			url: sanitizeJourneyExternalUrl(entry.sourceUrl),
+			checkedAt: entry.checkedAt,
+		},
+		freshness: freshness(entry.checkedAt, now, freshnessDays),
+		purchaseLink: purchaseLink(entry),
+	}));
+}
+
 function manualAlternatives(entries: TransferCatalogEntry[]): JourneyExternalLink[] {
-	return uniqueLinks(
-		entries.flatMap((entry) => {
-			const url = sanitizeJourneyExternalUrl(entry.purchaseUrl);
-			return url
-				? [{ kind: "purchase" as const, label: `Sprawdź u ${entry.operatorName}`, url }]
-				: [];
-		}),
-	);
+	return uniqueLinks(entries.flatMap((entry) => purchaseLink(entry) ?? []));
+}
+
+/** The failure payload shared by every non-recommendation outcome. */
+function fallbackPayload(
+	entries: TransferCatalogEntry[],
+	now: Date,
+	freshnessDays: number,
+): {
+	manualAlternatives: JourneyExternalLink[];
+	catalogAlternatives: CatalogTransferAlternative[];
+} {
+	return {
+		manualAlternatives: manualAlternatives(entries),
+		catalogAlternatives: catalogAlternatives(entries, now, freshnessDays),
+	};
 }
 
 function providerFailure(
 	result: Exclude<ProviderResult<TransitRoute[], TransitRoute>, { status: "success" }>,
-	entries: TransferCatalogEntry[],
+	fallback: ReturnType<typeof fallbackPayload>,
 	diagnostics: DiagnosticContext | undefined,
 ): JourneyRecommendationResult {
-	const alternatives = manualAlternatives(entries);
 	const diagnostic = contextDiagnostic(diagnostics, result);
 	const attached = diagnostic ? { diagnostic } : {};
 	if (result.status === "zero_result") {
-		return {
-			status: "no_trustworthy_route",
-			reason: "zero_result",
-			manualAlternatives: alternatives,
-			...attached,
-		};
+		return { status: "no_trustworthy_route", reason: "zero_result", ...fallback, ...attached };
 	}
 	if (result.status === "timeout" || result.status === "rate_limited") {
 		return {
 			status: "recommendation_unavailable",
 			reason: result.status,
-			manualAlternatives: alternatives,
+			...fallback,
 			...attached,
 		};
 	}
@@ -342,16 +413,11 @@ function providerFailure(
 		return {
 			status: "recommendation_unavailable",
 			reason: "provider_error",
-			manualAlternatives: alternatives,
+			...fallback,
 			...attached,
 		};
 	}
-	return {
-		status: "recommendation_unavailable",
-		reason: "incomplete",
-		manualAlternatives: alternatives,
-		...attached,
-	};
+	return { status: "recommendation_unavailable", reason: "incomplete", ...fallback, ...attached };
 }
 
 // A trustworthy-route dead end is a coverage outcome, not a transport fault: the
@@ -377,8 +443,11 @@ export async function recommendJourneys(
 		}),
 		dependencies.catalog.listPublished(),
 	]);
+	const now = dependencies.now?.() ?? new Date();
+	const freshnessDays = dependencies.freshnessDays ?? DEFAULT_FRESHNESS_DAYS;
+	const fallback = fallbackPayload(catalogEntries, now, freshnessDays);
 	if (providerResult.status !== "success") {
-		return providerFailure(providerResult, catalogEntries, dependencies.diagnostics);
+		return providerFailure(providerResult, fallback, dependencies.diagnostics);
 	}
 	const postArrivalRoutes = providerResult.value.filter(
 		(route) => new Date(route.departureTime).getTime() >= new Date(departureTime).getTime(),
@@ -387,26 +456,18 @@ export async function recommendJourneys(
 		return {
 			status: "no_trustworthy_route",
 			reason: "no_post_arrival_route",
-			manualAlternatives: manualAlternatives(catalogEntries),
+			...fallback,
 			...coverageDiagnostic(dependencies.diagnostics),
 		};
 	}
-	const now = dependencies.now?.() ?? new Date();
 	const candidates = deduplicate(
-		postArrivalRoutes.map((route) =>
-			normalizeRoute(
-				route,
-				catalogEntries,
-				now,
-				dependencies.freshnessDays ?? DEFAULT_FRESHNESS_DAYS,
-			),
-		),
+		postArrivalRoutes.map((route) => normalizeRoute(route, catalogEntries, now, freshnessDays)),
 	);
 	if (candidates.length === 0) {
 		return {
 			status: "no_trustworthy_route",
 			reason: "no_complete_itinerary",
-			manualAlternatives: manualAlternatives(catalogEntries),
+			...fallback,
 			...coverageDiagnostic(dependencies.diagnostics),
 		};
 	}

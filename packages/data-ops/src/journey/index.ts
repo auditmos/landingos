@@ -6,6 +6,13 @@ export {
 	sanitizeJourneyExternalUrl,
 } from "./external-links";
 export {
+	OPERATOR_CATALOG_FIELD_BY_NAME,
+	OPERATOR_CATALOG_FIELDS,
+	OPERATOR_PUBLICATION_SENTENCE,
+	type OperatorCatalogFieldDefinition,
+	type OperatorCatalogFieldKind,
+} from "./operator-fields";
+export {
 	getTransferCatalogFreshness,
 	type TransferCatalogDraftInput,
 	TransferCatalogDraftInputSchema,
@@ -32,6 +39,8 @@ export {
 	updateTransferCatalogDraft,
 } from "./queries";
 export {
+	type CatalogTransferAlternative,
+	CatalogTransferAlternativeSchema,
 	JourneyBufferMinutesSchema,
 	type JourneyCost,
 	JourneyCostSchema,

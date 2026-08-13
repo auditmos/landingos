@@ -1,19 +1,42 @@
 import { CalendarDays, Clock3, Info } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatPolishDateInput, formatPolishDateTimeInput } from "@/lib/polish-date";
 import { cn } from "@/lib/utils";
 
-export function FieldInfo({ label, children }: { label: string; children: string }) {
+/**
+ * The one disclosure pattern for field help. `<summary>` gives native Tab focus and
+ * Enter/Space activation; `aria-expanded` is mirrored from the toggle so assistive
+ * technology and tests can read the state. Pass `id` to associate the help text with
+ * an input through `aria-describedby`.
+ */
+export function FieldInfo({
+	label,
+	id,
+	children,
+}: {
+	label: string;
+	id?: string;
+	children: string;
+}) {
+	const [open, setOpen] = useState(false);
 	return (
-		<details className="relative inline-block">
+		<details
+			className="relative inline-block"
+			onToggle={(event) => setOpen(event.currentTarget.open)}
+		>
+			{/* biome-ignore lint/a11y/useSemanticElements: <summary> is the native disclosure toggle — a <button> cannot replace it without losing the details open/close behaviour. The explicit role only makes aria-expanded announceable. */}
 			<summary
+				id={id ? `${id}-summary` : undefined}
+				role="button"
 				className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"
 				aria-label={`Informacja: ${label}`}
+				aria-expanded={open}
 			>
 				<Info className="size-4" aria-hidden="true" />
 			</summary>
 			<p
+				id={id}
 				className="absolute left-0 top-full z-20 mt-1 w-72 max-w-[calc(100vw-3rem)] rounded-md border bg-popover p-3 text-pretty text-xs font-normal leading-5 text-popover-foreground shadow-md"
 				role="note"
 			>

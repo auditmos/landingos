@@ -83,6 +83,8 @@ export function journeyUnavailableFromError(error: unknown): JourneyUnavailableR
 		status: "recommendation_unavailable",
 		reason: error instanceof JourneyApiError ? error.reason : "provider_error",
 		manualAlternatives: [OFFICIAL_BGY_MANUAL_ALTERNATIVE],
+		// The browser never invents catalog facts; only the API can supply them.
+		catalogAlternatives: [],
 	};
 }
 

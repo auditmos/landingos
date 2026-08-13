@@ -221,6 +221,7 @@ describe("journey and destination screens", () => {
 							url: "https://www.terravision.eu/airport_transfer/",
 						},
 					],
+					catalogAlternatives: [],
 					diagnostic: {
 						reference: "cf-ray-journey",
 						occurredAtUtc: "2026-08-13T09:15:30.000Z",

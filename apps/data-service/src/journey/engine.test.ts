@@ -324,6 +324,7 @@ describe("journey recommendation engine", () => {
 			status: "no_trustworthy_route",
 			reason: "no_post_arrival_route",
 			manualAlternatives: [],
+			catalogAlternatives: [],
 		});
 	});
 

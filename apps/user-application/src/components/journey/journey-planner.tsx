@@ -4,7 +4,11 @@ import {
 	type FlightInstance,
 	formatFlightDesignator,
 } from "@repo/data-ops/flight";
-import type { JourneyRecommendationResult, JourneyVariant } from "@repo/data-ops/journey";
+import type {
+	CatalogTransferAlternative,
+	JourneyRecommendationResult,
+	JourneyVariant,
+} from "@repo/data-ops/journey";
 import {
 	ChevronDown,
 	Clock3,
@@ -260,6 +264,75 @@ function JourneyVariantPicker({
 	);
 }
 
+/**
+ * A published catalog entry shown on its own. It deliberately carries no arrival time,
+ * no badge, and no step list, and says in Polish that it stops at a BGY transfer stop
+ * rather than at the traveler's address.
+ */
+function CatalogTransferAlternativeCard({
+	alternative,
+}: {
+	alternative: CatalogTransferAlternative;
+}) {
+	return (
+		<Card>
+			<CardHeader>
+				<Badge variant="secondary">Ręcznie zweryfikowany przejazd z BGY</Badge>
+				<CardTitle className="text-balance text-lg">
+					{alternative.operatorName} · {alternative.serviceName}
+				</CardTitle>
+				<CardDescription className="text-pretty">
+					Dojazd na przystanek {alternative.destinationStopName}. To nie jest trasa pod Twój adres —
+					dalszą część drogi zaplanuj samodzielnie.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-3">
+				<dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+					<div>
+						<dt className="text-muted-foreground">Czas przejazdu</dt>
+						<dd className="font-semibold tabular-nums">{alternative.durationMinutes} min</dd>
+					</div>
+					<div>
+						<dt className="text-muted-foreground">Przesiadki</dt>
+						<dd className="font-semibold tabular-nums">{alternative.transferCount}</dd>
+					</div>
+					<div>
+						<dt className="text-muted-foreground">Pieszo</dt>
+						<dd className="font-semibold tabular-nums">{alternative.walkingMinutes} min</dd>
+					</div>
+					<div>
+						<dt className="text-muted-foreground">Dystans pieszo</dt>
+						<dd className="font-semibold tabular-nums">{alternative.walkingMeters} m</dd>
+					</div>
+				</dl>
+				<p className="text-pretty text-sm tabular-nums">
+					Cena: {formatJourneyCost(alternative.cost)} · {alternative.source.label} ·{" "}
+					{alternative.freshness === "stale" ? "dane nieaktualne, sprawdzono" : "sprawdzono"}{" "}
+					{new Date(alternative.source.checkedAt ?? "").toLocaleDateString("pl-PL")}
+				</p>
+				<div className="flex flex-wrap gap-2">
+					{alternative.source.url ? (
+						<Button asChild variant="outline" size="sm">
+							<a href={alternative.source.url} target="_blank" rel="noopener noreferrer">
+								Źródło informacji
+								<ExternalLink className="size-4" />
+							</a>
+						</Button>
+					) : null}
+					{alternative.purchaseLink ? (
+						<Button asChild variant="outline" size="sm">
+							<a href={alternative.purchaseLink.url} target="_blank" rel="noopener noreferrer">
+								{alternative.purchaseLink.label}
+								<ExternalLink className="size-4" />
+							</a>
+						</Button>
+					) : null}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 function JourneyFailure({
 	result,
 	onRetry,
@@ -269,42 +342,55 @@ function JourneyFailure({
 	onRetry: () => void;
 	onChangeParameters: () => void;
 }) {
+	// A catalog card already carries its own purchase link, so the bare link list keeps
+	// only the alternatives that no card covers.
+	const cardUrls = new Set(
+		result.catalogAlternatives.flatMap((alternative) =>
+			alternative.purchaseLink ? [alternative.purchaseLink.url] : [],
+		),
+	);
+	const uncoveredLinks = result.manualAlternatives.filter((link) => !cardUrls.has(link.url));
 	return (
-		<Alert variant="destructive">
-			<AlertTitle className="text-balance">Nie udało się przygotować rekomendacji</AlertTitle>
-			<AlertDescription>
-				<ProviderFailureNotice
-					message={journeyFailureCopy[result.reason]}
-					guidance={journeyOutcomeGuidance[result.reason]}
-					diagnostic={result.diagnostic}
-				/>
-				<div className="mt-3 flex flex-wrap gap-2">
-					<Button type="button" size="sm" variant="outline" onClick={onRetry}>
-						<RotateCcw className="size-4" />
-						Spróbuj ponownie
-					</Button>
-					<Button type="button" size="sm" variant="outline" onClick={onChangeParameters}>
-						Zmień parametry
-					</Button>
-				</div>
-				{result.manualAlternatives.length > 0 ? (
-					<div className="mt-3">
-						<p>Alternatywy ręczne:</p>
-						{result.manualAlternatives.map((link) => (
-							<a
-								key={link.url}
-								className="block underline"
-								href={link.url}
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								{link.label}
-							</a>
-						))}
+		<>
+			<Alert variant="destructive">
+				<AlertTitle className="text-balance">Nie udało się przygotować rekomendacji</AlertTitle>
+				<AlertDescription>
+					<ProviderFailureNotice
+						message={journeyFailureCopy[result.reason]}
+						guidance={journeyOutcomeGuidance[result.reason]}
+						diagnostic={result.diagnostic}
+					/>
+					<div className="mt-3 flex flex-wrap gap-2">
+						<Button type="button" size="sm" variant="outline" onClick={onRetry}>
+							<RotateCcw className="size-4" />
+							Spróbuj ponownie
+						</Button>
+						<Button type="button" size="sm" variant="outline" onClick={onChangeParameters}>
+							Zmień parametry
+						</Button>
 					</div>
-				) : null}
-			</AlertDescription>
-		</Alert>
+					{uncoveredLinks.length > 0 ? (
+						<div className="mt-3">
+							<p>Alternatywy ręczne:</p>
+							{uncoveredLinks.map((link) => (
+								<a
+									key={link.url}
+									className="block underline"
+									href={link.url}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									{link.label}
+								</a>
+							))}
+						</div>
+					) : null}
+				</AlertDescription>
+			</Alert>
+			{result.catalogAlternatives.map((alternative) => (
+				<CatalogTransferAlternativeCard key={alternative.id} alternative={alternative} />
+			))}
+		</>
 	);
 }
 

@@ -1,5 +1,7 @@
 import { getDb } from "@repo/data-ops/database/setup";
 import {
+	type CatalogTransferAlternative,
+	CatalogTransferAlternativeSchema,
 	type JourneyExternalLink,
 	type JourneyRecommendationRequest,
 	JourneyRecommendationRequestSchema,
@@ -107,6 +109,14 @@ function publicLink(link: JourneyExternalLink): JourneyExternalLink {
 	return { kind: link.kind, label: link.label, url: link.url };
 }
 
+// Re-parsed against the strict schema so a catalog alternative can only ever carry
+// the allowlisted, operator-entered transfer facts.
+function publicCatalogAlternative(
+	alternative: CatalogTransferAlternative,
+): CatalogTransferAlternative {
+	return CatalogTransferAlternativeSchema.parse(alternative);
+}
+
 function publicResult(result: JourneyRecommendationResult): JourneyRecommendationResult {
 	if (result.status === "recommendations") {
 		return {
@@ -120,6 +130,7 @@ function publicResult(result: JourneyRecommendationResult): JourneyRecommendatio
 			status: result.status,
 			reason: result.reason,
 			manualAlternatives: result.manualAlternatives.map(publicLink),
+			catalogAlternatives: result.catalogAlternatives.map(publicCatalogAlternative),
 			...publicDiagnostic(result.diagnostic),
 		};
 	}
@@ -127,6 +138,7 @@ function publicResult(result: JourneyRecommendationResult): JourneyRecommendatio
 		status: result.status,
 		reason: result.reason,
 		manualAlternatives: result.manualAlternatives.map(publicLink),
+		catalogAlternatives: result.catalogAlternatives.map(publicCatalogAlternative),
 		...publicDiagnostic(result.diagnostic),
 	};
 }

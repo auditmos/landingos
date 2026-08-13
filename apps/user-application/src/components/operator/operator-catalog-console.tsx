@@ -1,6 +1,7 @@
 import {
-	APPROVED_JOURNEY_EXTERNAL_HOSTS,
 	DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
+	OPERATOR_CATALOG_FIELDS,
+	type OperatorCatalogFieldDefinition,
 	type TransferCatalogDraftInput,
 	type TransferCatalogEditableField,
 	type TransferCatalogRecord,
@@ -13,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldInfo } from "@/components/ui/field-controls";
 import { Input } from "@/components/ui/input";
 import {
 	CatalogApiError,
@@ -26,25 +28,6 @@ import {
 } from "@/lib/operator-catalog-api";
 
 const catalogQueryKey = ["operator", "transfer-catalog"] as const;
-const approvedHostCopy = APPROVED_JOURNEY_EXTERNAL_HOSTS.join(", ");
-
-const textFields = [
-	{ name: "operatorName", label: "Nazwa operatora" },
-	{ name: "serviceName", label: "Nazwa usługi" },
-	{ name: "destinationStopCode", label: "Kod przystanku docelowego" },
-	{ name: "destinationStopName", label: "Nazwa przystanku docelowego" },
-	{ name: "sourceUrl", label: "Adres źródła" },
-	{ name: "purchaseUrl", label: "Łącze zakupu" },
-] as const;
-
-const numberFields = [
-	{ name: "durationMinutes", label: "Czas przejazdu (min)" },
-	{ name: "transferCount", label: "Liczba przesiadek" },
-	{ name: "walkingMinutes", label: "Pieszo (min)" },
-	{ name: "walkingMeters", label: "Pieszo (m)" },
-	{ name: "costMinorMin", label: "Cena minimalna (centy EUR)" },
-	{ name: "costMinorMax", label: "Cena maksymalna (centy EUR)" },
-] as const;
 
 type FormValues = Record<TransferCatalogEditableField, string>;
 
@@ -71,7 +54,7 @@ function formValues(entry: TransferCatalogRecord | null): FormValues {
 }
 
 function draftInput(values: FormValues): TransferCatalogDraftInput {
-	const integer = (field: (typeof numberFields)[number]["name"]) =>
+	const integer = (field: TransferCatalogEditableField) =>
 		values[field] === "" ? null : Number(values[field]);
 	let checkedAt: string | null = null;
 	if (values.checkedAt) {
@@ -103,6 +86,60 @@ function statusLabel(entry: TransferCatalogRecord) {
 		incomplete: "niekompletne",
 	}[entry.freshness];
 	return `${publication} · ${freshness}`;
+}
+
+const inputTypeByKind = {
+	text: "text",
+	url: "url",
+	integer: "number",
+	datetime: "datetime-local",
+} as const;
+
+/**
+ * One rendering for all 13 fields: label, the shared "i" disclosure carrying the
+ * field's help, the input, and the publication error — all driven by the single
+ * field-definition map.
+ */
+function CatalogField({
+	definition,
+	value,
+	error,
+	onChange,
+}: {
+	definition: OperatorCatalogFieldDefinition;
+	value: string;
+	error?: string;
+	onChange(next: string): void;
+}) {
+	const inputId = `catalog-${definition.name}`;
+	const helpId = `${inputId}-info`;
+	const errorId = `${inputId}-error`;
+	return (
+		<div className="space-y-1.5">
+			<div className="flex items-center gap-1">
+				<label className="text-sm font-medium" htmlFor={inputId}>
+					{definition.label}
+				</label>
+				<FieldInfo label={definition.label} id={helpId}>
+					{definition.help}
+				</FieldInfo>
+			</div>
+			<Input
+				id={inputId}
+				type={inputTypeByKind[definition.kind]}
+				{...(definition.kind === "integer" ? { step: "1" } : {})}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				aria-invalid={Boolean(error)}
+				aria-describedby={error ? `${helpId} ${errorId}` : helpId}
+			/>
+			{error && (
+				<p id={errorId} className="text-sm text-destructive">
+					{error}
+				</p>
+			)}
+		</div>
+	);
 }
 
 interface CatalogEditorProps {
@@ -246,80 +283,18 @@ function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEdit
 					}}
 				>
 					<div className="grid gap-4 sm:grid-cols-2">
-						{textFields.map((definition) => (
+						{OPERATOR_CATALOG_FIELDS.map((definition) => (
 							<form.Field key={definition.name} name={definition.name}>
 								{(field) => (
-									<div className="space-y-1.5">
-										<label className="text-sm font-medium" htmlFor={`catalog-${field.name}`}>
-											{definition.label}
-										</label>
-										<Input
-											id={`catalog-${field.name}`}
-											value={field.state.value}
-											onChange={(event) => field.handleChange(event.target.value)}
-											aria-invalid={Boolean(fieldErrors[definition.name])}
-											aria-describedby={
-												definition.name === "sourceUrl" || definition.name === "purchaseUrl"
-													? `catalog-${definition.name}-guidance`
-													: undefined
-											}
-										/>
-										{(definition.name === "sourceUrl" || definition.name === "purchaseUrl") && (
-											<p
-												id={`catalog-${definition.name}-guidance`}
-												className="text-xs text-muted-foreground"
-											>
-												Wymagany HTTPS. Zatwierdzone hosty: {approvedHostCopy}.
-											</p>
-										)}
-										{fieldErrors[definition.name] && (
-											<p className="text-sm text-destructive">{fieldErrors[definition.name]}</p>
-										)}
-									</div>
-								)}
-							</form.Field>
-						))}
-						{numberFields.map((definition) => (
-							<form.Field key={definition.name} name={definition.name}>
-								{(field) => (
-									<div className="space-y-1.5">
-										<label className="text-sm font-medium" htmlFor={`catalog-${field.name}`}>
-											{definition.label}
-										</label>
-										<Input
-											id={`catalog-${field.name}`}
-											type="number"
-											step="1"
-											value={field.state.value}
-											onChange={(event) => field.handleChange(event.target.value)}
-											aria-invalid={Boolean(fieldErrors[definition.name])}
-										/>
-										{fieldErrors[definition.name] && (
-											<p className="text-sm text-destructive">{fieldErrors[definition.name]}</p>
-										)}
-									</div>
-								)}
-							</form.Field>
-						))}
-						<form.Field name="checkedAt">
-							{(field) => (
-								<div className="space-y-1.5">
-									<label className="text-sm font-medium" htmlFor="catalog-checkedAt">
-										Data kontroli
-									</label>
-									<Input
-										id="catalog-checkedAt"
-										type="datetime-local"
+									<CatalogField
+										definition={definition}
 										value={field.state.value}
-										onChange={(event) => field.handleChange(event.target.value)}
-										aria-invalid={Boolean(fieldErrors.checkedAt)}
+										error={fieldErrors[definition.name]}
+										onChange={field.handleChange}
 									/>
-									{fieldErrors.checkedAt && (
-										<p className="text-sm text-destructive">{fieldErrors.checkedAt}</p>
-									)}
-								</div>
-							)}
-						</form.Field>
+								)}
+							</form.Field>
+						))}
 					</div>
 					<div className="flex flex-wrap gap-2">
 						<Button type="submit" disabled={isPending}>

@@ -85,6 +85,28 @@ export const JourneyVariantSchema = z.strictObject({
 	externalLinks: z.array(JourneyExternalLinkSchema),
 });
 
+/**
+ * A published catalog entry rendered on its own. These are manually verified BGY →
+ * stop transfer facts, never an end-to-end route to the traveler's destination: the
+ * shape deliberately has no arrival time, no steps, and no ranking badge.
+ */
+export const CatalogTransferAlternativeSchema = z.strictObject({
+	id: z.string().min(1),
+	kind: z.literal("manually_verified_transfer"),
+	operatorName: z.string().min(1),
+	serviceName: z.string().min(1),
+	destinationStopCode: z.string().min(1),
+	destinationStopName: z.string().min(1),
+	durationMinutes: z.number().int().positive(),
+	transferCount: z.number().int().nonnegative(),
+	walkingMinutes: z.number().int().nonnegative(),
+	walkingMeters: z.number().int().nonnegative(),
+	cost: JourneyCostSchema,
+	source: JourneySourceReferenceSchema,
+	freshness: z.enum(["fresh", "stale"]),
+	purchaseLink: JourneyExternalLinkSchema.nullable(),
+});
+
 export const JourneyRecommendationResultSchema = z.discriminatedUnion("status", [
 	z.strictObject({
 		status: z.literal("recommendations"),
@@ -95,12 +117,14 @@ export const JourneyRecommendationResultSchema = z.discriminatedUnion("status", 
 		status: z.literal("no_trustworthy_route"),
 		reason: z.enum(["zero_result", "no_post_arrival_route", "no_complete_itinerary"]),
 		manualAlternatives: z.array(JourneyExternalLinkSchema),
+		catalogAlternatives: z.array(CatalogTransferAlternativeSchema),
 		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 	z.strictObject({
 		status: z.literal("recommendation_unavailable"),
 		reason: z.enum(["timeout", "rate_limited", "provider_error", "incomplete"]),
 		manualAlternatives: z.array(JourneyExternalLinkSchema),
+		catalogAlternatives: z.array(CatalogTransferAlternativeSchema),
 		diagnostic: ProviderDiagnosticSchema.optional(),
 	}),
 ]);
@@ -132,6 +156,7 @@ export const TransferCatalogEntrySchema = z
 		"Minimalna cena katalogowa nie może przekraczać maksymalnej.",
 	);
 
+export type CatalogTransferAlternative = z.infer<typeof CatalogTransferAlternativeSchema>;
 export type JourneyRecommendationRequest = z.infer<typeof JourneyRecommendationRequestSchema>;
 export type JourneyStep = z.infer<typeof JourneyStepSchema>;
 export type JourneySourceReference = z.infer<typeof JourneySourceReferenceSchema>;

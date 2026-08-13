@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { inspectJourneyExternalUrl } from "./external-links";
+import { OPERATOR_CATALOG_FIELDS } from "./operator-fields";
 
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
@@ -66,21 +67,10 @@ interface FreshnessOptions {
 	freshnessDays: number;
 }
 
-const requiredMessages: Record<TransferCatalogEditableField, string> = {
-	operatorName: "Uzupełnij nazwę operatora.",
-	serviceName: "Uzupełnij nazwę usługi.",
-	destinationStopCode: "Uzupełnij kod przystanku docelowego.",
-	destinationStopName: "Uzupełnij nazwę przystanku docelowego.",
-	durationMinutes: "Uzupełnij czas trwania w minutach.",
-	transferCount: "Uzupełnij liczbę przesiadek.",
-	walkingMinutes: "Uzupełnij liczbę minut pieszo.",
-	walkingMeters: "Uzupełnij liczbę metrów pieszo.",
-	sourceUrl: "Uzupełnij adres źródła.",
-	checkedAt: "Uzupełnij datę kontroli.",
-	costMinorMin: "Uzupełnij cenę minimalną.",
-	costMinorMax: "Uzupełnij cenę maksymalną.",
-	purchaseUrl: "Uzupełnij łącze zakupu.",
-};
+// Derived from the single field-definition map: no second list of Polish copy.
+const requiredMessages = Object.fromEntries(
+	OPERATOR_CATALOG_FIELDS.map((field) => [field.name, field.requiredMessage]),
+) as Record<TransferCatalogEditableField, string>;
 
 function isMissing(value: unknown): boolean {
 	return value === null || value === undefined || (typeof value === "string" && !value.trim());

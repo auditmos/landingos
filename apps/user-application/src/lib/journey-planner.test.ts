@@ -334,6 +334,7 @@ describe("interactive journey planner", () => {
 					url: "https://www.milanbergamoairport.it/en/bus/",
 				},
 			],
+			catalogAlternatives: [],
 		} as JourneyRecommendationResult;
 		vi.stubGlobal(
 			"fetch",
