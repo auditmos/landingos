@@ -1,3 +1,10 @@
+## [1.33.1](https://github.com/auditmos/landingos/compare/v1.33.0...v1.33.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **flight:** normalize manual flight room identity ([bf2418a](https://github.com/auditmos/landingos/commit/bf2418aba10d6f09dbf43de11ac74bfef9a00d3a)), closes [#17](https://github.com/auditmos/landingos/issues/17)
+
 # [1.33.0](https://github.com/auditmos/landingos/compare/v1.32.0...v1.33.0) (2026-08-06)
 
 
