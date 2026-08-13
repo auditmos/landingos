@@ -1,13 +1,14 @@
 import {
+	APPROVED_JOURNEY_EXTERNAL_HOSTS,
 	DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
 	type TransferCatalogDraftInput,
 	type TransferCatalogEditableField,
 	type TransferCatalogRecord,
 } from "@repo/data-ops/journey";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Bus, Plus, Save, Send, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,12 +20,13 @@ import {
 	deleteCatalogEntry,
 	getCatalogPublishFieldErrors,
 	listCatalogEntries,
-	publishCatalogEntry,
+	saveAndPublishCatalogEntry,
 	unpublishCatalogEntry,
 	updateCatalogDraft,
 } from "@/lib/operator-catalog-api";
 
 const catalogQueryKey = ["operator", "transfer-catalog"] as const;
+const approvedHostCopy = APPROVED_JOURNEY_EXTERNAL_HOSTS.join(", ");
 
 const textFields = [
 	{ name: "operatorName", label: "Nazwa operatora" },
@@ -105,11 +107,12 @@ function statusLabel(entry: TransferCatalogRecord) {
 
 interface CatalogEditorProps {
 	entry: TransferCatalogRecord | null;
+	onDirtyChange(isDirty: boolean): void;
 	onSaved(entry: TransferCatalogRecord): void;
 	onDeleted(): void;
 }
 
-function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
+function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEditorProps) {
 	const queryClient = useQueryClient();
 	const [fieldErrors, setFieldErrors] = useState<
 		Partial<Record<TransferCatalogEditableField, string>>
@@ -123,6 +126,7 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 		onSuccess: async (saved) => {
 			setFieldErrors({});
 			setMessage("Szkic został zapisany.");
+			form.reset(formValues(saved));
 			onSaved(saved);
 			await refresh();
 		},
@@ -131,10 +135,12 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 		},
 	});
 	const publishMutation = useMutation({
-		mutationFn: (id: string) => publishCatalogEntry(id),
+		mutationFn: ({ input, id }: { input: TransferCatalogDraftInput; id: string | null }) =>
+			saveAndPublishCatalogEntry(input, id ?? undefined),
 		onSuccess: async (saved) => {
 			setFieldErrors({});
 			setMessage("Wpis został opublikowany.");
+			form.reset(formValues(saved));
 			onSaved(saved);
 			await refresh();
 		},
@@ -165,6 +171,18 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 			saveMutation.mutate(draftInput(value));
 		},
 	});
+	const isDirty = useStore(form.store, (state) => state.isDirty);
+
+	useEffect(() => {
+		onDirtyChange(isDirty);
+		if (!isDirty) return;
+		const preventSilentLeave = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue = "";
+		};
+		window.addEventListener("beforeunload", preventSilentLeave);
+		return () => window.removeEventListener("beforeunload", preventSilentLeave);
+	}, [isDirty, onDirtyChange]);
 
 	const errorMessage =
 		saveMutation.error ?? publishMutation.error ?? unpublishMutation.error ?? deleteMutation.error;
@@ -175,20 +193,25 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 		deleteMutation.isPending;
 
 	const publish = () => {
-		if (!entry) return;
+		const input = draftInput(form.state.values);
 		const errors = getCatalogPublishFieldErrors(
-			entry,
+			input,
 			new Date(),
 			DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
 		);
 		setFieldErrors(errors);
-		if (Object.keys(errors).length === 0) publishMutation.mutate(entry.id);
+		if (Object.keys(errors).length === 0) {
+			publishMutation.mutate({ input, id: entry?.id ?? null });
+		}
 	};
 
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>{entry ? "Edytuj wpis" : "Nowy szkic"}</CardTitle>
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<CardTitle>{entry ? "Edytuj wpis" : "Nowy szkic"}</CardTitle>
+					{isDirty && <Badge variant="warning">Niezapisane zmiany</Badge>}
+				</div>
 				<CardDescription className="text-pretty">
 					Szkic może być niekompletny. Wszystkie pola są sprawdzane przed publikacją.
 				</CardDescription>
@@ -235,7 +258,20 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 											value={field.state.value}
 											onChange={(event) => field.handleChange(event.target.value)}
 											aria-invalid={Boolean(fieldErrors[definition.name])}
+											aria-describedby={
+												definition.name === "sourceUrl" || definition.name === "purchaseUrl"
+													? `catalog-${definition.name}-guidance`
+													: undefined
+											}
 										/>
+										{(definition.name === "sourceUrl" || definition.name === "purchaseUrl") && (
+											<p
+												id={`catalog-${definition.name}-guidance`}
+												className="text-xs text-muted-foreground"
+											>
+												Wymagany HTTPS. Zatwierdzone hosty: {approvedHostCopy}.
+											</p>
+										)}
 										{fieldErrors[definition.name] && (
 											<p className="text-sm text-destructive">{fieldErrors[definition.name]}</p>
 										)}
@@ -290,17 +326,17 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 							<Save className="size-4" />
 							Zapisz szkic
 						</Button>
-						{entry?.publicationStatus === "draft" && (
+						{entry?.publicationStatus !== "published" && (
 							<Button type="button" variant="secondary" disabled={isPending} onClick={publish}>
 								<Send className="size-4" />
-								Opublikuj
+								Zapisz i opublikuj
 							</Button>
 						)}
 						{entry?.publicationStatus === "published" && (
 							<Button
 								type="button"
 								variant="secondary"
-								disabled={isPending}
+								disabled={isPending || isDirty}
 								onClick={() => unpublishMutation.mutate(entry.id)}
 							>
 								<Archive className="size-4" />
@@ -311,7 +347,7 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 							<Button
 								type="button"
 								variant="destructive"
-								disabled={isPending}
+								disabled={isPending || isDirty}
 								onClick={() => deleteMutation.mutate(entry.id)}
 							>
 								<Trash2 className="size-4" />
@@ -327,8 +363,19 @@ function CatalogEditor({ entry, onSaved, onDeleted }: CatalogEditorProps) {
 
 export function OperatorCatalogConsole() {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const [editorDirty, setEditorDirty] = useState(false);
+	const [editorRevision, setEditorRevision] = useState(0);
 	const entriesQuery = useQuery({ queryKey: catalogQueryKey, queryFn: listCatalogEntries });
 	const selected = entriesQuery.data?.find((entry) => entry.id === selectedId) ?? null;
+	const changeSelection = (id: string | null, resetCurrent = false) => {
+		if (!resetCurrent && id === selectedId) return;
+		if (editorDirty && !window.confirm("Masz niezapisane zmiany. Czy chcesz je odrzucić?")) {
+			return;
+		}
+		setEditorDirty(false);
+		setSelectedId(id);
+		setEditorRevision((current) => current + 1);
+	};
 
 	if (entriesQuery.isLoading) return <output>Ładowanie katalogu…</output>;
 	if (entriesQuery.error) {
@@ -358,7 +405,7 @@ export function OperatorCatalogConsole() {
 						Zarządzaj zweryfikowanymi połączeniami z lotniska do Mediolanu.
 					</p>
 				</div>
-				<Button type="button" variant="outline" onClick={() => setSelectedId(null)}>
+				<Button type="button" variant="outline" onClick={() => changeSelection(null, true)}>
 					<Plus className="size-4" />
 					Nowy szkic
 				</Button>
@@ -379,7 +426,7 @@ export function OperatorCatalogConsole() {
 								type="button"
 								aria-pressed={selectedId === entry.id}
 								className="flex min-h-11 w-full items-start gap-3 rounded-lg border p-3 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								onClick={() => setSelectedId(entry.id)}
+								onClick={() => changeSelection(entry.id)}
 							>
 								<Bus className="mt-0.5 size-4 shrink-0" />
 								<span className="min-w-0 flex-1">
@@ -396,10 +443,15 @@ export function OperatorCatalogConsole() {
 					</CardContent>
 				</Card>
 				<CatalogEditor
-					key={selected?.id ?? "new"}
+					key={`${selected?.id ?? "new"}:${editorRevision}`}
 					entry={selected}
+					onDirtyChange={setEditorDirty}
 					onSaved={(saved) => setSelectedId(saved.id)}
-					onDeleted={() => setSelectedId(null)}
+					onDeleted={() => {
+						setEditorDirty(false);
+						setSelectedId(null);
+						setEditorRevision((current) => current + 1);
+					}}
 				/>
 			</div>
 		</section>

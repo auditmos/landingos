@@ -257,11 +257,9 @@ async function operatorJourney(context: ScenarioContext, userSuffix: string) {
 			["#catalog-checkedAt", verificationDate],
 		];
 		for (const [selector, value] of values) await operator.fill(selector, value);
-		await operator.clickText("Zapisz szkic");
+		await operator.assertScreen("Zapisz i opublikuj", context.viewport.mobile);
+		await operator.clickText("Zapisz i opublikuj");
 		await operator.waitForText("E2E Express");
-		await operator.waitForText("Opublikuj");
-		await operator.assertScreen("Opublikuj", context.viewport.mobile);
-		await operator.clickText("Opublikuj");
 		await operator.waitForText("Wycofaj publikację");
 		await operator.fill("#catalog-serviceName", "E2E Express poprawiony");
 		await operator.clickText("Zapisz szkic");

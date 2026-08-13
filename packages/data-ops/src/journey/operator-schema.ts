@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sanitizeJourneyExternalUrl } from "./external-links";
+import { inspectJourneyExternalUrl } from "./external-links";
 
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
@@ -143,8 +143,9 @@ function validateExternalUrls(
 ): void {
 	for (const field of ["sourceUrl", "purchaseUrl"] as const) {
 		const value = draft[field];
-		if (!isMissing(value) && sanitizeJourneyExternalUrl(value as string) === null) {
-			fieldErrors[field] = "Dozwolony jest wyłącznie zatwierdzony adres HTTPS.";
+		if (!isMissing(value)) {
+			const inspection = inspectJourneyExternalUrl(value as string);
+			if (!inspection.ok) fieldErrors[field] = inspection.message;
 		}
 	}
 }

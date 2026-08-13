@@ -125,6 +125,14 @@ describe("anonymous journey route", () => {
 	});
 
 	it("strips raw provider payload and private destination fields from output", async () => {
+		const forbiddenValues = {
+			trip: "private-trip",
+			room: "private-room",
+			message: "private-message",
+			report: "private-report",
+			email: "private@example.test",
+			consent: "private-consent",
+		};
 		const leaked = {
 			...recommendations,
 			variants:
@@ -134,6 +142,7 @@ describe("anonymous journey route", () => {
 							rawProviderPayload: "raw-secret",
 							placeId: "private-place",
 							coordinates: request.privateDestinationCoordinates,
+							...forbiddenValues,
 						}))
 					: [],
 		} as JourneyRecommendationResult;
@@ -142,6 +151,7 @@ describe("anonymous journey route", () => {
 		expect(text).not.toContain("raw-secret");
 		expect(text).not.toContain("private-place");
 		expect(text).not.toContain("45.464098");
+		for (const value of Object.values(forbiddenValues)) expect(text).not.toContain(value);
 		expect(JSON.parse(text)).toEqual(recommendations);
 	});
 });

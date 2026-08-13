@@ -6,6 +6,7 @@ import {
 	deleteTransferCatalogRecord,
 	getTransferCatalogRecord,
 	listTransferCatalogRecords,
+	saveAndPublishTransferCatalog,
 	setTransferCatalogPublicationStatus,
 	type TransferCatalogDraftInput,
 	type TransferCatalogRecord,
@@ -22,6 +23,11 @@ export interface CatalogRepository {
 	): Promise<TransferCatalogRecord>;
 	update(
 		id: string,
+		input: TransferCatalogDraftInput,
+		options: CatalogClockOptions,
+	): Promise<TransferCatalogRecord | null>;
+	saveAndPublish(
+		id: string | null,
 		input: TransferCatalogDraftInput,
 		options: CatalogClockOptions,
 	): Promise<TransferCatalogRecord | null>;
@@ -45,6 +51,7 @@ export function createDatabaseCatalogRepository(db: ReturnType<typeof getDb>): C
 		get: (id, options) => getTransferCatalogRecord(db, id, options),
 		create: (input, options) => createTransferCatalogDraft(db, input, options),
 		update: (id, input, options) => updateTransferCatalogDraft(db, id, input, options),
+		saveAndPublish: (id, input, options) => saveAndPublishTransferCatalog(db, id, input, options),
 		setPublicationStatus: (id, status, options) =>
 			setTransferCatalogPublicationStatus(db, id, status, options),
 		delete: (id) => deleteTransferCatalogRecord(db, id),
@@ -95,6 +102,24 @@ export function createCatalogService(
 			}
 			const updated = await repository.update(id, input, clock());
 			return updated ? { ok: true, data: updated } : { ok: false, reason: "not_found" };
+		},
+		async saveAndPublish(
+			id: string | null,
+			input: TransferCatalogDraftInput,
+		): Promise<CatalogResult<TransferCatalogRecord>> {
+			if (id && !(await repository.get(id, clock()))) {
+				return { ok: false, reason: "not_found" };
+			}
+			const validation = validateTransferCatalogPublish(input, clock());
+			if (!validation.ok) {
+				return {
+					ok: false,
+					reason: "validation_error",
+					fieldErrors: validation.fieldErrors as Record<string, string>,
+				};
+			}
+			const published = await repository.saveAndPublish(id, input, clock());
+			return published ? { ok: true, data: published } : { ok: false, reason: "not_found" };
 		},
 		async publish(id: string): Promise<CatalogResult<TransferCatalogRecord>> {
 			const entry = await repository.get(id, clock());

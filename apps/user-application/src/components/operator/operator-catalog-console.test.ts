@@ -22,7 +22,7 @@ vi.mock("@/lib/operator-catalog-api", async (importOriginal) => {
 		listCatalogEntries: vi.fn(async () => (mocks.entry ? [mocks.entry] : [])),
 		createCatalogDraft: mocks.create,
 		updateCatalogDraft: mocks.update,
-		publishCatalogEntry: mocks.publish,
+		saveAndPublishCatalogEntry: mocks.publish,
 		unpublishCatalogEntry: mocks.unpublish,
 		deleteCatalogEntry: mocks.remove,
 	};
@@ -86,6 +86,7 @@ describe("operator catalog panel", () => {
 	let root: Root;
 
 	beforeEach(async () => {
+		(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 		mocks.entry = null;
 		vi.clearAllMocks();
 		mocks.create.mockImplementation(async () => {
@@ -131,6 +132,7 @@ describe("operator catalog panel", () => {
 	afterEach(async () => {
 		await act(async () => root.unmount());
 		container.remove();
+		delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 	});
 
 	it("creates, edits, publishes, views, unpublishes, and deletes through Polish controls", async () => {
@@ -151,8 +153,11 @@ describe("operator catalog panel", () => {
 			expect.objectContaining({ operatorName: "Nowy operator" }),
 		);
 
-		await click(button(container, "Opublikuj"));
-		expect(mocks.publish).toHaveBeenCalledWith("entry-1");
+		await click(button(container, "Zapisz i opublikuj"));
+		expect(mocks.publish).toHaveBeenCalledWith(
+			expect.objectContaining({ operatorName: "Nowy operator" }),
+			"entry-1",
+		);
 		expect(container.textContent).toContain("Opublikowany");
 
 		await click(button(container, "Wycofaj publikację"));

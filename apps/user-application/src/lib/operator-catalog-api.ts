@@ -78,6 +78,15 @@ async function changePublication(
 export const publishCatalogEntry = (id: string) => changePublication(id, "publish");
 export const unpublishCatalogEntry = (id: string) => changePublication(id, "unpublish");
 
+export async function saveAndPublishCatalogEntry(
+	input: TransferCatalogDraftInput,
+	id?: string,
+): Promise<TransferCatalogRecord> {
+	const path = id ? `/${encodeURIComponent(id)}/publish` : "/publish";
+	const response = await request(path, { method: "POST", body: JSON.stringify(input) });
+	return TransferCatalogRecordSchema.parse(await response.json());
+}
+
 export async function deleteCatalogEntry(id: string): Promise<void> {
 	await request(`/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

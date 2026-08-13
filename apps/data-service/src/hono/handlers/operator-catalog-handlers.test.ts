@@ -50,6 +50,28 @@ function createStatefulService(): CatalogService {
 			entries.set(id, updated);
 			return updated;
 		},
+		saveAndPublish: async (id, input) => {
+			const current = id ? entries.get(id) : undefined;
+			if (id && !current) return null;
+			const entryId = id ?? `entry-${++sequence}`;
+			const published: TransferCatalogRecord = {
+				...(current ?? {
+					id: entryId,
+					originIata: "BGY",
+					provenance: "operator_verified",
+					createdAt: now.toISOString(),
+				}),
+				...input,
+				id: entryId,
+				originIata: "BGY",
+				publicationStatus: "published",
+				provenance: "operator_verified",
+				freshness: "fresh",
+				updatedAt: now.toISOString(),
+			} as TransferCatalogRecord;
+			entries.set(entryId, published);
+			return published;
+		},
 		setPublicationStatus: async (id, publicationStatus) => {
 			const entry = entries.get(id);
 			if (!entry) return null;
@@ -94,11 +116,28 @@ const operatorHeaders = {
 	cookie: "better-auth.session_token=operator",
 };
 
+const currentPublishInput: TransferCatalogDraftInput = {
+	operatorName: "Terravision",
+	serviceName: "BGY → Milano Centrale",
+	destinationStopCode: "milano-centrale",
+	destinationStopName: "Milano Centrale",
+	durationMinutes: 50,
+	transferCount: 0,
+	walkingMinutes: 0,
+	walkingMeters: 0,
+	sourceUrl: "https://www.terravision.eu/airport_transfer/bus-bergamo-airport-milan/",
+	checkedAt: now.toISOString(),
+	costMinorMin: 500,
+	costMinorMax: 1_000,
+	purchaseUrl: "https://www.flixbus.com/bus-routes/bus-bergamo-orio-al-serio-airport-milan",
+};
+
 describe("operator catalog Hono API", () => {
 	const endpointMatrix = [
 		["GET", "/operator/catalog"],
 		["GET", "/operator/catalog/missing"],
 		["POST", "/operator/catalog"],
+		["POST", "/operator/catalog/publish"],
 		["PATCH", "/operator/catalog/missing"],
 		["POST", "/operator/catalog/missing/publish"],
 		["POST", "/operator/catalog/missing/unpublish"],
@@ -226,39 +265,74 @@ describe("operator catalog Hono API", () => {
 		).toBe(404);
 	});
 
+	it("atomically publishes current values from saved and new drafts", async () => {
+		const app = buildApp();
+		const savedResponse = await app.request("/operator/catalog", {
+			method: "POST",
+			headers: operatorHeaders,
+			body: JSON.stringify({ operatorName: "Stary zapis" }),
+		});
+		const saved = (await savedResponse.json()) as TransferCatalogRecord;
+
+		const updatedResponse = await app.request(`/operator/catalog/${saved.id}/publish`, {
+			method: "POST",
+			headers: operatorHeaders,
+			body: JSON.stringify(currentPublishInput),
+		});
+		expect(updatedResponse.status).toBe(200);
+		expect(await updatedResponse.json()).toMatchObject({
+			...currentPublishInput,
+			publicationStatus: "published",
+		});
+
+		const createdResponse = await app.request("/operator/catalog/publish", {
+			method: "POST",
+			headers: operatorHeaders,
+			body: JSON.stringify({ ...currentPublishInput, serviceName: "Nowy transfer" }),
+		});
+		expect(createdResponse.status).toBe(201);
+		expect(await createdResponse.json()).toMatchObject({
+			serviceName: "Nowy transfer",
+			checkedAt: now.toISOString(),
+			publicationStatus: "published",
+		});
+	});
+
 	it("keeps URL, price, and date publish boundaries server-authoritative", async () => {
 		const app = buildApp();
+		const invalidInput = {
+			operatorName: "Operator",
+			serviceName: "Usługa",
+			destinationStopCode: "stop",
+			destinationStopName: "Przystanek",
+			durationMinutes: 1,
+			transferCount: 0,
+			walkingMinutes: 0,
+			walkingMeters: 0,
+			sourceUrl: "https://evil.example/source",
+			checkedAt: "2026-07-27T12:00:00.001Z",
+			costMinorMin: 100,
+			costMinorMax: 99,
+			purchaseUrl: "https://operator:secret@www.terravision.eu/buy",
+		};
 		const response = await app.request("/operator/catalog", {
 			method: "POST",
 			headers: operatorHeaders,
-			body: JSON.stringify({
-				operatorName: "Operator",
-				serviceName: "Usługa",
-				destinationStopCode: "stop",
-				destinationStopName: "Przystanek",
-				durationMinutes: 1,
-				transferCount: 0,
-				walkingMinutes: 0,
-				walkingMeters: 0,
-				sourceUrl: "https://evil.example/source",
-				checkedAt: "2026-07-27T12:00:00.001Z",
-				costMinorMin: 100,
-				costMinorMax: 99,
-				purchaseUrl: "https://evil.example/buy",
-			}),
+			body: JSON.stringify({ operatorName: "Szkic" }),
 		});
 		const entry = (await response.json()) as TransferCatalogRecord;
 		const publish = await app.request(`/operator/catalog/${entry.id}/publish`, {
 			method: "POST",
 			headers: operatorHeaders,
+			body: JSON.stringify(invalidInput),
 		});
 		expect(publish.status).toBe(422);
 		expect(await publish.json()).toMatchObject({
 			fieldErrors: {
-				sourceUrl: expect.any(String),
-				purchaseUrl: expect.any(String),
-				checkedAt: expect.any(String),
-				costMinorMax: expect.any(String),
+				sourceUrl: "Host „evil.example” nie jest zatwierdzony.",
+				purchaseUrl: "Adres nie może zawierać nazwy użytkownika ani hasła.",
+				checkedAt: "Data kontroli nie może być z przyszłości.",
+				costMinorMax: "Cena maksymalna nie może być niższa od minimalnej.",
 			},
 		});
 	});

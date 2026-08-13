@@ -81,6 +81,25 @@ export function createOperatorCatalogHandlers(
 		return c.json(publicRecord(entry), 201);
 	});
 
+	catalog.post("/publish", async (c) => {
+		const body = await c.req.json().catch(() => ({}));
+		const parsed = TransferCatalogDraftInputSchema.safeParse(body);
+		if (!parsed.success) return c.json(inputError(parsed.error), 400);
+		const result = await dependencies.createService(c.env).saveAndPublish(null, parsed.data);
+		if (!result.ok && result.reason === "validation_error") {
+			return c.json(
+				{
+					code: "CATALOG_VALIDATION",
+					error: "Wpis nie spełnia warunków publikacji.",
+					fieldErrors: result.fieldErrors,
+				},
+				422,
+			);
+		}
+		if (!result.ok) return c.json(notFound(), 404);
+		return c.json(publicRecord(result.data), 201);
+	});
+
 	catalog.patch("/:id", async (c) => {
 		const body = await c.req.json().catch(() => ({}));
 		const parsed = TransferCatalogDraftPatchSchema.safeParse(body);
@@ -100,7 +119,19 @@ export function createOperatorCatalogHandlers(
 	});
 
 	catalog.post("/:id/publish", async (c) => {
-		const result = await dependencies.createService(c.env).publish(c.req.param("id"));
+		const body = await c.req.json().catch(() => null);
+		const publishesSavedDraft =
+			body === null ||
+			(typeof body === "object" && !Array.isArray(body) && Object.keys(body).length === 0);
+		const service = dependencies.createService(c.env);
+		let result: Awaited<ReturnType<CatalogService["publish"]>>;
+		if (publishesSavedDraft) {
+			result = await service.publish(c.req.param("id"));
+		} else {
+			const parsed = TransferCatalogDraftInputSchema.safeParse(body);
+			if (!parsed.success) return c.json(inputError(parsed.error), 400);
+			result = await service.saveAndPublish(c.req.param("id"), parsed.data);
+		}
 		if (!result.ok && result.reason === "validation_error") {
 			return c.json(
 				{

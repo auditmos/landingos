@@ -231,6 +231,31 @@ export async function updateTransferCatalogDraft(
 	return row ? toCatalogRecord(row as CatalogRow, options) : null;
 }
 
+export async function saveAndPublishTransferCatalog(
+	db: TransferCatalogDatabase,
+	id: string | null,
+	input: TransferCatalogDraftInput,
+	options: CatalogClockOptions = {},
+): Promise<TransferCatalogRecord | null> {
+	const now = options.now ?? new Date();
+	const values = {
+		...draftValues(input),
+		publicationStatus: "published" as const,
+		updatedAt: now,
+	};
+	const [row] = id
+		? await db
+				.update(transferCatalogEntries)
+				.set(values)
+				.where(eq(transferCatalogEntries.id, id))
+				.returning(catalogSelection)
+		: await db
+				.insert(transferCatalogEntries)
+				.values({ id: crypto.randomUUID(), ...values, createdAt: now })
+				.returning(catalogSelection);
+	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+}
+
 export async function setTransferCatalogPublicationStatus(
 	db: TransferCatalogDatabase,
 	id: string,

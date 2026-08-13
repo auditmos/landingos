@@ -1,4 +1,4 @@
-import type { TransferCatalogRecord } from "@repo/data-ops/journey";
+import type { TransferCatalogDraftInput, TransferCatalogRecord } from "@repo/data-ops/journey";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	createCatalogDraft,
@@ -6,6 +6,7 @@ import {
 	getCatalogPublishFieldErrors,
 	listCatalogEntries,
 	publishCatalogEntry,
+	saveAndPublishCatalogEntry,
 	unpublishCatalogEntry,
 	updateCatalogDraft,
 } from "./operator-catalog-api";
@@ -33,11 +34,52 @@ const baseRecord: TransferCatalogRecord = {
 	updatedAt: "2026-07-27T00:00:00.000Z",
 };
 
+const publishInput: TransferCatalogDraftInput = {
+	operatorName: baseRecord.operatorName,
+	serviceName: baseRecord.serviceName,
+	destinationStopCode: baseRecord.destinationStopCode,
+	destinationStopName: baseRecord.destinationStopName,
+	durationMinutes: baseRecord.durationMinutes,
+	transferCount: baseRecord.transferCount,
+	walkingMinutes: baseRecord.walkingMinutes,
+	walkingMeters: baseRecord.walkingMeters,
+	sourceUrl: baseRecord.sourceUrl,
+	checkedAt: baseRecord.checkedAt,
+	costMinorMin: baseRecord.costMinorMin,
+	costMinorMax: baseRecord.costMinorMax,
+	purchaseUrl: baseRecord.purchaseUrl,
+};
+
 afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
 describe("operator catalog browser client", () => {
+	it("sends all current values in one create or update publish request", async () => {
+		const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+			Response.json({
+				...baseRecord,
+				...JSON.parse(String(init?.body)),
+				publicationStatus: "published",
+			}),
+		);
+		vi.stubGlobal("fetch", fetchSpy);
+
+		await saveAndPublishCatalogEntry(publishInput);
+		await saveAndPublishCatalogEntry(publishInput, "entry-1");
+
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.stringMatching(/\/operator\/catalog\/publish$/),
+			expect.objectContaining({ method: "POST", body: JSON.stringify(publishInput) }),
+		);
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.stringMatching(/\/operator\/catalog\/entry-1\/publish$/),
+			expect.objectContaining({ method: "POST", body: JSON.stringify(publishInput) }),
+		);
+	});
+
 	it("completes CRUD over cookies without exposing a browser bearer", async () => {
 		let current: TransferCatalogRecord | null = null;
 		// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: explicit in-memory HTTP fixture covers each CRUD route
@@ -98,8 +140,8 @@ describe("operator catalog browser client", () => {
 			30,
 		);
 		expect(errors).toMatchObject({
-			sourceUrl: "Dozwolony jest wyłącznie zatwierdzony adres HTTPS.",
-			purchaseUrl: "Dozwolony jest wyłącznie zatwierdzony adres HTTPS.",
+			sourceUrl: "Host „evil.example” nie jest zatwierdzony.",
+			purchaseUrl: "Adres musi używać protokołu HTTPS.",
 			costMinorMax: "Cena maksymalna nie może być niższa od minimalnej.",
 			checkedAt: "Data kontroli nie może być z przyszłości.",
 		});

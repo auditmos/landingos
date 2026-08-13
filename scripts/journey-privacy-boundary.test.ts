@@ -89,4 +89,22 @@ describe("journey privacy boundary", () => {
 			expect(readFileSync(path, "utf8"), path).not.toMatch(PRIVATE_DESTINATION_FIELDS);
 		}
 	});
+
+	it("contains no LandingOS payment form, credential field, or transaction API", () => {
+		const paymentSurface = [
+			"apps/user-application/src/components/journey/journey-planner.tsx",
+			"apps/user-application/src/components/operator/operator-catalog-console.tsx",
+			"apps/user-application/src/lib/operator-catalog-api.ts",
+			"apps/data-service/src/hono/handlers/journey-handlers.ts",
+			"apps/data-service/src/hono/handlers/operator-catalog-handlers.ts",
+		]
+			.map(source)
+			.join("\n");
+		expect(paymentSurface).not.toMatch(
+			/\b(cardNumber|cardholder|cvv|cvc|iban|paymentMethod|paymentIntent|stripe|paypal)\b/i,
+		);
+		expect(paymentSurface).not.toMatch(
+			/["'`]\/(?:api\/)?(?:payments?|checkout|orders?|settlements?)(?:\/|["'`])/i,
+		);
+	});
 });

@@ -10,6 +10,7 @@ import {
 	getTransferCatalogRecord,
 	listPublishedTransferCatalog,
 	listTransferCatalogRecords,
+	saveAndPublishTransferCatalog,
 	seedTransferCatalog,
 	setTransferCatalogPublicationStatus,
 	updateTransferCatalogDraft,
@@ -120,6 +121,55 @@ describe("transfer catalog persistence and seed", () => {
 			expect(await deleteTransferCatalogRecord(db, draft.id)).toBe(true);
 			expect(await deleteTransferCatalogRecord(db, draft.id)).toBe(false);
 			expect(await getTransferCatalogRecord(db, draft.id, { now })).toBeNull();
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("atomically persists current UTC check dates at exact now and 30-day boundaries", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const complete = DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
+				(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
+			>;
+			const {
+				id: _id,
+				originIata: _origin,
+				publicationStatus: _status,
+				provenance: _provenance,
+				...editable
+			} = complete;
+			const draft = await createTransferCatalogDraft(
+				db,
+				{ operatorName: "Stary zapis" },
+				{ id: "existing-atomic", now },
+			);
+			const exactNow = now.toISOString();
+			const exactThirtyDays = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString();
+
+			expect(
+				await saveAndPublishTransferCatalog(
+					db,
+					draft.id,
+					{ ...editable, operatorName: "Aktualny formularz", checkedAt: exactNow },
+					{ now, freshnessDays: 30 },
+				),
+			).toMatchObject({
+				operatorName: "Aktualny formularz",
+				checkedAt: exactNow,
+				publicationStatus: "published",
+			});
+			expect(
+				await saveAndPublishTransferCatalog(
+					db,
+					null,
+					{ ...editable, checkedAt: exactThirtyDays },
+					{ now, freshnessDays: 30 },
+				),
+			).toMatchObject({
+				checkedAt: exactThirtyDays,
+				publicationStatus: "published",
+			});
 		} finally {
 			await client.close();
 		}

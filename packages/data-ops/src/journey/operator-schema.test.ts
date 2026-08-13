@@ -71,12 +71,12 @@ describe("operator transfer catalog contract", () => {
 		[
 			"sourceUrl",
 			{ ...completeDraft, sourceUrl: "http://www.milanbergamoairport.it/en/bus/" },
-			"Dozwolony jest wyłącznie zatwierdzony adres HTTPS.",
+			"Adres musi używać protokołu HTTPS.",
 		],
 		[
 			"purchaseUrl",
 			{ ...completeDraft, purchaseUrl: "https://evil.example/tickets" },
-			"Dozwolony jest wyłącznie zatwierdzony adres HTTPS.",
+			"Host „evil.example” nie jest zatwierdzony.",
 		],
 		[
 			"checkedAt",
@@ -137,6 +137,29 @@ describe("operator transfer catalog contract", () => {
 				{ now: new Date("2026-07-27T12:00:00.000Z"), freshnessDays: 30 },
 			),
 		).toMatchObject({ ok: false, fieldErrors: { sourceUrl: expect.any(String) } });
+	});
+
+	it.each([
+		["http://www.flixbus.com/route", "Adres musi używać protokołu HTTPS."],
+		[
+			"https://operator:secret@www.terravision.eu/route",
+			"Adres nie może zawierać nazwy użytkownika ani hasła.",
+		],
+		[
+			"https://www.flixbus.com.evil.example/route",
+			"Host „www.flixbus.com.evil.example” nie jest zatwierdzony.",
+		],
+		[
+			"https://www.google.com/url?url=https%3A%2F%2Fevil.example%2Fsteal",
+			"Adres zawiera niebezpieczne przekierowanie poza zatwierdzoną listę.",
+		],
+	] as const)("returns the shared field-ready URL reason for %s", (sourceUrl, message) => {
+		expect(
+			validateTransferCatalogPublish(
+				{ ...completeDraft, sourceUrl },
+				{ now: new Date("2026-07-27T12:00:00.000Z"), freshnessDays: 30 },
+			),
+		).toMatchObject({ ok: false, fieldErrors: { sourceUrl: message } });
 	});
 
 	it("locks operator responses to catalog-only keys", () => {

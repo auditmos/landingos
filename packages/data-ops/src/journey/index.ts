@@ -1,5 +1,8 @@
 export {
+	APPROVED_JOURNEY_EXTERNAL_HOSTS,
 	ApprovedJourneyExternalUrlSchema,
+	inspectJourneyExternalUrl,
+	type JourneyExternalUrlInspection,
 	sanitizeJourneyExternalUrl,
 } from "./external-links";
 export {
@@ -23,6 +26,7 @@ export {
 	getTransferCatalogRecord,
 	listPublishedTransferCatalog,
 	listTransferCatalogRecords,
+	saveAndPublishTransferCatalog,
 	seedTransferCatalog,
 	setTransferCatalogPublicationStatus,
 	updateTransferCatalogDraft,

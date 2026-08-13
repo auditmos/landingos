@@ -390,6 +390,16 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				if (user.role !== "operator") return json(response, 403, { error: "Brak uprawnień." });
 				return json(response, 201, store.saveCatalog(await body(request)));
 			}
+			if (url.pathname === "/operator/catalog/publish" && request.method === "POST") {
+				const user = requireUser(store, request, response);
+				if (!user) return;
+				if (user.role !== "operator") return json(response, 403, { error: "Brak uprawnień." });
+				return json(
+					response,
+					201,
+					store.saveCatalog({ ...(await body(request)), publicationStatus: "published" }),
+				);
+			}
 			const catalogMatch = CATALOG_ITEM_PATH.exec(url.pathname);
 			if (catalogMatch) {
 				const user = requireUser(store, request, response);
@@ -399,7 +409,11 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				const current = store.listCatalog().find((entry) => entry.id === id);
 				if (!current) return json(response, 404, { error: "Nie znaleziono wpisu." });
 				if (catalogMatch[2] === "publish" && request.method === "POST") {
-					return json(response, 200, store.saveCatalog({ publicationStatus: "published" }, id));
+					return json(
+						response,
+						200,
+						store.saveCatalog({ ...(await body(request)), publicationStatus: "published" }, id),
+					);
 				}
 				if (catalogMatch[2] === "unpublish" && request.method === "POST") {
 					return json(response, 200, store.saveCatalog({ publicationStatus: "draft" }, id));
