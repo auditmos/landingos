@@ -18,6 +18,7 @@ function logTransitFault(
 	diagnostics: DiagnosticContext | undefined,
 ): void {
 	if (result.status === "success" || result.status === "zero_result") return;
+	// biome-ignore lint/suspicious/noConsole: structured fault line for Worker observability
 	console.warn(
 		JSON.stringify({
 			event: "transit_provider_fault",
