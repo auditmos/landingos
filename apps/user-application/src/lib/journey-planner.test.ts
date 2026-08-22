@@ -238,7 +238,7 @@ describe("journey card contract", () => {
 			createElement(JourneyVariantCard, { variant: baseVariant, mapsUrl }),
 		);
 		expect(mapsUrl).toBe(
-			"https://www.google.com/maps/dir/?api=1&origin=45.673889,9.704167&destination=45.464098,9.191926&travelmode=transit",
+			"https://www.google.com/maps/dir/?api=1&origin=45.6656872,9.6978308&destination=45.464098,9.191926&travelmode=transit",
 		);
 		expect(html).toContain("Nawiguj w Mapach Google");
 		expect(html).toContain("<details");

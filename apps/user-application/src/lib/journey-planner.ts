@@ -8,7 +8,8 @@ import {
 } from "@repo/data-ops/journey";
 import { analyticsFunnelHeaders, captureAnalyticsFunnel } from "./analytics-funnel";
 
-const BGY_AIRPORT_COORDINATES = "45.673889,9.704167";
+// Arrivals-side airport bus station — the same origin the recommendation engine routes from (#24).
+const BGY_AIRPORT_COORDINATES = "45.6656872,9.6978308";
 
 // Planner-only deep link: the private destination coordinates stay in the
 // user's browser tab — never in room payloads, analytics, or logs.

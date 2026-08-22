@@ -40,7 +40,7 @@ describe("private drop-off store", () => {
 
 	it("round-trips the planner's exact navigation link alongside the label", () => {
 		const plannerUrl =
-			"https://www.google.com/maps/dir/?api=1&origin=45.673889,9.704167&destination=45.464098,9.191926&travelmode=transit";
+			"https://www.google.com/maps/dir/?api=1&origin=45.6656872,9.6978308&destination=45.464098,9.191926&travelmode=transit";
 		savePrivateDropOff({ flightInstanceId: "flight-1", label: "Bershka", mapsUrl: plannerUrl });
 		expect(loadPrivateDropOff("flight-1")?.mapsUrl).toBe(plannerUrl);
 	});
