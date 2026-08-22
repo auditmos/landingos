@@ -1,3 +1,11 @@
+## [1.35.3](https://github.com/auditmos/landingos/compare/v1.35.2...v1.35.3) (2026-08-22)
+
+
+### Bug Fixes
+
+* **journeys:** match catalog entries on the structural airport leg ([8d93c89](https://github.com/auditmos/landingos/commit/8d93c89792923891fbd890b6f0e428bf8b23170b)), closes [#14](https://github.com/auditmos/landingos/issues/14) [#26](https://github.com/auditmos/landingos/issues/26)
+* **journeys:** tolerate Google proto3 omissions and surface journey diagnostics ([cb3b65b](https://github.com/auditmos/landingos/commit/cb3b65befb52f9b7341ded1f86dbd1db390f01b5)), closes [#25](https://github.com/auditmos/landingos/issues/25)
+
 ## [1.35.2](https://github.com/auditmos/landingos/compare/v1.35.1...v1.35.2) (2026-08-22)
 
 
