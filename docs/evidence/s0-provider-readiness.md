@@ -94,6 +94,26 @@ accessed at `2026-08-12T16:26:56.000Z`. For every credentialed flight call, the 
 emits a line-delimited progress heartbeat on stderr and records the input, normalized outcome, access time,
 correlation ID, reference expectation, and match result in the evidence JSON.
 
+## Issue #24 route-origin evidence
+
+Recorded on 2026-08-22. This is a **manual probe** (3 credentialed Google Routes calls plus one
+Places text search from a local key), not a `pnpm run spike:data` run. It changes no
+production-readiness decision.
+
+| Origin sent to Google Routes | BGY → Milano Centrale result (6 routes) |
+| --- | --- |
+| Aerodrome reference point `45.6739, 9.7042` (previous constant) | 5/6 routes start at Seriate stops ("Seriate Roma 74b", "Seriate Italia fr.51", "Lunga Fiera"); 111–147 min; 19–35 steps; no fare. The direct airport bus appears once, as alternative #4, preceded by a detour bus. |
+| Arrivals bus station `45.6656872, 9.6978308` (new `BGY_ROUTE_ORIGIN`) | 5/6 routes are "Bergamo Airport Bus Station → Milan Centrale Piazza Luigi di Savoia"; 57 min; 9–11 steps; fare EUR 9.50–10.00 present. The sixth departs from "Aeroporto Il Caravaggio" (75 min via Bergamo rail). **6/6 routes depart from an airport stop.** |
+
+Origin provenance: Google Places text search for "Bergamo Airport Bus Station" returned place
+type `bus_station` at the coordinate above (checked 2026-08-22; see
+[`bgy-origin.ts`](../../apps/data-service/src/providers/bgy-origin.ts)).
+
+The live spike now records, per transit scenario, `firstTransitDepartureStop` and
+`departsFromAirportStop`, and an aggregate `airportDeparture.routesFromAirportStop /
+routesMeasured`. No spike run with these fields has been executed yet; the numbers above come
+from the manual probe only.
+
 ## Milan municipality viewport
 
 Both fixture and live Places adapters consume the exact rectangle `milan-municipality-v1`:

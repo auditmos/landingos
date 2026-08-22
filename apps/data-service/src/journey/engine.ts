@@ -12,6 +12,7 @@ import {
 	type TransferCatalogEntry,
 } from "@repo/data-ops/journey";
 import {
+	BGY_ROUTE_ORIGIN,
 	contextDiagnostic,
 	type DiagnosticContext,
 	type ProviderDiagnostic,
@@ -20,7 +21,6 @@ import {
 	type TransitRoute,
 } from "../providers";
 
-const BGY_COORDINATES = { latitude: 45.6739, longitude: 9.7042 };
 const DEFAULT_FRESHNESS_DAYS = 30;
 const BADGE_ORDER = ["recommended", "fastest", "simplest"] as const;
 
@@ -437,7 +437,7 @@ export async function recommendJourneys(
 	const departureTime = addMinutes(input.scheduledArrivalUtc, input.bufferMinutes);
 	const [providerResult, catalogEntries] = await Promise.all([
 		dependencies.transit.route({
-			origin: BGY_COORDINATES,
+			origin: BGY_ROUTE_ORIGIN,
 			destination: input.privateDestinationCoordinates,
 			departureTime,
 		}),

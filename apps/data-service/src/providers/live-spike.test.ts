@@ -168,6 +168,19 @@ describe("live provider spike", () => {
 			matchesExpected: true,
 		});
 		expect(progress[0]).toContain("flight:w61431:2026-09-01:20260812T170000000Z");
+		const transitResults = evidence.scenarioResults.filter((item) => item.contract === "transit");
+		expect(transitResults).toHaveLength(10);
+		expect(transitResults[0]).toMatchObject({
+			contract: "transit",
+			status: "success",
+			firstTransitDepartureStop: "Aeroporto BGY",
+			departsFromAirportStop: true,
+		});
+		expect(evidence.airportDeparture).toEqual({
+			origin: { latitude: 45.6656872, longitude: 9.6978308 },
+			routesMeasured: 10,
+			routesFromAirportStop: 10,
+		});
 		const serialized = JSON.stringify(evidence);
 		expect(serialized).not.toContain("test-flight-key");
 		expect(serialized).not.toContain("test-google-key");

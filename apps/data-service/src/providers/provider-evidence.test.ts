@@ -80,6 +80,11 @@ describe("provider readiness evidence", () => {
 				status: "passing" as const,
 				requiredDecision: null,
 			},
+			airportDeparture: {
+				origin: { latitude: 45.6656872, longitude: 9.6978308 },
+				routesMeasured: 10,
+				routesFromAirportStop: 10,
+			},
 			callCount: 25,
 			latencyMs: { sampleCount: 25, p50: 100, p95: 200 },
 			billing: {

@@ -1,9 +1,10 @@
+import { BGY_ROUTE_ORIGIN, isAirportStopName } from "./bgy-origin";
 import { ROUTE_FIXTURE_SCENARIOS } from "./fixture-data";
 import { createLiveProviderAdapters, type LiveProviderCredentials } from "./live-adapters";
 import { LIVE_FLIGHT_SAMPLE_V1, type ScheduledFlightSampleCase } from "./live-flight-sample";
 import type { ProviderFetch } from "./live-http";
-import { MILAN_MUNICIPALITY_VIEWPORT } from "./milan-viewport";
-import type { ProviderFlight, ProviderResult } from "./types";
+import { type Coordinate, MILAN_MUNICIPALITY_VIEWPORT } from "./milan-viewport";
+import type { ProviderFlight, ProviderResult, TransitRoute } from "./types";
 
 interface LiveSpikeOptions {
 	credentials: LiveProviderCredentials;
@@ -19,6 +20,16 @@ interface MeasuredContractScenarioResult {
 	contract: "places" | "transit";
 	status: ProviderResult<unknown, unknown>["status"];
 	latencyMs: number;
+	/** Transit only: `from` stop of the first non-walk leg of the first returned route. */
+	firstTransitDepartureStop?: string | null;
+	/** Transit only: whether every returned route starts its transit at an airport stop. */
+	departsFromAirportStop?: boolean;
+}
+
+interface AirportDepartureMeasurement {
+	origin: Coordinate;
+	routesMeasured: number;
+	routesFromAirportStop: number;
 }
 
 interface MeasuredFlightScenarioResult {
@@ -81,6 +92,7 @@ export interface LiveSpikeEvidence {
 			| null
 			| "reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider";
 	};
+	airportDeparture: AirportDepartureMeasurement;
 	callCount: number;
 	latencyMs: {
 		sampleCount: number;
@@ -137,6 +149,33 @@ function coverageFor(
 	};
 }
 
+function firstTransitDeparture(route: TransitRoute): string | null {
+	return route.legs.find((leg) => leg.mode !== "walk")?.from ?? null;
+}
+
+function airportDepartureFor(result: ProviderResult<unknown, unknown>): Pick<
+	MeasuredContractScenarioResult,
+	"firstTransitDepartureStop" | "departsFromAirportStop"
+> & {
+	routes: TransitRoute[];
+} {
+	if (result.status !== "success" || !Array.isArray(result.value)) {
+		return { routes: [], firstTransitDepartureStop: null, departsFromAirportStop: false };
+	}
+	const routes = result.value as TransitRoute[];
+	const first = routes[0];
+	return {
+		routes,
+		firstTransitDepartureStop: first ? firstTransitDeparture(first) : null,
+		departsFromAirportStop:
+			routes.length > 0 &&
+			routes.every((route) => {
+				const stop = firstTransitDeparture(route);
+				return stop !== null && isAirportStopName(stop);
+			}),
+	};
+}
+
 function correlationId(caseId: string, generatedAt: string): string {
 	return `flight:${caseId}:${generatedAt.replace(/[-:.]/g, "")}`;
 }
@@ -168,6 +207,11 @@ function flightMatchesReference(
 export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpikeEvidence> {
 	const adapters = createLiveProviderAdapters(options.credentials, options.fetchImpl);
 	const scenarioResults: MeasuredScenarioResult[] = [];
+	const airportDeparture: AirportDepartureMeasurement = {
+		origin: BGY_ROUTE_ORIGIN,
+		routesMeasured: 0,
+		routesFromAirportStop: 0,
+	};
 
 	async function measure(
 		scenarioId: string,
@@ -177,12 +221,22 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 		const startedAt = options.nowMs();
 		const result = await call();
 		const latencyMs = Math.max(0, options.nowMs() - startedAt);
-		scenarioResults.push({
+		const measured: MeasuredContractScenarioResult = {
 			scenarioId,
 			contract,
 			status: result.status,
 			latencyMs,
-		});
+		};
+		if (contract === "transit") {
+			const { routes, ...departure } = airportDepartureFor(result);
+			Object.assign(measured, departure);
+			airportDeparture.routesMeasured += routes.length;
+			airportDeparture.routesFromAirportStop += routes.filter((route) => {
+				const stop = firstTransitDeparture(route);
+				return stop !== null && isAirportStopName(stop);
+			}).length;
+		}
+		scenarioResults.push(measured);
 		options.onProgress(`[s0] ${scenarioResults.length}/25 ${contract} ${result.status}`);
 	}
 
@@ -269,6 +323,7 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 				? null
 				: "reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider",
 		},
+		airportDeparture,
 		callCount: scenarioResults.length,
 		latencyMs: {
 			sampleCount: latencies.length,

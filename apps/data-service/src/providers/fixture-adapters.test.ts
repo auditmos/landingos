@@ -134,7 +134,7 @@ describe("fixture provider adapters", () => {
 		const providers = createFixtureProviderAdapters();
 
 		const result = await providers.transit.route({
-			origin: { latitude: 45.6739, longitude: 9.7042 },
+			origin: { latitude: 45.6656872, longitude: 9.6978308 },
 			destination: { latitude: 45.464098, longitude: 9.191926 },
 			departureTime: "2026-09-14T11:05:00+02:00",
 		});
@@ -191,7 +191,7 @@ describe("fixture provider adapters", () => {
 		const providers = createFixtureProviderAdapters();
 
 		const result = await providers.transit.route({
-			origin: { latitude: 45.6739, longitude: 9.7042 },
+			origin: { latitude: 45.6656872, longitude: 9.6978308 },
 			destination: { latitude: 45.464098, longitude: 9.191926 },
 			departureTime: "2026-09-14T09:05:00.000Z",
 		});

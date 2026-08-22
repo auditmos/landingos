@@ -3,7 +3,13 @@ import {
 	type JourneyRecommendationRequest,
 	type TransferCatalogEntry,
 } from "@repo/data-ops/journey";
-import type { ProviderResult, TransitProvider, TransitRoute } from "../providers";
+import {
+	BGY_ROUTE_ORIGIN,
+	BGY_ROUTE_ORIGIN_PROVENANCE,
+	type ProviderResult,
+	type TransitProvider,
+	type TransitRoute,
+} from "../providers";
 import { recommendJourneys, type TransferCatalogRepository } from "./engine";
 
 const request: JourneyRecommendationRequest = {
@@ -101,9 +107,19 @@ describe("journey recommendation engine", () => {
 		);
 		expect(provider.route).toHaveBeenCalledTimes(1);
 		expect(provider.route).toHaveBeenCalledWith({
-			origin: { latitude: 45.6739, longitude: 9.7042 },
+			origin: { latitude: 45.6656872, longitude: 9.6978308 },
 			destination: request.privateDestinationCoordinates,
 			departureTime: expectedDepartureTime,
+		});
+	});
+
+	it("routes from the BGY arrivals bus station, not the aerodrome reference point", () => {
+		expect(BGY_ROUTE_ORIGIN).toEqual({ latitude: 45.6656872, longitude: 9.6978308 });
+		expect(BGY_ROUTE_ORIGIN_PROVENANCE).toMatchObject({
+			placeName: "Bergamo Airport Bus Station",
+			placeType: "bus_station",
+			source: "google_places_text_search",
+			checkedOn: "2026-08-22",
 		});
 	});
 

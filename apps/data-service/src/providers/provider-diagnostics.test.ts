@@ -277,7 +277,7 @@ const providers: ProviderUnderTest[] = [
 		}),
 		call: (fetchImpl) =>
 			createLiveTransitProvider({ googleMapsApiKey: "test-key" }, fetchImpl).route({
-				origin: { latitude: 45.6739, longitude: 9.7042 },
+				origin: { latitude: 45.6656872, longitude: 9.6978308 },
 				destination: { latitude: 45.4642, longitude: 9.19 },
 				departureTime: "2026-08-10T11:15:00.000Z",
 			}) as Promise<ProviderResult<unknown, unknown>>,

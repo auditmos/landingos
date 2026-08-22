@@ -1,3 +1,4 @@
+import { BGY_ROUTE_ORIGIN } from "./bgy-origin";
 import { FIXTURE_PROVENANCE, type FixtureScenario } from "./fixture-shared";
 import type { ProviderResult, TransitRoute, TransitRouteInput } from "./types";
 
@@ -157,14 +158,12 @@ function createTransitRoute(spec: RouteSpec): TransitRoute {
 	};
 }
 
-const BGY_COORDINATE = { latitude: 45.6739, longitude: 9.7042 };
-
 const successfulRoutes: RouteFixtureScenario[] = ROUTE_SPECS.map((spec) => ({
 	scenarioId: `route:${spec.key}`,
 	provenance: FIXTURE_PROVENANCE,
 	destinationLabel: spec.destinationLabel,
 	input: {
-		origin: BGY_COORDINATE,
+		origin: BGY_ROUTE_ORIGIN,
 		destination: spec.destination,
 		departureTime: spec.departureTime,
 	},
@@ -176,7 +175,7 @@ const successfulRoutes: RouteFixtureScenario[] = ROUTE_SPECS.map((spec) => ({
 
 function faultRouteInput(day: string): TransitRouteInput {
 	return {
-		origin: BGY_COORDINATE,
+		origin: BGY_ROUTE_ORIGIN,
 		destination: { latitude: 45.464098, longitude: 9.191926 },
 		departureTime: `2026-10-${day}T11:05:00+02:00`,
 	};
