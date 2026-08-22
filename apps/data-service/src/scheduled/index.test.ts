@@ -35,7 +35,7 @@ describe("bounded analytics abandonment schedule", () => {
 
 		for (let attempt = 0; attempt < 2; attempt += 1) {
 			const controller = createScheduledController({
-				cron: "*/5 * * * *",
+				cron: "0 * * * *",
 				scheduledTime,
 			});
 			const context = createExecutionContext();

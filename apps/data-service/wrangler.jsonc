@@ -21,7 +21,7 @@
 		"dev": {
 			"name": "landingos-ds-dev",
 			"triggers": {
-				"crons": ["*/5 * * * *"]
+				"crons": ["0 * * * *"]
 			},
 			"durable_objects": {
 				"bindings": [{ "name": "FLIGHT_ROOM", "class_name": "FlightRoomDurableObject" }]
@@ -86,7 +86,7 @@
 			],
 			"name": "landingos-ds-staging",
 			"triggers": {
-				"crons": ["*/5 * * * *"]
+				"crons": ["0 * * * *"]
 			},
 			"durable_objects": {
 				"bindings": [{ "name": "FLIGHT_ROOM", "class_name": "FlightRoomDurableObject" }]
@@ -145,7 +145,7 @@
 			],
 			"name": "landingos-ds-production",
 			"triggers": {
-				"crons": ["*/5 * * * *"]
+				"crons": ["0 * * * *"]
 			},
 			"durable_objects": {
 				"bindings": [{ "name": "FLIGHT_ROOM", "class_name": "FlightRoomDurableObject" }]

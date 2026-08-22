@@ -15,10 +15,12 @@ Wersja: 2026-07-27-v1
 | Dokładny adres, place ID i współrzędne planera | Tylko pamięć bieżącego przepływu i niezbędne żądanie planera | Nie są zapisywane w tabelach konta, pokoju ani analityki; lokalny kontekst planera jest czyszczony po usunięciu konta |
 | Zdarzenia analityczne | Kontrolowany rejestr bez prywatnych pól | Pozostaje wyłącznie pseudonim HMAC bez tabeli mapującej do usuniętego konta |
 
-Cron uruchamia jedną ograniczoną partię maksymalnie 100 pokojów co 5 minut w `dev`,
+Cron uruchamia jedną ograniczoną partię maksymalnie 100 pokojów co godzinę w `dev`,
 `staging` i `production`. Autoryzacja sprawdza `roomClosesAt` bezpośrednio, dlatego opóźniony
 cron nie otwiera zamkniętego pokoju. Czyszczenie jest idempotentne i bezpieczne przy
-ponowieniu.
+ponowieniu. Interwał godzinowy (wcześniej co 5 minut) wystarcza: granice to 24 h dostępu do
+pokoju i 30 dni retencji treści, a rzadsze uruchomienia pozwalają bazie usypiać compute
+między przebiegami.
 
 Repozytorium nie usuwa kopii zapasowych ani logów pozostających pod kontrolą dostawcy
 infrastruktury. Ich retencja wymaga osobnego potwierdzenia operacyjnego i niezależnego
