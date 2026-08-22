@@ -1,3 +1,10 @@
+## [1.35.2](https://github.com/auditmos/landingos/compare/v1.35.1...v1.35.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* **journeys:** route from the BGY arrivals bus station instead of the runway ([7d38b9c](https://github.com/auditmos/landingos/commit/7d38b9c2b4bb6e1d7757d13ebd22170668bd7d0d)), closes [#24](https://github.com/auditmos/landingos/issues/24)
+
 ## [1.35.1](https://github.com/auditmos/landingos/compare/v1.35.0...v1.35.1) (2026-08-13)
 
 
