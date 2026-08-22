@@ -29,6 +29,7 @@ import { formatDepartureDate } from "@/lib/flight-planner";
 import {
 	formatJourneyArrival,
 	formatJourneyCost,
+	formatWalkingDistance,
 	journeyBadgeCopy,
 	journeyFailureCopy,
 	journeyNavigationUrl,
@@ -104,7 +105,9 @@ export function JourneyVariantCard({
 					</div>
 					<div>
 						<dt className="text-muted-foreground">Dystans pieszo</dt>
-						<dd className="font-semibold tabular-nums">{variant.walkingMeters} m</dd>
+						<dd className="font-semibold tabular-nums">
+							{formatWalkingDistance(variant.walkingMeters)}
+						</dd>
 					</div>
 				</dl>
 
@@ -181,7 +184,7 @@ export function JourneyVariantCard({
 											<span className="tabular-nums">
 												{" "}
 												· <Footprints className="mr-0.5 inline size-3" aria-hidden="true" />
-												{step.walkingMeters} m pieszo
+												{formatWalkingDistance(step.walkingMeters)} pieszo
 											</span>
 										) : null}
 									</p>
@@ -302,7 +305,9 @@ function CatalogTransferAlternativeCard({
 					</div>
 					<div>
 						<dt className="text-muted-foreground">Dystans pieszo</dt>
-						<dd className="font-semibold tabular-nums">{alternative.walkingMeters} m</dd>
+						<dd className="font-semibold tabular-nums">
+							{formatWalkingDistance(alternative.walkingMeters)}
+						</dd>
 					</div>
 				</dl>
 				<p className="text-pretty text-sm tabular-nums">

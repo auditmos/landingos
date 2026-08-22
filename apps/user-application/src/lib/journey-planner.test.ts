@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { JourneyPlanner, JourneyVariantCard } from "@/components/journey/journey-planner";
 import {
 	formatJourneyCost,
+	formatWalkingDistance,
 	type JourneyApiError,
 	journeyNavigationUrl,
 	recommendJourneysApi,
@@ -49,7 +50,7 @@ const baseVariant: JourneyVariant = {
 	},
 	transferCount: 1,
 	walkingMinutes: 8,
-	walkingMeters: 600,
+	walkingMeters: 1_850,
 	steps: [
 		{
 			mode: "bus",
@@ -63,7 +64,7 @@ const baseVariant: JourneyVariant = {
 			from: "Milano Centrale",
 			to: "Cel podróży",
 			durationMinutes: 8,
-			walkingMeters: 600,
+			walkingMeters: 1_850,
 		},
 	],
 	sourceReferences: [
@@ -105,6 +106,19 @@ function setInputValue(input: HTMLInputElement, value: string) {
 	input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+describe("walking distance formatting", () => {
+	it.each([
+		[0, "0 m"],
+		[600, "600 m"],
+		[999, "999 m"],
+		[1000, "1 km"],
+		[1850, "1,9 km"],
+		[12_345, "12,3 km"],
+	])("formats %i metres as %s", (meters, expected) => {
+		expect(formatWalkingDistance(meters)).toBe(expected);
+	});
+});
+
 describe("journey card contract", () => {
 	it("renders all normalized fields, ordered steps, sources, verification, and external link", () => {
 		const html = renderToStaticMarkup(createElement(JourneyVariantCard, { variant: baseVariant }));
@@ -115,7 +129,7 @@ describe("journey card contract", () => {
 			"Przesiadki",
 			"1",
 			"8 min",
-			"600 m",
+			"1,9 km",
 			"1. Autobus",
 			"2. Pieszo",
 			"Fixture Transit",

@@ -132,3 +132,14 @@ export const journeyBadgeCopy = {
 	fastest: "Najszybsza",
 	simplest: "Najprostsza",
 } as const;
+
+/** Metres below one kilometre, otherwise kilometres with one Polish decimal ("1,9 km"). */
+export function formatWalkingDistance(meters: number): string {
+	if (meters < 1000) {
+		return `${Math.round(meters)} m`;
+	}
+	const kilometers = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1 }).format(
+		meters / 1000,
+	);
+	return `${kilometers} km`;
+}
