@@ -77,6 +77,43 @@ describe("FlightPlanner manual fallback", () => {
 		expect(fetchSpy).toHaveBeenCalledOnce();
 	});
 
+	it("accepts a typed Polish date-time as the manual arrival when the native picker is unusable", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					status: "manual_required",
+					reason: "not_found",
+					flightNumber: "W61431",
+					departureLocalDate: "2026-09-16",
+				}),
+			),
+		);
+		await act(async () => root.render(createElement(FlightPlanner)));
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		await act(async () => {
+			setInputValue(flightNumber as HTMLInputElement, "W61431");
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		const typed = container.querySelector<HTMLInputElement>("#arrival-typed");
+		const native = container.querySelector<HTMLInputElement>("#arrival-native");
+		const manualSubmit = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+			(button) => button.textContent?.includes("Zapisz i kontynuuj"),
+		);
+		expect(typed?.placeholder).toBe("DD.MM.RRRR, GG:MM");
+		expect(native?.getAttribute("aria-hidden")).toBeNull();
+		expect(manualSubmit?.disabled).toBe(true);
+
+		await act(async () => setInputValue(typed as HTMLInputElement, "16.09.2026, 14:30"));
+		expect(native?.value).toBe("2026-09-16T14:30");
+		expect(manualSubmit?.disabled).toBe(false);
+
+		await act(async () => setInputValue(typed as HTMLInputElement, "16.09.2026, 25:30"));
+		expect(native?.value).toBe("2026-09-16T14:30");
+	});
+
 	it("previews and normalizes a pasted designator without a hard input mask", async () => {
 		await act(async () => root.render(createElement(FlightPlanner)));
 		const input = container.querySelector<HTMLInputElement>("#flight-number");

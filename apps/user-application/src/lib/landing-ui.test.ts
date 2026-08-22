@@ -35,7 +35,14 @@ describe("landing page visual baseline", () => {
 		expect(flightNumber?.className).toContain("h-12");
 		expect(departurePicker?.className).toContain("h-12");
 		expect(nativeDateInput?.type).toBe("date");
-		expect(nativeDateInput?.className).toContain("sr-only");
+		// Issue #27: the native control is the full-size tap target on mobile — never clipped,
+		// never removed from the tab order or the accessibility tree.
+		expect(nativeDateInput?.className).not.toContain("sr-only");
+		expect(nativeDateInput?.className).toContain("inset-0");
+		expect(nativeDateInput?.getAttribute("aria-hidden")).toBeNull();
+		expect(nativeDateInput?.tabIndex).toBe(0);
+		expect(nativeDateInput?.getAttribute("aria-label")).toContain("Data wylotu");
+		expect(container.querySelector('label[for="departure-date-native"]')).not.toBeNull();
 
 		await act(async () => root.unmount());
 		container.remove();

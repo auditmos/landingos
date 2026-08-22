@@ -1,7 +1,12 @@
 import { CalendarDays, Clock3, Info } from "lucide-react";
-import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { formatPolishDateInput, formatPolishDateTimeInput } from "@/lib/polish-date";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import {
+	formatPolishDateInput,
+	formatPolishDateTimeInput,
+	parsePolishDateInput,
+	parsePolishDateTimeInput,
+} from "@/lib/polish-date";
 import { cn } from "@/lib/utils";
 
 /**
@@ -57,8 +62,16 @@ interface PolishPickerProps {
 	invalid?: boolean;
 	describedBy?: string;
 	className?: string;
+	/** Adds a typed Polish fallback field so the value can be entered without the native picker. */
+	allowTyping?: boolean;
 }
 
+/**
+ * The native `<input>` is the tap target: a full-size transparent overlay on top of a
+ * presentational box. Mobile browsers anchor their date sheet to the input's rendered
+ * box, so it must never be clipped (`sr-only`) or opened indirectly via `showPicker()`.
+ * It stays in the tab order with its own accessible name; the box is decoration only.
+ */
 export function PolishPicker({
 	id,
 	name,
@@ -70,60 +83,65 @@ export function PolishPicker({
 	invalid,
 	describedBy,
 	className,
+	allowTyping = false,
 }: PolishPickerProps) {
-	const inputRef = useRef<HTMLInputElement>(null);
 	const isDateTime = type === "datetime-local";
 	const displayValue = isDateTime ? formatPolishDateTimeInput(value) : formatPolishDateInput(value);
 	const placeholder = isDateTime ? "Wybierz datę i godzinę" : "Wybierz datę";
+	const typedPlaceholder = isDateTime ? "DD.MM.RRRR, GG:MM" : "DD.MM.RRRR";
 	const Icon = isDateTime ? Clock3 : CalendarDays;
+	const [typed, setTyped] = useState("");
 
-	function openPicker() {
-		const input = inputRef.current;
-		if (!input) return;
-		try {
-			if (typeof input.showPicker === "function") {
-				input.showPicker();
-				return;
-			}
-		} catch {
-			// A browser may reject showPicker even during a user gesture; click is the native fallback.
-		}
-		input.click();
+	function handleTyped(next: string) {
+		setTyped(next);
+		const parsed = isDateTime ? parsePolishDateTimeInput(next) : parsePolishDateInput(next);
+		if (parsed) onChange(parsed);
 	}
 
 	return (
-		<>
-			<Button
-				id={id}
-				type="button"
-				variant="outline"
-				className={cn(
-					"h-12 w-full justify-between bg-background px-4 text-base font-normal tabular-nums",
-					!displayValue && "text-muted-foreground",
-					className,
-				)}
-				disabled={disabled}
-				aria-label={`${label}: ${displayValue || placeholder}. Otwórz wybór.`}
-				aria-haspopup="dialog"
-				aria-invalid={invalid}
-				aria-describedby={describedBy}
-				onClick={openPicker}
-			>
-				<span>{displayValue || placeholder}</span>
-				<Icon className="size-4 text-muted-foreground" aria-hidden="true" />
-			</Button>
+		<div className={cn("relative", className)}>
 			<input
-				ref={inputRef}
 				id={`${id}-native`}
 				name={name}
 				type={type}
 				value={value}
 				disabled={disabled}
-				className="sr-only"
-				tabIndex={-1}
-				aria-hidden="true"
+				className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+				aria-label={`${label}: ${displayValue || placeholder}`}
+				aria-invalid={invalid}
+				aria-describedby={describedBy}
 				onChange={(event) => onChange(event.target.value)}
 			/>
-		</>
+			<div
+				id={id}
+				aria-hidden="true"
+				className={cn(
+					"pointer-events-none flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-4 text-base tabular-nums shadow-xs transition-[color,box-shadow]",
+					"peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50",
+					"peer-disabled:opacity-50",
+					invalid && "border-destructive ring-[3px] ring-destructive/20",
+					!displayValue && "text-muted-foreground",
+				)}
+			>
+				<span>{displayValue || placeholder}</span>
+				<Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+			</div>
+			{allowTyping ? (
+				<div className="mt-2">
+					<label className="text-xs text-muted-foreground" htmlFor={`${id}-typed`}>
+						Albo wpisz ręcznie ({typedPlaceholder})
+					</label>
+					<Input
+						id={`${id}-typed`}
+						className="mt-1 h-11 tabular-nums"
+						value={typed}
+						placeholder={typedPlaceholder}
+						autoComplete="off"
+						disabled={disabled}
+						onChange={(event) => handleTyped(event.target.value)}
+					/>
+				</div>
+			) : null}
+		</div>
 	);
 }

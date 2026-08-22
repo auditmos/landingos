@@ -121,7 +121,7 @@ export function PlannerResults({
 							</div>
 							<div>
 								<div className="mb-1.5 flex items-center gap-1">
-									<label className="text-sm font-medium" htmlFor="arrival">
+									<label className="text-sm font-medium" htmlFor="arrival-native">
 										Planowana data i godzina przylotu
 									</label>
 									<FieldInfo label="format daty i godziny przylotu">
@@ -137,6 +137,7 @@ export function PlannerResults({
 									onChange={onManualArrivalChange}
 									invalid={Boolean(manualArrivalError)}
 									describedBy={manualArrivalError ? "arrival-error" : undefined}
+									allowTyping
 								/>
 								{manualArrivalError ? (
 									<p id="arrival-error" className="mt-2 text-sm text-destructive">

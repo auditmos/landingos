@@ -369,7 +369,7 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 										<div className="mb-2 flex items-center gap-1">
 											<label
 												className="text-sm font-semibold text-foreground"
-												htmlFor="departure-date"
+												htmlFor="departure-date-native"
 											>
 												Data wylotu
 											</label>
