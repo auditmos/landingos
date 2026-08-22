@@ -1,3 +1,17 @@
+# [1.36.0](https://github.com/auditmos/landingos/compare/v1.35.3...v1.36.0) (2026-08-22)
+
+
+### Bug Fixes
+
+* **journeys:** start the Google Maps navigation link at the airport bus station ([fe84af1](https://github.com/auditmos/landingos/commit/fe84af10a45eaa255587a2be484c111c187eb803))
+* **planner:** make the date pickers usable on mobile ([8682fc1](https://github.com/auditmos/landingos/commit/8682fc10dad8ee54908f60562d19fd9ae86e1e28)), closes [#27](https://github.com/auditmos/landingos/issues/27)
+* **planner:** rename the post-landing buffer and show the resulting departure time ([26b36d4](https://github.com/auditmos/landingos/commit/26b36d4a058fb8271674b9af24b8544449bd9c88)), closes [#14](https://github.com/auditmos/landingos/issues/14) [#29](https://github.com/auditmos/landingos/issues/29)
+
+
+### Features
+
+* **journeys:** show walking distance in metres below 1 km and kilometres above ([53c54c8](https://github.com/auditmos/landingos/commit/53c54c80f0f57f43c216b262e8273213bf789238)), closes [#28](https://github.com/auditmos/landingos/issues/28)
+
 ## [1.35.3](https://github.com/auditmos/landingos/compare/v1.35.2...v1.35.3) (2026-08-22)
 
 
