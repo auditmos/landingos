@@ -80,10 +80,11 @@ export const OPERATOR_CATALOG_FIELDS = [
 		name: "destinationStopName",
 		label: "Nazwa przystanku docelowego",
 		kind: "text",
-		example: "Milano Centrale",
-		meaning: 'Nazwa pokazywana podróżnemu, po polsku lub po włosku, np. "Milano Centrale".',
+		example: "Milan Centrale Piazza Luigi di Savoia",
+		meaning:
+			'Nazwa przystanku dokładnie tak, jak pokazuje ją dostawca tras w sekcji „Etapy trasy” podróżnego, np. "Milan Centrale Piazza Luigi di Savoia".',
 		downstreamUse:
-			"Jest etykietą przystanku w alternatywie ręcznej i zapasowym dopasowaniem trasy, gdy kod nie pasuje; stabilny identyfikator wpisz w polu obok.",
+			"Jest etykietą przystanku w alternatywie ręcznej i zapasowym dopasowaniem trasy, gdy kod nie pasuje — dopasowanie jest dosłowne, więc skopiuj nazwę z etapów trasy co do znaku; stabilny identyfikator wpisz w polu obok.",
 		requiredMessage: "Uzupełnij nazwę przystanku docelowego.",
 	}),
 	define({

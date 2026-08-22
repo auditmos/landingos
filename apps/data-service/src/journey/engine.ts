@@ -111,19 +111,21 @@ function normalizeStopIdentity(value: string): string {
 /**
  * `destinationStopCode` is the stable merge key. The normalized display name is a
  * documented fallback for providers that only expose a human label.
+ *
+ * Every route starts at BGY, so the first non-walk leg *is* the airport departure leg;
+ * Google names that stop "Bergamo Airport Bus Station" or "Aeroporto Il Caravaggio",
+ * never with the IATA code, so the match is structural rather than by origin name.
  */
 function catalogMatchesRoute(entry: TransferCatalogEntry, route: TransitRoute): boolean {
 	const identities = new Set([
 		normalizeStopIdentity(entry.destinationStopCode),
 		normalizeStopIdentity(entry.destinationStopName),
 	]);
+	const airportLeg = route.legs.find((leg) => leg.mode !== "walk");
 	return (
 		entry.originIata === "BGY" &&
-		route.legs.some(
-			(leg) =>
-				normalizeStopIdentity(leg.from).includes("bgy") &&
-				identities.has(normalizeStopIdentity(leg.to)),
-		)
+		airportLeg !== undefined &&
+		identities.has(normalizeStopIdentity(airportLeg.to))
 	);
 }
 

@@ -226,6 +226,64 @@ describe("journey recommendation engine", () => {
 		});
 	});
 
+	it("decorates a live-shaped route whose first transit leg departs from Google's airport stop name", async () => {
+		const liveRoute = route("live-airport-bus", {
+			fare: { currency: "EUR", amountMinor: null, completeness: "unknown" },
+		});
+		liveRoute.legs = [
+			{
+				mode: "walk",
+				from: "Początek odcinka pieszego",
+				to: "Koniec odcinka pieszego",
+				durationMinutes: 2,
+				walkingMeters: 120,
+			},
+			{
+				mode: "bus",
+				from: "Bergamo Airport Bus Station",
+				to: "Milan Centrale Piazza Luigi di Savoia",
+				durationMinutes: 50,
+				walkingMeters: 0,
+			},
+			{
+				mode: "walk",
+				from: "Początek odcinka pieszego",
+				to: "Koniec odcinka pieszego",
+				durationMinutes: 6,
+				walkingMeters: 480,
+			},
+		];
+		const entry = seededCatalog({
+			destinationStopCode: "MILAN-CENTRALE-PIAZZA-LUIGI-DI-SAVOIA",
+			destinationStopName: "Milan Centrale Piazza Luigi di Savoia",
+		});
+		const decorated = await recommendJourneys(request, {
+			transit: transit({ status: "success", value: [liveRoute] }),
+			catalog: catalog([entry]),
+			now: () => new Date("2026-08-01T00:00:00.000Z"),
+		});
+		expect(decorated).toMatchObject({
+			status: "recommendations",
+			variants: [
+				{
+					cost: { minorMin: 1_000, minorMax: 1_200, completeness: "partial" },
+					manualVerification: { checkedAt: "2026-07-27T00:00:00.000Z", freshness: "fresh" },
+					sourceReferences: expect.arrayContaining([expect.objectContaining({ kind: "catalog" })]),
+				},
+			],
+		});
+
+		const otherArrival = await recommendJourneys(request, {
+			transit: transit({ status: "success", value: [liveRoute] }),
+			catalog: catalog([seededCatalog({ destinationStopName: "Milano Cadorna" })]),
+			now: () => new Date("2026-08-01T00:00:00.000Z"),
+		});
+		expect(otherArrival.status).toBe("recommendations");
+		if (otherArrival.status !== "recommendations") return;
+		expect(otherArrival.variants[0]?.manualVerification).toBeNull();
+		expect(otherArrival.variants[0]?.cost.completeness).toBe("unknown");
+	});
+
 	it("never forwards a provider-controlled destination string into source references", async () => {
 		const privateMarker = "Via Segreta 42 | 45.464098,9.191926";
 		const providerRoute = route("private-source-marker");
