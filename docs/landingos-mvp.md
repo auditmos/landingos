@@ -31,7 +31,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 2. **US-02:** Jako podróżny chcę zobaczyć rozpoznany lot, lotnisko docelowe i planowaną godzinę przylotu, abym mógł potwierdzić, że aplikacja znalazła właściwą podróż.
 3. **US-03:** Jako podróżny chcę ręcznie wybrać lotnisko i godzinę, gdy dostawca nie rozpozna numeru lotu, abym nadal mógł skorzystać z planera.
 4. **US-04:** Jako podróżny chcę wyszukać i jednoznacznie wybrać adres lub miejsce docelowe w Mediolanie, abym otrzymał trasę do właściwego celu.
-5. **US-05:** Jako podróżny chcę zmienić domyślny 45-minutowy bufor po planowanym lądowaniu, abym mógł uwzględnić bagaż i własne tempo opuszczania lotniska.
+5. **US-05:** Jako podróżny chcę zmienić domyślny 45-minutowy „czas na wyjście z lotniska” (bagaż, kawa) doliczany do planowanego lądowania, abym mógł uwzględnić własne tempo opuszczania lotniska; interfejs pokazuje wynikającą z tego godzinę wyjazdu z lotniska. (W UI wcześniej „bufor po lądowaniu” — przemianowany po QA w #29; kontrakt API `bufferMinutes` bez zmian.)
 6. **US-06:** Jako podróżny chcę zobaczyć wariant rekomendowany, najszybszy i najprostszy, abym mógł szybko wybrać przejazd zgodny z moimi priorytetami.
 7. **US-07:** Jako podróżny chcę dla każdego wariantu zobaczyć czas, dostępny koszt, liczbę przesiadek, odcinki piesze i kolejne kroki, abym rozumiał przebieg podróży.
 8. **US-08:** Jako podróżny chcę wiedzieć, kiedy cena lub rozkład są niepełne, szacowane albo ręcznie utrzymywane, abym nie traktował niepewnej informacji jak gwarancji.
@@ -194,7 +194,7 @@ Podstawowy planer pozostaje użyteczny, gdy w pokoju nie ma innych osób. MVP ni
 | US-02 | Test kontraktowy resolvera na fixture oraz sandboxie dostawcy | UI pokazuje przewoźnika, numer, BGY i planowany czas w lokalnej strefie; co najmniej 9/10 reprezentatywnych lotów jest rozpoznanych |
 | US-03 | Test błędu `not_found`, timeoutu i odpowiedzi niepełnej | Każdy przypadek oferuje ręczny wybór BGY i godziny bez utraty wpisanego celu |
 | US-04 | Test autocomplete dla adresu, hotelu i nazwy miejsca oraz dwóch nazw niejednoznacznych | Użytkownik wybiera jednoznaczny wynik z identyfikatorem i współrzędnymi; brak cichego wyboru pierwszego dopasowania |
-| US-05 | Test zegara i obliczania czasu startu trasy | Domyślnie używane jest +45 minut; zmiana bufora przelicza zapytanie i wynik |
+| US-05 | Test zegara i obliczania czasu startu trasy | Domyślnie używane jest +45 minut; zmiana czasu na wyjście z lotniska przelicza zapytanie i wynik oraz pokazywaną godzinę „Ruszasz z lotniska ok. HH:MM” |
 | US-06 | Integracyjny test 10 kombinacji lot/cel/godzina porównany z oficjalnymi źródłami | Co najmniej 9/10 przypadków ma prawidłowy użyteczny wynik; etykiety nie duplikują tej samej trasy bez wyjaśnienia |
 | US-07 | Test schematu i renderowania szczegółów każdego rodzaju odcinka | Każdy wariant pokazuje czas, znany koszt lub brak ceny, przesiadki, marsz i kroki w prawidłowej kolejności |
 | US-08 | Fixture z pełną ceną, częściową ceną, ręcznym wpisem i starym wpisem | UI zawsze pokazuje status kompletności, źródło oraz datę weryfikacji danych ręcznych |

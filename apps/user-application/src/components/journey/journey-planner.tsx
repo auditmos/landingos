@@ -407,6 +407,9 @@ export function JourneyPlanner({
 	destination: PrivateDestination;
 }) {
 	const [bufferMinutes, setBufferMinutes] = useState(45);
+	const departureFromAirportUtc = new Date(
+		new Date(flight.scheduledArrivalUtc).getTime() + bufferMinutes * 60_000,
+	).toISOString();
 	const [retryKey, setRetryKey] = useState(0);
 	const [result, setResult] = useState<JourneyRecommendationResult>();
 	const [loading, setLoading] = useState(false);
@@ -478,12 +481,13 @@ export function JourneyPlanner({
 						<CardTitle className="text-balance">Warianty przejazdu</CardTitle>
 					</div>
 					<CardDescription className="text-pretty">
-						Bufor po planowanym lądowaniu uwzględnia wyjście z lotniska i bagaż.
+						Czas na wyjście z lotniska doliczamy do planowanego lądowania — tak liczymy, o której
+						ruszysz z lotniska i o której dojedziesz.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<label className="text-sm font-medium tabular-nums" htmlFor="journey-buffer">
-						Bufor po lądowaniu: {bufferMinutes} min
+						Czas na wyjście z lotniska (bagaż, kawa): {bufferMinutes} min
 					</label>
 					<input
 						id="journey-buffer"
@@ -497,7 +501,8 @@ export function JourneyPlanner({
 						onChange={(event) => setBufferMinutes(Number(event.target.value))}
 					/>
 					<p className="mt-1 text-pretty text-xs text-muted-foreground tabular-nums">
-						Zakres 15–180 min, krok 5 min.
+						Ruszasz z lotniska ok. {formatJourneyArrival(departureFromAirportUtc)}. Zakres 15–180
+						min, krok 5 min.
 					</p>
 				</CardContent>
 			</Card>

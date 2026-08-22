@@ -119,7 +119,8 @@ export function formatJourneyArrival(instant: string): string {
 
 export const journeyFailureCopy = {
 	zero_result: "Nie znaleźliśmy wiarygodnej trasy dla tych parametrów.",
-	no_post_arrival_route: "Dostępne wyniki odjeżdżają przed końcem wybranego bufora.",
+	no_post_arrival_route:
+		"Dostępne połączenia odjeżdżają, zanim wyjdziesz z lotniska — skróć czas na wyjście.",
 	no_complete_itinerary: "Dostępne dane nie tworzą kompletnej trasy.",
 	timeout: "Dostawca tras nie odpowiedział na czas.",
 	rate_limited: "Dostawca tras jest chwilowo przeciążony.",

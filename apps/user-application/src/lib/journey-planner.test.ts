@@ -322,16 +322,26 @@ describe("interactive journey planner", () => {
 		expect(container.textContent).toContain("Dołączasz do pokoju FR 1234 · 14.09.2026");
 		const range = container.querySelector<HTMLInputElement>("#journey-buffer");
 		expect(range).toMatchObject({ min: "15", max: "180", step: "5" });
+		// Issue #29: the control names what it is for and shows its consequence (10:20 Rome + 45).
+		expect(container.textContent).toContain("Czas na wyjście z lotniska (bagaż, kawa): 45 min");
+		expect(container.textContent).toContain("Ruszasz z lotniska ok. 11:05");
+		expect(container.textContent).not.toContain("Bufor po lądowaniu");
 
 		await act(async () => setInputValue(range as HTMLInputElement, "15"));
+		expect(container.textContent).toContain("Ruszasz z lotniska ok. 10:35");
 		await act(async () => setInputValue(range as HTMLInputElement, "180"));
+		expect(container.textContent).toContain("Ruszasz z lotniska ok. 13:20");
 		expect(requests.map((request) => request.bufferMinutes)).toEqual([45, 15, 180]);
 		expect(requests).toHaveLength(3);
 	});
 
 	it.each([
 		["no_trustworthy_route", "zero_result", "Nie znaleźliśmy wiarygodnej trasy"],
-		["no_trustworthy_route", "no_post_arrival_route", "Dostępne wyniki odjeżdżają przed końcem"],
+		[
+			"no_trustworthy_route",
+			"no_post_arrival_route",
+			"Dostępne połączenia odjeżdżają, zanim wyjdziesz z lotniska",
+		],
 		["no_trustworthy_route", "no_complete_itinerary", "Dostępne dane nie tworzą kompletnej trasy"],
 		["recommendation_unavailable", "timeout", "nie odpowiedział na czas"],
 		["recommendation_unavailable", "rate_limited", "chwilowo przeciążony"],
