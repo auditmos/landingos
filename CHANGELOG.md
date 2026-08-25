@@ -1,3 +1,10 @@
+## [1.36.3](https://github.com/auditmos/landingos/compare/v1.36.2...v1.36.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **room:** map RoomQueryError to typed 410/404 and derive DO routing from the room ([789ad80](https://github.com/auditmos/landingos/commit/789ad80b9f8fceccebb1f322c6ef721fae85bfeb)), closes [#33](https://github.com/auditmos/landingos/issues/33)
+
 ## [1.36.2](https://github.com/auditmos/landingos/compare/v1.36.1...v1.36.2) (2026-08-25)
 
 ## [1.36.1](https://github.com/auditmos/landingos/compare/v1.36.0...v1.36.1) (2026-08-25)
