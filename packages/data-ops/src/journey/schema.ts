@@ -4,27 +4,44 @@ import { ApprovedJourneyExternalUrlSchema } from "./external-links";
 
 const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
+/**
+ * Every request field below sets the type-level `error` as well as its content-level
+ * messages. The two are separate zod parameters: without the former, a missing or
+ * wrong-typed field answers with zod's English default and breaks the Polish-UI
+ * constraint on the API surface (#50). Content messages still win where they apply.
+ */
 const UtcInstantSchema = z
-	.string()
+	.string({ error: "Nieprawidłowy czas UTC." })
 	.refine(
 		(value) => UTC_INSTANT_PATTERN.test(value) && !Number.isNaN(Date.parse(value)),
 		"Nieprawidłowy czas UTC.",
 	);
 
 export const JourneyBufferMinutesSchema = z
-	.number()
+	.number({ error: "Podaj bufor w minutach." })
 	.int("Bufor musi być pełną liczbą minut.")
 	.min(15, "Bufor nie może być krótszy niż 15 minut.")
 	.max(180, "Bufor nie może być dłuższy niż 180 minut.")
 	.refine((value) => value % 5 === 0, "Bufor można zmieniać co 5 minut.");
 
 export const JourneyRecommendationRequestSchema = z.strictObject({
-	flightInstanceId: z.string().min(1),
+	flightInstanceId: z
+		.string({ error: "Wybierz rozpoznany lot." })
+		.min(1, "Wybierz rozpoznany lot."),
 	scheduledArrivalUtc: UtcInstantSchema,
-	privateDestinationCoordinates: z.strictObject({
-		latitude: z.number().min(-90).max(90),
-		longitude: z.number().min(-180).max(180),
-	}),
+	privateDestinationCoordinates: z.strictObject(
+		{
+			latitude: z
+				.number({ error: "Nieprawidłowa szerokość geograficzna." })
+				.min(-90, "Nieprawidłowa szerokość geograficzna.")
+				.max(90, "Nieprawidłowa szerokość geograficzna."),
+			longitude: z
+				.number({ error: "Nieprawidłowa długość geograficzna." })
+				.min(-180, "Nieprawidłowa długość geograficzna.")
+				.max(180, "Nieprawidłowa długość geograficzna."),
+		},
+		{ error: "Brakuje współrzędnych miejsca docelowego." },
+	),
 	bufferMinutes: JourneyBufferMinutesSchema.default(45),
 });
 

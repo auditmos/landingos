@@ -53,7 +53,9 @@ function buildApp(service: FlightHandlerOperations, analytics = tracker()) {
 	};
 }
 
-const MISSING_STRING = ["Invalid input: expected string, received undefined"];
+const NO_FLIGHT_NUMBER = ["Podaj numer lotu."];
+const NO_DEPARTURE_DATE = ["Podaj datę wylotu."];
+const NO_ARRIVAL_TIME = ["Podaj prawidłową planowaną godzinę przylotu w UTC."];
 
 function raw(path: string, body: string) {
 	return new Request(`http://localhost${path}`, {
@@ -79,17 +81,17 @@ describe("anonymous flight routes", () => {
 		[
 			"/resolve",
 			{
-				flightNumber: MISSING_STRING,
-				departureLocalDate: MISSING_STRING,
+				flightNumber: NO_FLIGHT_NUMBER,
+				departureLocalDate: NO_DEPARTURE_DATE,
 			},
 		],
 		[
 			"/manual",
 			{
-				flightNumber: MISSING_STRING,
-				departureLocalDate: MISSING_STRING,
+				flightNumber: NO_FLIGHT_NUMBER,
+				departureLocalDate: NO_DEPARTURE_DATE,
 				destinationIata: ["W tej wersji obsługiwane jest wyłącznie lotnisko BGY."],
-				scheduledArrivalUtc: MISSING_STRING,
+				scheduledArrivalUtc: NO_ARRIVAL_TIME,
 			},
 		],
 	] as const)("reports every required field of %s when the body will not parse", async (path, fieldErrors) => {

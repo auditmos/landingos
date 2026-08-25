@@ -1,14 +1,20 @@
 import { z } from "zod";
 import { ProviderDiagnosticSchema } from "../diagnostics/schema";
 
+/**
+ * Every request field below sets the type-level `error` as well as its content-level
+ * messages. The two are separate zod parameters: without the former, a missing or
+ * wrong-typed field answers with zod's English default and breaks the Polish-UI
+ * constraint on the API surface (#50). Content messages still win where they apply.
+ */
 const SessionTokenSchema = z
-	.string()
+	.string({ error: "Brakuje sesji wyszukiwania miejsca." })
 	.min(16, "Brakuje sesji wyszukiwania miejsca.")
 	.max(128, "Sesja wyszukiwania miejsca jest nieprawidłowa.");
 
 const DestinationQuerySchema = z.preprocess(
 	(value) => (typeof value === "string" ? value.trim() : value),
-	z.string().min(3, "Wpisz co najmniej 3 znaki."),
+	z.string({ error: "Wpisz co najmniej 3 znaki." }).min(3, "Wpisz co najmniej 3 znaki."),
 );
 
 export const DestinationAutocompleteRequestSchema = z.strictObject({
@@ -17,7 +23,7 @@ export const DestinationAutocompleteRequestSchema = z.strictObject({
 });
 
 export const DestinationSelectionRequestSchema = z.strictObject({
-	placeId: z.string().min(1, "Wybierz miejsce z listy."),
+	placeId: z.string({ error: "Wybierz miejsce z listy." }).min(1, "Wybierz miejsce z listy."),
 	sessionToken: SessionTokenSchema,
 });
 

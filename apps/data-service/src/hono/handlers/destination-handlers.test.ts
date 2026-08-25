@@ -38,7 +38,9 @@ function operations(
 	};
 }
 
-const MISSING_STRING = ["Invalid input: expected string, received undefined"];
+const NO_QUERY = ["Wpisz co najmniej 3 znaki."];
+const NO_SESSION_TOKEN = ["Brakuje sesji wyszukiwania miejsca."];
+const NO_PLACE_ID = ["Wybierz miejsce z listy."];
 
 function raw(path: string, body: string) {
 	return new Request(`http://localhost${path}`, {
@@ -58,8 +60,8 @@ function post(path: string, body: unknown) {
 
 describe("anonymous private destination routes", () => {
 	it.each([
-		["/autocomplete", { query: MISSING_STRING, sessionToken: MISSING_STRING }],
-		["/select", { placeId: MISSING_STRING, sessionToken: MISSING_STRING }],
+		["/autocomplete", { query: NO_QUERY, sessionToken: NO_SESSION_TOKEN }],
+		["/select", { placeId: NO_PLACE_ID, sessionToken: NO_SESSION_TOKEN }],
 	] as const)("reports every required field of %s when the body will not parse", async (path, fieldErrors) => {
 		// An unparsable body reads as `{}` here so the caller sees each missing field
 		// rather than one opaque form error — the fallback this family depends on.

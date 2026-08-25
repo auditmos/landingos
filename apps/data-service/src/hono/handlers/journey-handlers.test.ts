@@ -118,9 +118,9 @@ describe("anonymous journey route", () => {
 			expect(await response.json()).toEqual({
 				status: "validation_error",
 				fieldErrors: {
-					flightInstanceId: ["Invalid input: expected string, received undefined"],
-					scheduledArrivalUtc: ["Invalid input: expected string, received undefined"],
-					privateDestinationCoordinates: ["Invalid input: expected object, received undefined"],
+					flightInstanceId: ["Wybierz rozpoznany lot."],
+					scheduledArrivalUtc: ["Nieprawidłowy czas UTC."],
+					privateDestinationCoordinates: ["Brakuje współrzędnych miejsca docelowego."],
 				},
 			});
 			expect(service.recommend).not.toHaveBeenCalled();

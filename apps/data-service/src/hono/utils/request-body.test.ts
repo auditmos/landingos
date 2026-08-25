@@ -7,7 +7,8 @@ import { parseJsonBody, type UnparsableBody } from "./request-body";
 const REJECTION = { code: "TEST_INVALID", error: "Popraw dane." } as const;
 const JSON_HEADERS = { "content-type": "application/json" };
 const VALID = { flightNumber: "FR1234", departureLocalDate: "2026-09-14" };
-const MISSING_STRING = ["Invalid input: expected string, received undefined"];
+const NO_FLIGHT_NUMBER = ["Podaj numer lotu."];
+const NO_DEPARTURE_DATE = ["Podaj datę wylotu."];
 
 function app(whenUnparsable: UnparsableBody) {
 	const routes = new Hono();
@@ -36,7 +37,7 @@ describe("parseJsonBody", () => {
 				status: 400,
 				body: {
 					...REJECTION,
-					fieldErrors: { flightNumber: MISSING_STRING, departureLocalDate: MISSING_STRING },
+					fieldErrors: { flightNumber: NO_FLIGHT_NUMBER, departureLocalDate: NO_DEPARTURE_DATE },
 				},
 			});
 			expect(await post(undefined, { headers: JSON_HEADERS, body })).toEqual({
@@ -72,7 +73,7 @@ describe("parseJsonBody", () => {
 		const body = JSON.stringify({ flightNumber: "FR1234" });
 		expect(await post(undefined, { headers: JSON_HEADERS, body })).toEqual({
 			status: 400,
-			body: { ...REJECTION, fieldErrors: { departureLocalDate: MISSING_STRING } },
+			body: { ...REJECTION, fieldErrors: { departureLocalDate: NO_DEPARTURE_DATE } },
 		});
 	});
 });

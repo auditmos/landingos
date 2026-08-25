@@ -21,6 +21,31 @@ export const userSchema = z.object({
 export type User = z.infer<typeof userSchema>
 ```
 
+## Polish error copy — set `error`, not just check messages
+
+Every field of a **request** schema needs the type-level `error` parameter *and* its
+per-check messages. They are separate zod v4 parameters: a check message answers a
+content failure, `error` answers a missing or wrong-typed field. Set only the former
+and zod answers absence from its English locale — which reaches every non-browser
+consumer verbatim and breaks the Polish-UI constraint on the API surface (#47, #50).
+
+```ts
+// Good — both levels; the check message still wins where it applies
+z.string({ error: "Podaj numer lotu." }).min(3, "Za krótki.")
+z.strictObject({ … }, { error: "Brakuje współrzędnych miejsca docelowego." })
+
+// Bad — "Invalid input: expected string, received undefined" on a missing field
+z.string().min(3, "Za krótki.")
+// Bad — "Too small: expected string to have >=1 characters"
+z.string({ error: "…" }).min(1)
+```
+
+`error` is additive and survives `.transform()`, `.superRefine()`, `.refine()`,
+`.preprocess()`, `.default()` and `.extend()`. A nested object's issues still flatten
+to the **top-level** `fieldErrors` key, so adding copy never moves a key.
+`scripts/polish-request-copy-boundary.test.ts` probes every field of every wire-facing
+request schema and fails closed on a newly added one.
+
 ## Validation Patterns
 
 - Use `safeParse()` for error handling, not `parse()`

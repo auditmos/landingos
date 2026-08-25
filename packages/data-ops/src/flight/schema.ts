@@ -132,31 +132,41 @@ function isIsoDate(value: string): boolean {
 	);
 }
 
-const FlightNumberSchema = z.string().transform((value, context) => {
+/**
+ * Every field schema below sets the type-level `error` as well as its content-level
+ * messages. The two are separate zod parameters: without the former, a missing or
+ * wrong-typed field answers with zod's English default and breaks the Polish-UI
+ * constraint on the API surface (#50). Content messages still win where they apply.
+ */
+const FlightNumberSchema = z.string({ error: "Podaj numer lotu." }).transform((value, context) => {
 	const parsed = parseFlightDesignator(value);
 	if (parsed.status === "recognized") return parsed.canonical;
 	context.addIssue({ code: "custom", message: parsed.message });
 	return z.NEVER;
 });
 
-const DepartureLocalDateSchema = z.string().superRefine((value, context) => {
-	if (value.length === 0) {
-		context.addIssue({ code: "custom", message: "Podaj datę wylotu." });
-		return;
-	}
-	if (!isIsoDate(value)) {
-		context.addIssue({ code: "custom", message: "Podaj prawidłową datę wylotu." });
-	}
-});
+const DepartureLocalDateSchema = z
+	.string({ error: "Podaj datę wylotu." })
+	.superRefine((value, context) => {
+		if (value.length === 0) {
+			context.addIssue({ code: "custom", message: "Podaj datę wylotu." });
+			return;
+		}
+		if (!isIsoDate(value)) {
+			context.addIssue({ code: "custom", message: "Podaj prawidłową datę wylotu." });
+		}
+	});
 
-const ScheduledArrivalUtcSchema = z.string().superRefine((value, context) => {
-	if (!UTC_INSTANT_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
-		context.addIssue({
-			code: "custom",
-			message: "Podaj prawidłową planowaną godzinę przylotu w UTC.",
-		});
-	}
-});
+const ScheduledArrivalUtcSchema = z
+	.string({ error: "Podaj prawidłową planowaną godzinę przylotu w UTC." })
+	.superRefine((value, context) => {
+		if (!UTC_INSTANT_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
+			context.addIssue({
+				code: "custom",
+				message: "Podaj prawidłową planowaną godzinę przylotu w UTC.",
+			});
+		}
+	});
 
 export const FlightLookupRequestSchema = z.strictObject({
 	flightNumber: FlightNumberSchema,
