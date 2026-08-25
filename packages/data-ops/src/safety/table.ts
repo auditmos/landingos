@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import {
-	boolean,
 	index,
 	jsonb,
 	pgEnum,
@@ -48,14 +47,20 @@ export const userBlocks = pgTable(
 		blockedId: text("blocked_id")
 			.notNull()
 			.references(() => auth_user.id, { onDelete: "cascade" }),
-		active: boolean("active").default(true).notNull(),
 		blockedAt: timestamp("blocked_at", { withTimezone: true, mode: "date" }).notNull(),
-		hiddenThrough: timestamp("hidden_through", { withTimezone: true, mode: "date" }),
+		/**
+		 * The whole of block state: NULL means the block is active, a timestamp means it
+		 * was lifted then and messages created at or before it stay hidden. One field, so
+		 * "lifted but still active" is unrepresentable rather than merely avoided.
+		 */
+		unblockedAt: timestamp("unblocked_at", { withTimezone: true, mode: "date" }),
 		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.blockerId, table.blockedId] }),
-		index("user_blocks_blocked_active_idx").on(table.blockedId, table.active),
+		index("user_blocks_blocked_active_idx")
+			.on(table.blockedId)
+			.where(sql`${table.unblockedAt} is null`),
 	],
 );
 

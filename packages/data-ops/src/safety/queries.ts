@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { auth_user } from "@/drizzle/auth-schema";
 import { flightInstances } from "@/flight/table";
@@ -143,8 +143,8 @@ export async function blockRoomMember(
 		.values({
 			blockerId: input.blockerId,
 			blockedId: target.userId,
-			active: true,
 			blockedAt: now,
+			unblockedAt: null,
 			updatedAt: now,
 		})
 		.onConflictDoNothing({ target: [userBlocks.blockerId, userBlocks.blockedId] })
@@ -153,12 +153,12 @@ export async function blockRoomMember(
 	if (!inserted) {
 		const updated = await db
 			.update(userBlocks)
-			.set({ active: true, blockedAt: now, updatedAt: now })
+			.set({ blockedAt: now, unblockedAt: null, updatedAt: now })
 			.where(
 				and(
 					eq(userBlocks.blockerId, input.blockerId),
 					eq(userBlocks.blockedId, target.userId),
-					eq(userBlocks.active, false),
+					isNotNull(userBlocks.unblockedAt),
 				),
 			)
 			.returning({ blockerId: userBlocks.blockerId });
@@ -179,12 +179,12 @@ export async function unblockRoomMember(
 	const now = input.now ?? new Date();
 	const changed = await db
 		.update(userBlocks)
-		.set({ active: false, hiddenThrough: now, updatedAt: now })
+		.set({ unblockedAt: now, updatedAt: now })
 		.where(
 			and(
 				eq(userBlocks.blockerId, input.blockerId),
 				eq(userBlocks.blockedId, target.userId),
-				eq(userBlocks.active, true),
+				isNull(userBlocks.unblockedAt),
 			),
 		)
 		.returning({ blockerId: userBlocks.blockerId });
@@ -207,7 +207,7 @@ export async function listBlockedMemberPseudonyms(
 			roomMemberships,
 			and(eq(roomMemberships.userId, userBlocks.blockedId), eq(roomMemberships.roomId, roomId)),
 		)
-		.where(and(eq(userBlocks.blockerId, blockerId), eq(userBlocks.active, true)))
+		.where(and(eq(userBlocks.blockerId, blockerId), isNull(userBlocks.unblockedAt)))
 		.orderBy(asc(auth_user.pseudonym));
 	return rows.flatMap((row) => (row.pseudonym ? [row.pseudonym] : []));
 }
@@ -224,7 +224,7 @@ export async function listBlockedRecipientIds(
 			roomMemberships,
 			and(eq(roomMemberships.userId, userBlocks.blockerId), eq(roomMemberships.roomId, roomId)),
 		)
-		.where(and(eq(userBlocks.blockedId, sourceUserId), eq(userBlocks.active, true)));
+		.where(and(eq(userBlocks.blockedId, sourceUserId), isNull(userBlocks.unblockedAt)));
 	return rows.map((row) => row.blockerId);
 }
 

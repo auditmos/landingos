@@ -154,6 +154,113 @@ describe("directional room blocking", () => {
 		}
 	});
 
+	it("keeps block state in one nullable column so a lifted-and-active row cannot exist", async () => {
+		const { client } = await createTestDatabase();
+		try {
+			const columns = await client.query<{ column_name: string }>(
+				`SELECT column_name FROM information_schema.columns
+				 WHERE table_name = 'user_blocks' ORDER BY column_name`,
+			);
+			expect(columns.rows.map((row) => row.column_name)).toEqual([
+				"blocked_at",
+				"blocked_id",
+				"blocker_id",
+				"unblocked_at",
+				"updated_at",
+			]);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("hides messages again after block, unblock, and re-block", async () => {
+		const { client, db, roomA } = await createTestDatabase();
+		try {
+			const sendFromB = (clientMessageId: string, content: string, at: string) =>
+				createRoomMessage(db, roomA.id, USER_B, { clientMessageId, content }, new Date(at));
+			const block = (at: string) =>
+				blockRoomMember(db, {
+					roomId: roomA.id,
+					blockerId: USER_A,
+					targetPseudonym: "Bartek BGY",
+					now: new Date(at),
+				});
+			const unblock = (at: string) =>
+				unblockRoomMember(db, {
+					roomId: roomA.id,
+					blockerId: USER_A,
+					targetPseudonym: "Bartek BGY",
+					now: new Date(at),
+				});
+			const visibleToA = async () =>
+				(await getRoomSnapshot(db, roomA.id, USER_A)).messages.map((item) => item.content);
+
+			await sendFromB(MESSAGE_B, "Przed blokadą", "2026-09-14T07:00:00.000Z");
+			await block("2026-09-14T07:30:00.000Z");
+			await unblock("2026-09-14T08:00:00.000Z");
+			await sendFromB(
+				"018f4c8e-5697-7df4-8f6e-c7644b137e63",
+				"Po odblokowaniu",
+				"2026-09-14T08:01:00.000Z",
+			);
+			expect(await visibleToA()).toEqual(["Po odblokowaniu"]);
+
+			expect(await block("2026-09-14T08:30:00.000Z")).toMatchObject({
+				created: false,
+				changed: true,
+			});
+			await sendFromB(
+				"018f4c8e-5697-7df4-8f6e-c7644b137e64",
+				"Po ponownej blokadzie",
+				"2026-09-14T08:31:00.000Z",
+			);
+			expect(await visibleToA()).toEqual([]);
+			expect(await listBlockedMemberPseudonyms(db, roomA.id, USER_A)).toEqual(["Bartek BGY"]);
+			expect(await listBlockedRecipientIds(db, roomA.id, USER_B)).toEqual([USER_A]);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("hides everything up to the second unblock and nothing after it", async () => {
+		const { client, db, roomA } = await createTestDatabase();
+		try {
+			const sendFromB = (clientMessageId: string, content: string, at: string) =>
+				createRoomMessage(db, roomA.id, USER_B, { clientMessageId, content }, new Date(at));
+			const cycle = async (blockAt: string, unblockAt: string) => {
+				await blockRoomMember(db, {
+					roomId: roomA.id,
+					blockerId: USER_A,
+					targetPseudonym: "Bartek BGY",
+					now: new Date(blockAt),
+				});
+				await unblockRoomMember(db, {
+					roomId: roomA.id,
+					blockerId: USER_A,
+					targetPseudonym: "Bartek BGY",
+					now: new Date(unblockAt),
+				});
+			};
+
+			await cycle("2026-09-14T07:30:00.000Z", "2026-09-14T08:00:00.000Z");
+			await sendFromB(MESSAGE_B, "Między cyklami", "2026-09-14T08:10:00.000Z");
+			await cycle("2026-09-14T08:20:00.000Z", "2026-09-14T09:00:00.000Z");
+			await sendFromB(
+				"018f4c8e-5697-7df4-8f6e-c7644b137e65",
+				"Po drugim odblokowaniu",
+				"2026-09-14T09:01:00.000Z",
+			);
+
+			expect(
+				(await getRoomSnapshot(db, roomA.id, USER_A)).messages.map((item) => item.content),
+			).toEqual(["Po drugim odblokowaniu"]);
+			expect(await listBlockedMemberPseudonyms(db, roomA.id, USER_A)).toEqual([]);
+			expect(await listBlockedRecipientIds(db, roomA.id, USER_B)).toEqual([]);
+		} finally {
+			await client.close();
+		}
+	});
+
 	it("rejects self, cross-room, and nonexistent targets without changing block rows", async () => {
 		const { client, db, roomA, roomB } = await createTestDatabase();
 		try {

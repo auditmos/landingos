@@ -311,11 +311,8 @@ export async function listRoomMessages(
 							eq(userBlocks.blockerId, viewerUserId),
 							eq(userBlocks.blockedId, roomMemberships.userId),
 							or(
-								eq(userBlocks.active, true),
-								and(
-									isNotNull(userBlocks.hiddenThrough),
-									lte(roomMessages.createdAt, userBlocks.hiddenThrough),
-								),
+								isNull(userBlocks.unblockedAt),
+								lte(roomMessages.createdAt, userBlocks.unblockedAt),
 							),
 						),
 					),
