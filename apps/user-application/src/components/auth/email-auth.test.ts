@@ -39,7 +39,22 @@ describe("EmailAuth", () => {
 		await act(async () => root.unmount());
 		container.remove();
 		vi.clearAllMocks();
+		vi.unstubAllGlobals();
 	});
+
+	async function signInWithConsent(onAuthenticated: () => void) {
+		await act(async () => root.render(createElement(EmailAuth, { onAuthenticated })));
+		const email = container.querySelector<HTMLInputElement>("#auth-email");
+		await act(async () => changeInput(email as HTMLInputElement, "user@example.test"));
+		await act(async () => email?.form?.dispatchEvent(new Event("submit", { bubbles: true })));
+		const consent = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
+		await act(async () => {
+			(consent as HTMLInputElement).click();
+		});
+		const otp = container.querySelector<HTMLInputElement>("#auth-otp");
+		await act(async () => changeInput(otp as HTMLInputElement, "246810"));
+		await act(async () => otp?.form?.dispatchEvent(new Event("submit", { bubbles: true })));
+	}
 
 	it("hands successful OTP completion to the full-document navigation boundary", async () => {
 		const onAuthenticated = vi.fn();
@@ -82,5 +97,26 @@ describe("EmailAuth", () => {
 			"Kod jest nieprawidłowy albo wygasł. Poproś o nowy kod.",
 		);
 		expect(container.querySelector("#auth-otp")).not.toBeNull();
+	});
+	it("completes sign-in when the marketing consent request fails on the network", async () => {
+		const consentFetch = vi.fn().mockRejectedValue(new Error("network"));
+		vi.stubGlobal("fetch", consentFetch);
+		const onAuthenticated = vi.fn();
+		await signInWithConsent(onAuthenticated);
+
+		expect(consentFetch).toHaveBeenCalledOnce();
+		expect(onAuthenticated).toHaveBeenCalledOnce();
+		expect(container.textContent).not.toContain("Kod jest nieprawidłowy");
+	});
+
+	it("completes sign-in when the server rejects the marketing consent request", async () => {
+		const consentFetch = vi.fn().mockResolvedValue(new Response(null, { status: 400 }));
+		vi.stubGlobal("fetch", consentFetch);
+		const onAuthenticated = vi.fn();
+		await signInWithConsent(onAuthenticated);
+
+		expect(consentFetch).toHaveBeenCalledOnce();
+		expect(onAuthenticated).toHaveBeenCalledOnce();
+		expect(container.textContent).not.toContain("Kod jest nieprawidłowy");
 	});
 });

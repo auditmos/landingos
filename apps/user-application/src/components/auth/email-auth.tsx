@@ -10,30 +10,85 @@ import { completeAuthenticationNavigation } from "@/lib/auth-navigation";
 const MARKETING_POLICY_VERSION = "2026-07";
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
+/**
+ * The phase the sign-in is in, holding exactly the data that phase owns. A
+ * captcha token exists only while the email form can spend it, and the address
+ * being verified is fixed the moment the code is sent.
+ */
+type AuthFlow = { step: "email"; captchaToken: string | null } | { step: "otp"; email: string };
+
+/**
+ * Consent is deliberately best-effort: the session already exists by the time
+ * it runs, and the traveler can grant or withdraw it later from the profile.
+ * Every failure — refused connection or 4xx — therefore has one outcome, and
+ * none of them can look like a rejected code.
+ */
+async function saveMarketingConsent(): Promise<void> {
+	try {
+		const response = await fetch("/api/profile", {
+			method: "PATCH",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				action: "marketing_consent",
+				granted: true,
+				policyVersion: MARKETING_POLICY_VERSION,
+			}),
+		});
+		if (!response.ok) throw new Error("consent_failed");
+	} catch {
+		// biome-ignore lint/suspicious/noConsole: the only signal that consent was dropped
+		console.warn("Marketing consent was not saved; the traveler can grant it from the profile.");
+	}
+}
+
 export function EmailAuth({
 	onAuthenticated = completeAuthenticationNavigation,
 }: {
 	onAuthenticated?: () => void;
 }) {
-	const [step, setStep] = useState<"email" | "otp">("email");
+	const [flow, setFlow] = useState<AuthFlow>({ step: "email", captchaToken: null });
 	const [email, setEmail] = useState("");
 	const [otp, setOtp] = useState("");
 	const [marketingConsent, setMarketingConsent] = useState(false);
 	const [isPending, setIsPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 	const captchaRef = useRef<TurnstileHandle>(null);
 
 	const normalizedEmail = email.trim().toLowerCase();
 	const captchaRequired = Boolean(TURNSTILE_SITE_KEY);
 
+	/** A token belongs to the email phase alone — off it, this is a no-op. */
+	function setCaptchaToken(captchaToken: string | null) {
+		setFlow((current) => (current.step === "email" ? { ...current, captchaToken } : current));
+	}
+
+	/** Turnstile tokens are single-use: a spent one is dropped, never retried. */
+	function dropCaptchaToken() {
+		setFlow({ step: "email", captchaToken: null });
+		captchaRef.current?.reset();
+	}
+
+	function toOtp(verifiedEmail: string) {
+		setError(null);
+		setOtp("");
+		setFlow({ step: "otp", email: verifiedEmail });
+	}
+
+	function backToEmail() {
+		setError(null);
+		setOtp("");
+		dropCaptchaToken();
+	}
+
 	async function requestCode(event: FormEvent) {
 		event.preventDefault();
+		if (flow.step !== "email") return;
 		setError(null);
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
 			setError("Wpisz prawidłowy adres e-mail.");
 			return;
 		}
+		const captchaToken = flow.captchaToken;
 		if (captchaRequired && !captchaToken) {
 			setError("Potwierdź, że nie jesteś robotem.");
 			return;
@@ -50,50 +105,42 @@ export function EmailAuth({
 			if (result.error) {
 				throw new Error("send_failed");
 			}
-			setStep("otp");
+			toOtp(normalizedEmail);
 		} catch {
 			setError("Nie udało się wysłać kodu. Spróbuj ponownie za chwilę.");
-			// Turnstile tokens are single-use — drop it and re-run before any retry.
-			setCaptchaToken(null);
-			captchaRef.current?.reset();
+			dropCaptchaToken();
 		} finally {
 			setIsPending(false);
 		}
 	}
 
+	async function signInWithCode(verifiedEmail: string): Promise<boolean> {
+		try {
+			const result = await authClient.signIn.emailOtp({ email: verifiedEmail, otp });
+			return !result.error;
+		} catch {
+			return false;
+		}
+	}
+
 	async function verifyCode(event: FormEvent) {
 		event.preventDefault();
+		if (flow.step !== "otp") return;
 		setError(null);
 		if (!/^\d{6}$/.test(otp)) {
 			setError("Kod ma 6 cyfr.");
 			return;
 		}
 		setIsPending(true);
-		try {
-			const result = await authClient.signIn.emailOtp({
-				email: normalizedEmail,
-				otp,
-			});
-			if (result.error) {
-				throw new Error("verify_failed");
-			}
-			if (marketingConsent) {
-				await fetch("/api/profile", {
-					method: "PATCH",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						action: "marketing_consent",
-						granted: true,
-						policyVersion: MARKETING_POLICY_VERSION,
-					}),
-				});
-			}
-			onAuthenticated();
-		} catch {
+		const signedIn = await signInWithCode(flow.email);
+		if (!signedIn) {
 			setError("Kod jest nieprawidłowy albo wygasł. Poproś o nowy kod.");
-		} finally {
 			setIsPending(false);
+			return;
 		}
+		if (marketingConsent) await saveMarketingConsent();
+		setIsPending(false);
+		onAuthenticated();
 	}
 
 	return (
@@ -108,9 +155,9 @@ export function EmailAuth({
 						Zaloguj się kodem
 					</CardTitle>
 					<CardDescription>
-						{step === "email"
+						{flow.step === "email"
 							? "Wyślemy jednorazowy kod na Twój adres e-mail."
-							: `Jeśli adres ${normalizedEmail} jest prawidłowy, znajdziesz na nim kod.`}
+							: `Jeśli adres ${flow.email} jest prawidłowy, znajdziesz na nim kod.`}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
@@ -120,7 +167,7 @@ export function EmailAuth({
 						</Alert>
 					) : null}
 
-					{step === "email" ? (
+					{flow.step === "email" ? (
 						<form onSubmit={requestCode} className="space-y-4">
 							<div className="space-y-1">
 								<label htmlFor="auth-email" className="text-sm font-medium text-foreground">
@@ -149,7 +196,7 @@ export function EmailAuth({
 							<Button
 								type="submit"
 								className="w-full h-12"
-								disabled={isPending || (captchaRequired && !captchaToken)}
+								disabled={isPending || (captchaRequired && !flow.captchaToken)}
 							>
 								{isPending ? "Wysyłanie…" : "Wyślij kod"}
 							</Button>
@@ -186,15 +233,7 @@ export function EmailAuth({
 							<Button type="submit" className="w-full h-12" disabled={isPending}>
 								{isPending ? "Logowanie…" : "Zaloguj się"}
 							</Button>
-							<Button
-								type="button"
-								variant="ghost"
-								className="w-full"
-								onClick={() => {
-									setOtp("");
-									setStep("email");
-								}}
-							>
+							<Button type="button" variant="ghost" className="w-full" onClick={backToEmail}>
 								Użyj innego adresu
 							</Button>
 						</form>
