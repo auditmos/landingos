@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import clients from "./handlers/client-handlers";
 import destinations from "./handlers/destination-handlers";
 import flights from "./handlers/flight-handlers";
 import health from "./handlers/health-handlers";
@@ -22,7 +21,6 @@ App.onError(onErrorHandler);
 App.use("*", createCorsMiddleware());
 
 App.route("/health", health);
-App.route("/clients", clients);
 App.route("/flights", flights);
 App.route("/destinations", destinations);
 App.route("/journeys", journeys);

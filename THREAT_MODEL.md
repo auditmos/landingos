@@ -55,7 +55,8 @@ purchase and navigation are explicit trust transfers to allowlisted HTTPS hosts.
 There is no runtime plugin or extension API, user file upload/import, payment processor, native
 application, service worker, general OS IPC, or active webhook surface in the current build. The
 example queue/workflow and `ExampleDurableObject` are not bound by the checked-in Wrangler
-configuration. The mounted `/clients` example is different and is explicitly covered below.
+configuration. The starter `/clients` example, previously mounted in every environment, has been
+removed along with its `clients` table and seed rows.
 
 ## Supported deployment and configuration states
 
@@ -76,7 +77,6 @@ releases or forks with changed trust assumptions.
 | Asset | Required property |
 |---|---|
 | Email and auth identity | Email is accepted for OTP login and stored in Better Auth but is never a public profile or room field. Login must not reveal whether an account previously existed. User-controlled profile updates cannot set `role`; `role` is configured with `input: false` in `createBetterAuth`. |
-| Starter `clients` records | `packages/data-ops/src/client/table.ts` separately stores name, surname, and email. The repository does not establish these as intentionally public data, while their read routes are mounted anonymously. Treat them as PII under review until the surface's intended support/access policy is confirmed below. |
 | OTPs, sessions, Bearer tokens, and cookies | Only a correct, unexpired OTP within its attempt budget may create a session. Session/Bearer credentials authenticate only their owner and must not be exposed to other users or browser storage by LandingOS. Account deletion invalidates the deleted user's auth records. |
 | Infrastructure and application secrets | Database credentials, `BETTER_AUTH_SECRET`, provider keys, Turnstile secret, analytics HMAC secret, Cloudflare deploy token, and server-to-server token must not enter public bundles, public responses, analytics, fixtures, evidence, or logs. A `VITE_*` value is browser configuration and must not be treated as a confidential secret. |
 | Exact destination | Display text, place ID, and coordinates are private planner data. They may exist in the requesting browser flow and the minimum live Places/Routes request, but must not enter room/member payloads, messages or system events, account/profile tables, catalog rows, analytics, or application logs. See the “Privacy and lifecycle” section of the MVP and the boundary tests under `scripts/*privacy-boundary.test.ts`. One consented exception (decision 2026-08-05): the traveler may explicitly share a bounded free-text drop-off label (`dropOffText`, ≤120 chars) inside their own room selection — hidden by default, revocable anytime. Place IDs and coordinates remain banned without exception. |
@@ -141,8 +141,6 @@ non-browser clients.
 | `POST /flights/manual` | Anonymous and currently not independently captcha-gated; persists a BGY manual flight instance from bounded input and starts analytics. Flight IDs are not authorization secrets. |
 | `POST /destinations/autocomplete`, `/destinations/select` | Anonymous; sends query/place input to the configured Places adapter and returns a whitelisted private planner response. Selection enforces the configured Milan rectangle. |
 | `POST /journeys/recommend` | Anonymous; sends exact coordinates and departure time to the configured Transit adapter, reads fresh published catalog rows, and records coarse analytics. |
-| `GET /clients`, `GET /clients/:id` | Currently anonymous and return the mounted starter `clients` schema, including email. This is a real reachable code surface in `app.ts`, despite product docs saying the example should be replaced. See Open Questions. |
-| `POST/PUT/DELETE /clients...` | Any valid Better Auth session or exact shared `API_TOKEN`, plus rate limit. This is not operator-only. |
 | `/rooms/*` REST | Valid Better Auth cookie/Bearer session; service methods then enforce room membership, close time, rules acceptance for sending, and caller-specific block filtering. |
 | `/safety/*` | Valid session. Room membership is rechecked for room-specific actions. Block/report mutations are rate-limited; inputs and returned shapes are bounded. |
 | `/operator/catalog/*` | Valid session whose current database role is `operator`; server-side middleware guards every route. Effects are catalog CRUD/publication only. |
@@ -377,12 +375,12 @@ open question rather than guessing.
 
 ## Open questions requiring maintainer confirmation
 
-1. **Mounted starter `/clients` surface:** `apps/data-service/src/hono/app.ts` mounts it in every
-   environment; anonymous GET responses include name, surname, and `clients.email`, while mutations
-   accept any valid session or the shared token. `AGENTS.md` says the client domain is a starter
-   example to replace. Is it intentionally supported, guaranteed empty, or meant to be removed, and
-   what access policy is intended if retained? Until resolved, reviewers must treat it as reachable
-   and cannot dismiss disclosure solely as dead example code.
+1. **Mounted starter `/clients` surface — RESOLVED (removed):** the answer was "meant to be
+   removed". The route is unmounted from `apps/data-service/src/hono/app.ts`, the
+   `packages/data-ops/src/client/` domain and its `"./client"` package export are deleted, the 20
+   fake name/surname/email seed rows are gone from `database/seed/seed.ts`, and drop-table
+   migrations exist for dev and staging (production starts from a baseline that never contained the
+   table). `apps/data-service/src/hono/app.test.ts` pins the 404.
 2. **Shared API token versus `VITE_API_TOKEN`:** README/init instructions say
    `VITE_API_TOKEN`, `DATA_SERVICE_API_TOKEN`, and `API_TOKEN` should match, but current browser code
    does not use `VITE_API_TOKEN` and `api-token-not-in-bundle.test.ts` asserts canaries are absent.

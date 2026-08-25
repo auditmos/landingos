@@ -42,7 +42,7 @@ See `hono.md` and `error-handling.md` rules for handler/service/query patterns a
 1. `requestId()` - generates/passes correlation ID
 2. `onError` - global error handler
 3. `cors` - CORS headers
-4. Route-specific: `authMiddleware`, `rateLimiter`, `zValidator`
+4. Route-specific: `authMiddleware`, `rateLimiter`, `operatorOnly`, `turnstileGuard`
 </important>
 
 <important if="you are working with webhooks in data-service">
@@ -50,7 +50,7 @@ See `hono.md` and `error-handling.md` rules for handler/service/query patterns a
 
 **Pattern:** verification middleware → handler → service → data-ops
 
-**Key constraint:** signature verification needs raw body string before JSON parsing. Cannot use `zValidator` as route middleware. Instead:
+**Key constraint:** signature verification needs raw body string before JSON parsing. Validation cannot run as route middleware. Instead:
 1. Middleware reads body via `c.req.text()`, stores in context
 2. Verifies signature against raw string
 3. Handler parses body with `Schema.parse(JSON.parse(body))`

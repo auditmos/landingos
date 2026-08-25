@@ -5,7 +5,6 @@ const config: Config = {
 	out: "./src/drizzle/migrations/production",
 	schema: [
 		"./src/drizzle/auth-schema.ts",
-		"./src/client/table.ts",
 		"./src/flight/table.ts",
 		"./src/journey/table.ts",
 		"./src/room/table.ts",

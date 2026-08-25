@@ -6,7 +6,7 @@ coordinate with others on the same flight via one temporary per-flight chat room
 
 - **Canonical product requirements:** [`docs/landingos-mvp.md`](./docs/landingos-mvp.md) (mirrored in GitHub issue #1). It is the single source of truth — treat it as authoritative over this file when they disagree.
 - **Delivery queue:** GitHub issues #2–#12 (`S0`–`S10`), each a self-contained AFK slice with locked decisions and acceptance criteria. Read the relevant issue before implementing a slice.
-- **Current state:** the repo is still the `saas-on-cf` starter (TanStack Start + Hono + Drizzle/Better Auth on Cloudflare). No LandingOS domain code exists yet — S0 (issue #2) is the first slice. The `client`/`health` domains are starter examples to replace, not product code.
+- **Current state:** the repo is still the `saas-on-cf` starter (TanStack Start + Hono + Drizzle/Better Auth on Cloudflare). No LandingOS domain code exists yet — S0 (issue #2) is the first slice. The `health` domain is a retained starter example; the `client` domain was removed (issue #35).
 
 ## Tech boundary (fixed — do not swap)
 

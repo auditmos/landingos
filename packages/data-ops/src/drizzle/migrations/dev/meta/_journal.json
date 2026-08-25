@@ -78,6 +78,13 @@
       "when": 1785941774427,
       "tag": "0010_perfect_chameleon",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787644645426,
+      "tag": "0011_drop_starter_clients",
+      "breakpoints": true
     }
   ]
 }

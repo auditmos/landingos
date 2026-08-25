@@ -52,53 +52,45 @@ export const getUser = async (c: Context) => {
 
 ## Request Validation
 
-**ALWAYS** use `zValidator` from `@hono/zod-validator` — never raw `z.parse()`, `z.safeParse()`, or manual `c.req.json()` parsing in handlers.
-
-**ALWAYS** import named schemas from `@repo/data-ops/{domain}` — never write inline `z.object()` inside `zValidator()`. If a schema doesn't exist yet, create it in the appropriate `data-ops` package first.
+**ALWAYS** import named schemas from `@repo/data-ops/{domain}` and validate with
+`safeParse` — never write an inline `z.object()` in a handler. If a schema does not
+exist yet, create it in the appropriate `data-ops` domain first.
 
 ```ts
-// CORRECT — named schema from data-ops
-import { zValidator } from '@hono/zod-validator'
-import { UserCreateSchema, UserIdParamSchema } from '@repo/data-ops/user'
+// CORRECT — named schema from data-ops, typed Polish rejection
+import { FlightLookupRequestSchema } from "@repo/data-ops/flight";
 
-app.post('/users',
-  zValidator('json', UserCreateSchema),
-  async (c) => {
-    const data = c.req.valid('json') // typed!
-  }
-)
+const parsed = FlightLookupRequestSchema.safeParse(await c.req.json());
+if (!parsed.success) {
+	return c.json({ code: "FLIGHT_LOOKUP_INVALID", error: "Nieprawidłowe dane lotu." }, 400);
+}
 
-app.get('/users/:id',
-  zValidator('param', UserIdParamSchema),
-  async (c) => {
-    const { id } = c.req.valid('param')
-  }
-)
+// WRONG — inline schema
+const parsed = z.object({ id: z.string().uuid() }).safeParse(body);
 
-// WRONG — inline z.object()
-zValidator('param', z.object({ id: z.string().uuid() }))
-
-// WRONG — raw Zod parsing
-const body = await c.req.json()
-const data = UserCreateSchema.parse(body)
+// WRONG — unguarded parse, throws into the generic 500
+const data = FlightLookupRequestSchema.parse(body);
 ```
 
 ## Error Handling
 
-Services return `Result<T>` carrying a typed `AppError`; handlers unwrap it into a
-response. Never throw `HTTPException` and never introduce a second error class —
-see `.claude/rules/error-handling.md` for the `Result`/`AppError` contract.
+Services throw one typed error class per module carrying `code` and `status` (e.g.
+`FlightRoomServiceError`); handlers map it and rethrow anything else. Never throw
+`HTTPException` and never add a second error model — see
+`.claude/rules/error-handling.md` for the full contract.
 
 `middleware/error-handler.ts` is the last-resort boundary, not a routing table: it
-logs the error server-side and returns one generic Polish 500 with the request id.
-An internal message must never reach a client body — a `DrizzleQueryError.message`
-is `"Failed query: <SQL>\nparams: <values>"`.
+returns one generic Polish 500 with the request id. An internal message must never
+reach a client body — a `DrizzleQueryError.message` is `"Failed query: <SQL>\nparams:
+<values>"` — and by the S8 privacy invariant it must not reach the logs either, so
+that file stays free of `console.*`.
 
 ```ts
-// handlers/users.ts — unwrap Result, no throwing
-const result = await userService.getById(c.env, id)
-if (!result.ok) return c.json({ code: result.error.code, error: result.error.message }, result.error.status)
-return c.json({ data: result.data })
+// handlers/room-handlers.ts — map the typed error, rethrow the rest
+function serviceError(c: Context, error: unknown) {
+	if (!(error instanceof FlightRoomServiceError)) throw error;
+	return c.json({ code: error.code, error: error.message }, error.status);
+}
 ```
 
 ## Response Patterns

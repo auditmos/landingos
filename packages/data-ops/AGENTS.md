@@ -26,7 +26,7 @@ To fork:
 
 ```
 src/
-├── {domain}/          # Domain barrels (client/, health/, etc)
+├── {domain}/          # Domain barrels (flight/, journey/, room/, etc)
 │   ├── table.ts       # Drizzle table definition
 │   ├── schema.ts      # Zod schemas + types
 │   ├── queries.ts     # DB operations
@@ -47,7 +47,7 @@ src/
 ## Consumer imports
 
 ```ts
-import { getClient, ClientSchema, type Client } from "@repo/data-ops/client"
+import { getFlightInstance, FlightInstanceSchema, type FlightInstance } from "@repo/data-ops/flight"
 import { checkDatabase, type LivenessResponse } from "@repo/data-ops/health"
 ```
 
