@@ -4,12 +4,13 @@ import type {
 	RoomRealtimeEvent,
 	RoomSnapshot,
 } from "@repo/data-ops/room";
+import { RoomQueryError } from "@repo/data-ops/room";
 import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createFlightRoomService,
 	type FlightRoomServiceDependencies,
-	type FlightRoomServiceError,
+	FlightRoomServiceError,
 	hashConnectionTicket,
 	ROOM_CONNECTION_TICKET_TTL_MS,
 } from "./service";
@@ -240,7 +241,7 @@ describe("flight room service ordering and idempotency", () => {
 					},
 				};
 			}),
-			broadcast: vi.fn(async (_key, _roomId, event) => {
+			broadcast: vi.fn(async (_room, event) => {
 				order.push(`${event.type}:broadcast`);
 				events.push(event);
 			}),
@@ -260,8 +261,8 @@ describe("flight room service ordering and idempotency", () => {
 		]);
 		expect(events).toHaveLength(2);
 		expect(deps.broadcast).toHaveBeenCalledWith(
-			"flight-1",
-			room.id,
+			// The DO routing key is now derived from the room and still reads "flight-1".
+			expect.objectContaining({ id: room.id, flightInstanceId: "flight-1" }),
 			expect.objectContaining({ type: "message_created" }),
 			"user-1",
 		);
@@ -319,5 +320,68 @@ describe("flight room connection tickets", () => {
 			}),
 		);
 		expect(deps.getRoomAccessContext).toHaveBeenLastCalledWith(room.id, "user-1");
+	});
+});
+
+/*
+ * Regression assumptions:
+ * - input: data-ops `joinFlightRoom` rejects with a typed RoomQueryError for the
+ *   two states it enforces in SQL — a room past its close time and an unknown
+ *   flight instance;
+ * - output: `join` translates both into FlightRoomServiceError, so
+ *   FlightRoomServiceError is the only error currency above the DB layer and
+ *   the handler's existing mapping produces 410/404 rather than a 500;
+ * - boundary: the DB error never escapes the service unmapped, which is what
+ *   previously fell through the handler rethrow into onError;
+ * - out of scope: the closeAt boundary itself, covered above.
+ */
+describe("join maps typed data-ops room errors", () => {
+	it("translates ROOM_CLOSED into a 410 room_closed service error", async () => {
+		const deps = dependencies({
+			joinFlightRoom: vi.fn(async () => {
+				throw new RoomQueryError("ROOM_CLOSED");
+			}),
+		});
+
+		const error = await createFlightRoomService(deps)
+			.join("flight-1", "user-1")
+			.catch((thrown: unknown) => thrown);
+
+		expect(error).toBeInstanceOf(FlightRoomServiceError);
+		expect(error).toMatchObject({
+			code: "room_closed",
+			status: 410,
+			message: "Pokój tego lotu jest już zamknięty.",
+		});
+		expect(deps.broadcast).not.toHaveBeenCalled();
+		expect(deps.getRoomSnapshot).not.toHaveBeenCalled();
+	});
+
+	it("translates FLIGHT_NOT_FOUND into a 404 service error", async () => {
+		const deps = dependencies({
+			joinFlightRoom: vi.fn(async () => {
+				throw new RoomQueryError("FLIGHT_NOT_FOUND");
+			}),
+		});
+
+		const error = await createFlightRoomService(deps)
+			.join("flight-unknown", "user-1")
+			.catch((thrown: unknown) => thrown);
+
+		expect(error).toBeInstanceOf(FlightRoomServiceError);
+		expect(error).toMatchObject({ code: "flight_not_found", status: 404 });
+		expect(deps.broadcast).not.toHaveBeenCalled();
+	});
+
+	it("lets an unexpected database failure propagate untranslated", async () => {
+		const deps = dependencies({
+			joinFlightRoom: vi.fn(async () => {
+				throw new Error("Failed query: SELECT 1");
+			}),
+		});
+
+		await expect(
+			createFlightRoomService(deps).join("flight-1", "user-1"),
+		).rejects.not.toBeInstanceOf(FlightRoomServiceError);
 	});
 });

@@ -1,8 +1,14 @@
 import type { PublicRoomMember, RoomAccessContext, RoomSnapshot } from "@repo/data-ops/room";
+import { RoomQueryError } from "@repo/data-ops/room";
 import { Hono } from "hono";
 import { vi } from "vitest";
 import { ANALYTICS_FUNNEL_HEADER, type AnalyticsTracker } from "../../analytics/service";
-import { type FlightRoomService, FlightRoomServiceError } from "../../room/service";
+import {
+	createFlightRoomService,
+	type FlightRoomService,
+	type FlightRoomServiceDependencies,
+	FlightRoomServiceError,
+} from "../../room/service";
 import { createRoomHandlers } from "./room-handlers";
 
 const FUNNEL_ID = "00112233445566778899aabbccddeeff";
@@ -423,5 +429,63 @@ describe("flight room WebSocket authorization matrix", () => {
 		});
 		expect(response.status).toBe(204);
 		expect(openSocket).toHaveBeenCalledWith(access, expect.any(Request), false, undefined);
+	});
+});
+
+/*
+ * Regression assumptions:
+ * - input: the real service (not a stubbed one) over a data-ops joinFlightRoom
+ *   that rejects with the typed RoomQueryError it throws in production;
+ * - output: POST /rooms/join answers with the typed Polish 410/404 body;
+ * - boundary: nothing unmapped reaches the global onError, which previously
+ *   turned both states into a 500;
+ * - out of scope: the DB predicate itself, covered by data-ops queries tests.
+ */
+describe("POST /rooms/join over the real service", () => {
+	function appOverRealService(joinFlightRoom: FlightRoomServiceDependencies["joinFlightRoom"]) {
+		const service = createFlightRoomService({
+			now: () => new Date("2026-09-14T07:00:00.000Z"),
+			hasCommunityRulesAcceptance: async () => true,
+			getIdentityProfile: async () => ({
+				id: "user-1",
+				emailVerified: true,
+				pseudonym: "Alicja BGY",
+				marketingConsentGranted: false,
+				marketingConsentPolicyVersion: null,
+				marketingConsentUpdatedAt: null,
+				role: "user",
+			}),
+			joinFlightRoom,
+			listActiveRooms: async () => [room],
+			listPastFlights: async () => [],
+			getRoomSnapshot: async () => snapshot,
+			getRoomAccessContext: async () => access,
+			replaceRoomSelection: async () => member,
+			createRoomMessage: async () => {
+				throw new Error("not exercised by join");
+			},
+			createConnectionTicket: async () => undefined,
+			consumeConnectionTicket: async () => ({ userId: "user-1" }),
+			broadcast: async () => undefined,
+		});
+		return buildApp({ join: service.join }).app;
+	}
+
+	it.each([
+		["ROOM_CLOSED" as const, 410, "room_closed", "Pokój tego lotu jest już zamknięty."],
+		["FLIGHT_NOT_FOUND" as const, 404, "flight_not_found", "Nie znaleziono rozpoznanego lotu."],
+	])("maps RoomQueryError(%s) to %i", async (queryCode, status, code, error) => {
+		const app = appOverRealService(async () => {
+			throw new RoomQueryError(queryCode);
+		});
+
+		const response = await app.request("/rooms/join", {
+			method: "POST",
+			headers: browserHeaders,
+			body: JSON.stringify({ flightInstanceId: "flight-1" }),
+		});
+
+		expect(response.status).toBe(status);
+		expect(await response.json()).toEqual({ code, error });
 	});
 });

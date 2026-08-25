@@ -17,6 +17,7 @@ import type {
 import {
 	ConnectionTicketResponseSchema,
 	RoomMessageCreateRequestSchema,
+	RoomQueryError,
 	RoomSelectionSchema,
 } from "@repo/data-ops/room";
 import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
@@ -31,8 +32,9 @@ export class FlightRoomServiceError extends Error {
 			| "ROOM_MESSAGE_INVALID"
 			| "ROOM_SELECTION_INVALID"
 			| "room_closed"
+			| "flight_not_found"
 			| "rules_acceptance_required",
-		readonly status: 400 | 403 | 409 | 410,
+		readonly status: 400 | 403 | 404 | 409 | 410,
 		message: string,
 	) {
 		super(message);
@@ -70,12 +72,10 @@ export interface FlightRoomServiceDependencies {
 		roomId: string;
 		now?: Date;
 	}): Promise<{ userId: string } | null>;
-	broadcast(
-		coordinatorKey: string,
-		roomId: string,
-		event: RoomRealtimeEvent,
-		sourceUserId: string,
-	): Promise<void>;
+	// Takes the room, not a (coordinatorKey, roomId) pair: one DO per canonical
+	// flight instance is a locked decision, so the routing key is derivable and
+	// must not be a second, independently-acquired identifier.
+	broadcast(room: PublicRoom, event: RoomRealtimeEvent, sourceUserId: string): Promise<void>;
 }
 
 function randomConnectionTicket(): string {
@@ -102,6 +102,29 @@ async function accessOrThrow(
 	return access;
 }
 
+// The DB layer is the only place that knows a flight is unknown or its window has
+// closed. Translating here keeps FlightRoomServiceError the single error currency
+// above data-ops — otherwise RoomQueryError falls through the handler rethrow into
+// onError and both states surface as a 500.
+async function joinOrTranslate(
+	dependencies: FlightRoomServiceDependencies,
+	flightInstanceId: string,
+	userId: string,
+): Promise<JoinFlightRoomResult> {
+	try {
+		return await dependencies.joinFlightRoom({
+			flightInstanceId,
+			userId,
+			now: dependencies.now(),
+		});
+	} catch (error) {
+		if (!(error instanceof RoomQueryError)) throw error;
+		throw error.code === "ROOM_CLOSED"
+			? new FlightRoomServiceError("room_closed", 410, error.message)
+			: new FlightRoomServiceError("flight_not_found", 404, error.message);
+	}
+}
+
 function ensureRoomOpen(room: PublicRoom, now: Date): void {
 	if (now.getTime() >= new Date(room.closesAt).getTime()) {
 		throw new FlightRoomServiceError("room_closed", 410, "Pokój tego lotu jest już zamknięty.");
@@ -120,17 +143,14 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 					"Ustaw prawidłowy pseudonim przed wejściem do pokoju.",
 				);
 			}
-			const joined = await dependencies.joinFlightRoom({
-				flightInstanceId,
-				userId,
-				now: dependencies.now(),
-			});
+			const joined = await joinOrTranslate(dependencies, flightInstanceId, userId);
+			// Belt-and-braces: joinFlightRoom already enforces this window in SQL with
+			// the same clock, so this only guards a dependency that does not.
 			ensureRoomOpen(joined.room, dependencies.now());
 			const snapshot = await dependencies.getRoomSnapshot(joined.room.id, userId);
 			if (joined.membershipCreated) {
 				await dependencies.broadcast(
-					joined.room.flightInstanceId,
-					joined.room.id,
+					joined.room,
 					{
 						type: "member_joined",
 						member: snapshot.member,
@@ -142,6 +162,8 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 		},
 
 		async list(userId: string): Promise<RoomListing[]> {
+			// Belt-and-braces: listActiveRooms filters the same window in SQL; this
+			// re-filter only guards a dependency that does not.
 			const now = dependencies.now();
 			return (await dependencies.listActiveRooms(userId, now)).filter(
 				(room) => now.getTime() < new Date(room.closesAt).getTime(),
@@ -173,8 +195,7 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 			const access = await accessOrThrow(dependencies, roomId, userId);
 			const member = await dependencies.replaceRoomSelection(roomId, userId, parsed.data);
 			await dependencies.broadcast(
-				access.coordinatorKey,
-				roomId,
+				access.room,
 				{
 					type: "selection_changed",
 					member,
@@ -208,8 +229,7 @@ export function createFlightRoomService(dependencies: FlightRoomServiceDependenc
 			const result = await dependencies.createRoomMessage(roomId, userId, parsed.data);
 			if (result.created) {
 				await dependencies.broadcast(
-					access.coordinatorKey,
-					roomId,
+					access.room,
 					{
 						type: "message_created",
 						message: result.message,

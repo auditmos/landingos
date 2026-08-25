@@ -36,9 +36,13 @@ export function createDatabaseFlightRoomService(env: Env): FlightRoomService {
 		createRoomMessage: (roomId, userId, input) => createRoomMessage(db, roomId, userId, input),
 		createConnectionTicket: (input) => createConnectionTicket(db, input),
 		consumeConnectionTicket: (input) => consumeConnectionTicket(db, input),
-		broadcast: async (coordinatorKey, roomId, event, sourceUserId) => {
-			const excludedUserIds = await listBlockedRecipientIds(db, roomId, sourceUserId);
-			await env.FLIGHT_ROOM.getByName(coordinatorKey).broadcast(roomId, event, excludedUserIds);
+		broadcast: async (room, event, sourceUserId) => {
+			const excludedUserIds = await listBlockedRecipientIds(db, room.id, sourceUserId);
+			await env.FLIGHT_ROOM.getByName(room.flightInstanceId).broadcast(
+				room.id,
+				event,
+				excludedUserIds,
+			);
 		},
 	});
 }
