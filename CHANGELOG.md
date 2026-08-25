@@ -1,3 +1,10 @@
+## [1.36.17](https://github.com/auditmos/landingos/compare/v1.36.16...v1.36.17) (2026-08-25)
+
+
+### Bug Fixes
+
+* **schemas:** answer a missing or wrong-typed request field in Polish ([#50](https://github.com/auditmos/landingos/issues/50)) ([cf21330](https://github.com/auditmos/landingos/commit/cf21330c96d568af52bebeb55e122e330eee5bba))
+
 ## [1.36.16](https://github.com/auditmos/landingos/compare/v1.36.15...v1.36.16) (2026-08-25)
 
 ## [1.36.15](https://github.com/auditmos/landingos/compare/v1.36.14...v1.36.15) (2026-08-25)
