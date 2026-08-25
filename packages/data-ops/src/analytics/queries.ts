@@ -5,6 +5,7 @@ import {
 	ANALYTICS_FUNNEL_STEPS,
 	ANALYTICS_SCHEMA_VERSION,
 	type AnalyticsEvent,
+	type AnalyticsEventInput,
 	AnalyticsEventSchema,
 	type AnalyticsFunnelReport,
 	AnalyticsFunnelReportSchema,
@@ -12,8 +13,6 @@ import {
 	AnalyticsFunnelStateSchema,
 	type AnalyticsFunnelStep,
 	FunnelIdSchema,
-	type RoomOccupancyBucket,
-	type TransportKind,
 } from "./schema";
 import { analyticsEvents, analyticsFunnels } from "./table";
 
@@ -23,7 +22,18 @@ export const ANALYTICS_SWEEP_BATCH_SIZE = 100;
 export type AnalyticsDatabase = Pick<ReturnType<typeof getDb>, "insert" | "select" | "update">;
 
 type RandomFill = (bytes: Uint8Array) => Uint8Array;
-type TrackableEvent = Exclude<AnalyticsEvent["eventName"], "funnel_started" | "funnel_abandoned">;
+
+/**
+ * What may be written to the ledger: the two funnel boundary events this module raises
+ * itself, plus every event a caller may track.
+ */
+type AnalyticsEventWrite =
+	| { eventName: "funnel_started" }
+	| {
+			eventName: "funnel_abandoned";
+			lastCompletedStep: Exclude<AnalyticsFunnelStep, "chat_activated">;
+	  }
+	| AnalyticsEventInput;
 
 const STEP_RANK = new Map(ANALYTICS_FUNNEL_STEPS.map((step, index) => [step, index]));
 
@@ -33,21 +43,19 @@ export function createFunnelId(
 	return [...fill(new Uint8Array(16))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function eventRow(input: {
-	eventName: AnalyticsEvent["eventName"];
-	eventTime: Date;
-	funnelId: string;
-	actorPseudonym?: string | null;
-	lastCompletedStep: AnalyticsFunnelStep;
-	transportKind?: TransportKind | null;
-	roomOccupancyBucket?: RoomOccupancyBucket | null;
-}) {
+/**
+ * Widens one variant into the flat row. Reading the eight columns by name rather than
+ * spreading keeps caller context (`requestedFunnelId`, `now`) out of the strict parse.
+ */
+function eventRow(input: AnalyticsEventWrite & { eventTime: Date; funnelId: string }) {
 	const event = AnalyticsEventSchema.parse({
-		...input,
+		eventName: input.eventName,
 		eventTime: input.eventTime.toISOString(),
-		actorPseudonym: input.actorPseudonym ?? null,
-		transportKind: input.transportKind ?? null,
-		roomOccupancyBucket: input.roomOccupancyBucket ?? null,
+		funnelId: input.funnelId,
+		actorPseudonym: "actorPseudonym" in input ? (input.actorPseudonym ?? null) : null,
+		lastCompletedStep: "lastCompletedStep" in input ? input.lastCompletedStep : input.eventName,
+		transportKind: "transportKind" in input ? input.transportKind : null,
+		roomOccupancyBucket: "roomOccupancyBucket" in input ? input.roomOccupancyBucket : null,
 		schemaVersion: ANALYTICS_SCHEMA_VERSION,
 	});
 	return {
@@ -87,12 +95,7 @@ export async function startAnalyticsFunnel(
 		})
 		.onConflictDoNothing({ target: analyticsFunnels.id })
 		.returning({ id: analyticsFunnels.id });
-	await insertEvent(db, {
-		eventName: "funnel_started",
-		eventTime: now,
-		funnelId,
-		lastCompletedStep: "funnel_started",
-	});
+	await insertEvent(db, { eventName: "funnel_started", eventTime: now, funnelId });
 	return { funnelId, created: Boolean(inserted) };
 }
 
@@ -109,13 +112,14 @@ async function abandonFunnel(
 	db: AnalyticsDatabase,
 	funnel: NonNullable<Awaited<ReturnType<typeof funnelRow>>>,
 ) {
-	if (funnel.status !== "active" || funnel.lastCompletedStep === "chat_activated") return false;
+	const lastCompletedStep = funnel.lastCompletedStep;
+	if (funnel.status !== "active" || lastCompletedStep === "chat_activated") return false;
 	const boundary = new Date(funnel.lastActivityAt.getTime() + ANALYTICS_ABANDONMENT_MS);
 	const created = await insertEvent(db, {
 		eventName: "funnel_abandoned",
 		eventTime: boundary,
 		funnelId: funnel.id,
-		lastCompletedStep: funnel.lastCompletedStep,
+		lastCompletedStep,
 	});
 	await db
 		.update(analyticsFunnels)
@@ -155,14 +159,7 @@ export async function ensureActiveAnalyticsFunnel(
 
 export async function recordAnalyticsEvent(
 	db: AnalyticsDatabase,
-	input: {
-		requestedFunnelId?: string | null;
-		eventName: TrackableEvent;
-		actorPseudonym?: string;
-		transportKind?: TransportKind;
-		roomOccupancyBucket?: RoomOccupancyBucket;
-		now?: Date;
-	},
+	input: AnalyticsEventInput & { requestedFunnelId?: string | null; now?: Date },
 	options: { idFactory?: () => string } = {},
 ) {
 	const now = input.now ?? new Date();
@@ -191,15 +188,7 @@ export async function recordAnalyticsEvent(
 	if (funnel.status === "completed") {
 		return { funnelId: funnel.id, eventCreated: false, replacedFunnelId };
 	}
-	const eventCreated = await insertEvent(db, {
-		eventName: input.eventName,
-		eventTime: now,
-		funnelId: funnel.id,
-		actorPseudonym: input.actorPseudonym,
-		lastCompletedStep: input.eventName,
-		transportKind: input.transportKind,
-		roomOccupancyBucket: input.roomOccupancyBucket,
-	});
+	const eventCreated = await insertEvent(db, { ...input, eventTime: now, funnelId: funnel.id });
 	const currentRank = STEP_RANK.get(funnel.lastCompletedStep) ?? 0;
 	const eventRank = STEP_RANK.get(input.eventName) ?? currentRank;
 	await db
@@ -298,11 +287,9 @@ export async function getAnalyticsReport(db: AnalyticsDatabase): Promise<Analyti
 		}
 		if (event.eventName === "room_joined") {
 			if (event.roomOccupancyBucket !== "one") socialRoomCount += 1;
-			if (event.actorPseudonym) {
-				const funnels = actorFlights.get(event.actorPseudonym) ?? new Set<string>();
-				funnels.add(event.funnelId);
-				actorFlights.set(event.actorPseudonym, funnels);
-			}
+			const funnels = actorFlights.get(event.actorPseudonym) ?? new Set<string>();
+			funnels.add(event.funnelId);
+			actorFlights.set(event.actorPseudonym, funnels);
 		}
 	}
 	const total = eventCounts.funnel_started;

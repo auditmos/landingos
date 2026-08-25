@@ -1,28 +1,11 @@
 import {
 	ANALYTICS_FUNNEL_HEADER,
-	type AnalyticsEventName,
+	type AnalyticsEventInput,
 	FunnelIdSchema,
 	type RoomOccupancyBucket,
-	type TransportKind,
 } from "@repo/data-ops/analytics";
 
 export { ANALYTICS_FUNNEL_HEADER };
-
-type TrackableEvent = Exclude<AnalyticsEventName, "funnel_started" | "funnel_abandoned">;
-
-type AnalyticsTrackRequest =
-	| { eventName: "flight_recognized" | "recommendations_viewed" }
-	| {
-			eventName: "transport_selected";
-			userId: string;
-			transportKind: TransportKind;
-	  }
-	| {
-			eventName: "room_joined";
-			userId: string;
-			roomOccupancyBucket: RoomOccupancyBucket;
-	  }
-	| { eventName: "chat_activated"; userId: string };
 
 export class AnalyticsConfigurationError extends Error {
 	constructor() {
@@ -39,14 +22,7 @@ export interface AnalyticsTrackerDependencies {
 		created: boolean;
 		replacedFunnelId?: string;
 	}>;
-	recordEvent(input: {
-		requestedFunnelId?: string;
-		eventName: TrackableEvent;
-		actorPseudonym?: string;
-		transportKind?: TransportKind;
-		roomOccupancyBucket?: RoomOccupancyBucket;
-		now: Date;
-	}): Promise<{
+	recordEvent(input: AnalyticsEventInput & { requestedFunnelId?: string; now: Date }): Promise<{
 		funnelId: string;
 		eventCreated: boolean;
 		replacedFunnelId?: string;
@@ -84,6 +60,31 @@ export function roomOccupancyBucket(count: number): RoomOccupancyBucket {
 	return "six_plus";
 }
 
+/**
+ * Exchanges the raw user id for its HMAC pseudonym. The variant is rebuilt rather than
+ * spread, so the raw id has no path into a recorded event.
+ */
+async function withActorPseudonym(
+	request: AnalyticsEventInput<"userId">,
+	secret: string | undefined,
+): Promise<AnalyticsEventInput> {
+	if (request.eventName === "flight_recognized" || request.eventName === "recommendations_viewed") {
+		return { eventName: request.eventName };
+	}
+	const actorPseudonym = await actorPseudonymForUser(request.userId, secret ?? "");
+	if (request.eventName === "transport_selected") {
+		return { eventName: request.eventName, actorPseudonym, transportKind: request.transportKind };
+	}
+	if (request.eventName === "room_joined") {
+		return {
+			eventName: request.eventName,
+			actorPseudonym,
+			roomOccupancyBucket: request.roomOccupancyBucket,
+		};
+	}
+	return { eventName: request.eventName, actorPseudonym };
+}
+
 export function createAnalyticsTracker(dependencies: AnalyticsTrackerDependencies) {
 	return {
 		async begin(requestedFunnelId?: string): Promise<string> {
@@ -95,19 +96,10 @@ export function createAnalyticsTracker(dependencies: AnalyticsTrackerDependencie
 			).funnelId;
 		},
 
-		async track(requestedFunnelId: string | undefined, request: AnalyticsTrackRequest) {
-			const userId = "userId" in request ? request.userId : undefined;
-			const actorPseudonym = userId
-				? await actorPseudonymForUser(userId, dependencies.secret ?? "")
-				: undefined;
+		async track(requestedFunnelId: string | undefined, request: AnalyticsEventInput<"userId">) {
 			const result = await dependencies.recordEvent({
+				...(await withActorPseudonym(request, dependencies.secret)),
 				requestedFunnelId,
-				eventName: request.eventName,
-				actorPseudonym,
-				...("transportKind" in request ? { transportKind: request.transportKind } : {}),
-				...("roomOccupancyBucket" in request
-					? { roomOccupancyBucket: request.roomOccupancyBucket }
-					: {}),
 				now: dependencies.now(),
 			});
 			return result.funnelId;

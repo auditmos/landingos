@@ -32,7 +32,9 @@ describe("S8 public privacy boundaries", () => {
 		const analyticsSchema = read("packages/data-ops/src/analytics/schema.ts");
 		expect(roomSchema).toContain("RoomSnapshotSchema = z.strictObject");
 		expect(roomSchema).toContain("RoomRedactedEventSchema = z.strictObject");
-		expect(analyticsSchema).toMatch(/AnalyticsEventSchema = z\s*\.strictObject/);
+		// One strict variant per event name: still a closed shape, so no private field fits.
+		expect(analyticsSchema).toMatch(/AnalyticsEventSchema = z\s*\.discriminatedUnion/);
+		expect(analyticsSchema).not.toMatch(/z\.object\(/);
 		for (const forbidden of [
 			"email:",
 			"destination:",

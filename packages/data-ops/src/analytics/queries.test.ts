@@ -14,6 +14,7 @@ import {
 	startAnalyticsFunnel,
 	sweepAbandonedFunnels,
 } from "./queries";
+import type { AnalyticsEventInput, RoomOccupancyBucket, TransportKind } from "./schema";
 
 const FUNNEL_A = "00112233445566778899aabbccddeeff";
 const FUNNEL_B = "10112233445566778899aabbccddeeff";
@@ -42,6 +43,28 @@ const COMPLETION_EVENTS = [
 	"chat_activated",
 ] as const;
 
+/** Builds one completion step as a whole variant — the payload travels with the event name. */
+function completionEvent(
+	eventName: (typeof COMPLETION_EVENTS)[number],
+	actorPseudonym: string,
+	payload: { transportKind?: TransportKind; roomOccupancyBucket?: RoomOccupancyBucket } = {},
+): AnalyticsEventInput {
+	switch (eventName) {
+		case "transport_selected":
+			return { eventName, actorPseudonym, transportKind: payload.transportKind ?? "shared_taxi" };
+		case "room_joined":
+			return {
+				eventName,
+				actorPseudonym,
+				roomOccupancyBucket: payload.roomOccupancyBucket ?? "one",
+			};
+		case "chat_activated":
+			return { eventName, actorPseudonym };
+		default:
+			return { eventName };
+	}
+}
+
 async function seedFunnelAtStep(
 	db: AnalyticsDatabase,
 	funnelId: string,
@@ -50,14 +73,8 @@ async function seedFunnelAtStep(
 	await startAnalyticsFunnel(db, { now: at(0), idFactory: () => funnelId });
 	if (!step) return;
 	await recordAnalyticsEvent(db, {
+		...completionEvent(step, ACTOR_A),
 		requestedFunnelId: funnelId,
-		eventName: step,
-		actorPseudonym:
-			step === "transport_selected" || step === "room_joined" || step === "chat_activated"
-				? ACTOR_A
-				: undefined,
-		transportKind: step === "transport_selected" ? "shared_taxi" : undefined,
-		roomOccupancyBucket: step === "room_joined" ? "one" : undefined,
 		now: at(0),
 	});
 }
@@ -71,11 +88,11 @@ async function seedCompletedFunnel(
 	await startAnalyticsFunnel(db, { now: at(0), idFactory: () => funnelId });
 	for (const [index, eventName] of COMPLETION_EVENTS.entries()) {
 		await recordAnalyticsEvent(db, {
+			...completionEvent(eventName, actor, {
+				transportKind: "public_transport",
+				roomOccupancyBucket: bucket,
+			}),
 			requestedFunnelId: funnelId,
-			eventName,
-			actorPseudonym: index >= 2 ? actor : undefined,
-			transportKind: eventName === "transport_selected" ? "public_transport" : undefined,
-			roomOccupancyBucket: eventName === "room_joined" ? bucket : undefined,
 			now: at(index + 1),
 		});
 	}

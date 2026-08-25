@@ -43,6 +43,43 @@ describe("strict analytics event contract", () => {
 		]);
 	});
 
+	// One combination per XOR rule the shape must keep enforcing, whatever expresses it.
+	it.each([
+		["a transport choice without its kind", { transportKind: null }],
+		["a transport choice carrying an occupancy bucket", { roomOccupancyBucket: "one" }],
+		[
+			"an anonymous event carrying an actor",
+			{
+				eventName: "recommendations_viewed",
+				lastCompletedStep: "recommendations_viewed",
+				transportKind: null,
+			},
+		],
+		[
+			"a room entry without its occupancy bucket",
+			{
+				eventName: "room_joined",
+				lastCompletedStep: "room_joined",
+				transportKind: null,
+			},
+		],
+		[
+			"an event whose completed step disagrees with its name",
+			{ lastCompletedStep: "flight_recognized" },
+		],
+		[
+			"an abandoned funnel that had already reached chat",
+			{
+				eventName: "funnel_abandoned",
+				actorPseudonym: null,
+				lastCompletedStep: "chat_activated",
+				transportKind: null,
+			},
+		],
+	])("rejects %s", (_case, overrides) => {
+		expect(AnalyticsEventSchema.safeParse({ ...event, ...overrides }).success).toBe(false);
+	});
+
 	it("rejects arbitrary metadata and every forbidden canary field", () => {
 		for (const forbidden of [
 			"email",

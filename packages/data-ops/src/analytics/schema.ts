@@ -34,37 +34,119 @@ export const AnalyticsFunnelStatusSchema = z.enum(["active", "completed", "aband
 export const TransportKindSchema = z.enum(["public_transport", "shared_taxi"]);
 export const RoomOccupancyBucketSchema = z.enum(["one", "two_to_five", "six_plus"]);
 
-export const AnalyticsEventSchema = z
-	.strictObject({
-		eventName: AnalyticsEventNameSchema,
-		eventTime: z.string().datetime({ offset: true }),
+const EventTimeSchema = z.string().datetime({ offset: true });
+const SchemaVersionSchema = z.literal(ANALYTICS_SCHEMA_VERSION);
+const NoActorSchema = z.null("Zdarzenie anonimowe nie może mieć aktora.");
+const NoTransportKindSchema = z.null("Rodzaj transportu dotyczy tylko wyboru transportu.");
+const NoRoomOccupancySchema = z.null("Przedział liczby osób dotyczy tylko dołączenia do pokoju.");
+/** A funnel that reached chat is complete, so it can never be the step an abandon reports. */
+const AbandonedStepSchema = AnalyticsFunnelStepSchema.exclude(["chat_activated"]);
+
+/**
+ * One variant per event name. Each declares all eight columns in the locked order, so the
+ * parsed row stays flat and its key order stable, while actor, transport kind, and occupancy
+ * bucket travel with the event name instead of being cross-checked afterwards.
+ */
+function analyticsEventVariant<
+	Name extends AnalyticsEventName,
+	Actor extends z.ZodType,
+	Step extends z.ZodType,
+	Transport extends z.ZodType,
+	Occupancy extends z.ZodType,
+>(
+	eventName: Name,
+	actorPseudonym: Actor,
+	lastCompletedStep: Step,
+	transportKind: Transport,
+	roomOccupancyBucket: Occupancy,
+) {
+	return z.strictObject({
+		eventName: z.literal(eventName),
+		eventTime: EventTimeSchema,
 		funnelId: FunnelIdSchema,
-		actorPseudonym: ActorPseudonymSchema.nullable(),
-		lastCompletedStep: AnalyticsFunnelStepSchema,
-		transportKind: TransportKindSchema.nullable(),
-		roomOccupancyBucket: RoomOccupancyBucketSchema.nullable(),
-		schemaVersion: z.literal(ANALYTICS_SCHEMA_VERSION),
-	})
-	.superRefine((event, context) => {
-		const authenticated = ["transport_selected", "room_joined", "chat_activated"].includes(
-			event.eventName,
-		);
-		if (authenticated !== (event.actorPseudonym !== null)) {
-			context.addIssue({ code: "custom", message: "Nieprawidłowy aktor zdarzenia." });
-		}
-		if ((event.eventName === "transport_selected") !== (event.transportKind !== null)) {
-			context.addIssue({ code: "custom", message: "Nieprawidłowy rodzaj transportu." });
-		}
-		if ((event.eventName === "room_joined") !== (event.roomOccupancyBucket !== null)) {
-			context.addIssue({ code: "custom", message: "Nieprawidłowy przedział liczby osób." });
-		}
-		if (event.eventName !== "funnel_abandoned" && event.lastCompletedStep !== event.eventName) {
-			context.addIssue({ code: "custom", message: "Nieprawidłowy ukończony krok." });
-		}
-		if (event.eventName === "funnel_abandoned" && event.lastCompletedStep === "chat_activated") {
-			context.addIssue({ code: "custom", message: "Ukończony lejek nie może być porzucony." });
-		}
+		actorPseudonym,
+		lastCompletedStep,
+		transportKind,
+		roomOccupancyBucket,
+		schemaVersion: SchemaVersionSchema,
 	});
+}
+
+export const AnalyticsEventSchema = z.discriminatedUnion("eventName", [
+	analyticsEventVariant(
+		"funnel_started",
+		NoActorSchema,
+		z.literal("funnel_started"),
+		NoTransportKindSchema,
+		NoRoomOccupancySchema,
+	),
+	analyticsEventVariant(
+		"flight_recognized",
+		NoActorSchema,
+		z.literal("flight_recognized"),
+		NoTransportKindSchema,
+		NoRoomOccupancySchema,
+	),
+	analyticsEventVariant(
+		"recommendations_viewed",
+		NoActorSchema,
+		z.literal("recommendations_viewed"),
+		NoTransportKindSchema,
+		NoRoomOccupancySchema,
+	),
+	analyticsEventVariant(
+		"transport_selected",
+		ActorPseudonymSchema,
+		z.literal("transport_selected"),
+		TransportKindSchema,
+		NoRoomOccupancySchema,
+	),
+	analyticsEventVariant(
+		"room_joined",
+		ActorPseudonymSchema,
+		z.literal("room_joined"),
+		NoTransportKindSchema,
+		RoomOccupancyBucketSchema,
+	),
+	analyticsEventVariant(
+		"chat_activated",
+		ActorPseudonymSchema,
+		z.literal("chat_activated"),
+		NoTransportKindSchema,
+		NoRoomOccupancySchema,
+	),
+	analyticsEventVariant(
+		"funnel_abandoned",
+		NoActorSchema,
+		AbandonedStepSchema,
+		NoTransportKindSchema,
+		NoRoomOccupancySchema,
+	),
+]);
+
+/**
+ * One name per member, never a union of names: narrowing has to be able to discard a member
+ * whole. The actor field is declared and forbidden, so passing one is a compile error.
+ */
+type AnonymousEvent<Actor extends string, Name extends AnalyticsEventName> = {
+	eventName: Name;
+} & Partial<Record<Actor, never>>;
+
+/**
+ * The events a caller may record, one variant per name — the funnel boundary events are
+ * written by the ledger itself, never tracked. The actor field is named by the caller's
+ * currency: data-service holds a raw `userId` and hashes it, data-ops stores the derived
+ * `actorPseudonym`. One definition, two projections, so neither package keeps a copy.
+ */
+export type AnalyticsEventInput<Actor extends string = "actorPseudonym"> =
+	| AnonymousEvent<Actor, "flight_recognized">
+	| AnonymousEvent<Actor, "recommendations_viewed">
+	| ({ eventName: "transport_selected"; transportKind: TransportKind } & Record<Actor, string>)
+	| ({
+			eventName: "room_joined";
+			roomOccupancyBucket: RoomOccupancyBucket;
+	  } & Record<Actor, string>)
+	| ({ eventName: "chat_activated" } & Record<Actor, string>);
 
 export const AnalyticsFunnelStateSchema = z.strictObject({
 	funnelId: FunnelIdSchema,
