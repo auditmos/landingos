@@ -1,120 +1,23 @@
-import type { PublicRoomMember, RoomAccessContext, RoomSnapshot } from "@repo/data-ops/room";
+import type { RoomSnapshot } from "@repo/data-ops/room";
 import { RoomQueryError } from "@repo/data-ops/room";
-import { Hono } from "hono";
 import { vi } from "vitest";
-import { ANALYTICS_FUNNEL_HEADER, type AnalyticsTracker } from "../../analytics/service";
+import { ANALYTICS_FUNNEL_HEADER } from "../../analytics/service";
 import {
 	createFlightRoomService,
 	type FlightRoomService,
 	type FlightRoomServiceDependencies,
 	FlightRoomServiceError,
 } from "../../room/service";
-import { createRoomHandlers } from "./room-handlers";
-
-const FUNNEL_ID = "00112233445566778899aabbccddeeff";
-
-const room = {
-	id: "018f4c8e-5697-7df4-8f6e-c7644b137e5b",
-	flightInstanceId: "flight-1",
-	closesAt: "2026-09-15T08:20:00.000Z",
-};
-const member: PublicRoomMember = {
-	pseudonym: "Alicja BGY",
-	selection: {
-		kind: "public_transport",
-		badges: ["recommended"],
-		modes: ["bus"],
-		operatorNames: ["Airport Bus Express"],
-	},
-};
-const snapshot: RoomSnapshot = {
-	room,
+import {
+	access,
+	browserHeaders,
+	buildApp,
+	FUNNEL_ID,
 	member,
-	members: [member],
-	messages: [],
-};
-const access: RoomAccessContext = {
+	pastFlight,
 	room,
-	membershipId: "018f4c8e-5697-7df4-8f6e-c7644b137e51",
-	userId: "user-1",
-	coordinatorKey: "flight-1",
-};
-const pastFlight = {
-	flight: {
-		id: "flight-0",
-		marketingCarrierCode: "FR",
-		marketingCarrierName: "Ryanair",
-		marketingFlightNumber: "1234",
-		operatingCarrierCode: null,
-		operatingFlightNumber: null,
-		departureLocalDate: "2026-09-01",
-		originIata: "WAW",
-		destinationIata: "BGY" as const,
-		scheduledArrivalUtc: "2026-09-01T08:20:00.000Z",
-		displayTimezone: "Europe/Rome" as const,
-		source: "provider" as const,
-	},
-	closedAt: "2026-09-02T08:20:00.000Z",
-};
-
-function buildApp(serviceOverrides: Partial<FlightRoomService> = {}) {
-	const service: FlightRoomService = {
-		join: vi.fn(async () => snapshot),
-		list: vi.fn(async () => [room]),
-		listPast: vi.fn(async () => [pastFlight]),
-		getSnapshot: vi.fn(async () => snapshot),
-		replaceSelection: vi.fn(async (_roomId, _userId, selection) => ({
-			...member,
-			selection,
-		})),
-		createMessage: vi.fn(async (_roomId, _userId, input) => ({
-			created: true,
-			message: {
-				id: "018f4c8e-5697-7df4-8f6e-c7644b137e52",
-				clientMessageId: input.clientMessageId,
-				pseudonym: "Alicja BGY",
-				content: input.content,
-				createdAt: "2026-09-14T07:00:00.000Z",
-			},
-		})),
-		issueTicket: vi.fn(async () => ({
-			ticket: "a".repeat(64),
-			expiresAt: "2026-09-14T07:01:00.000Z",
-		})),
-		authenticateTicket: vi.fn(async () => access),
-		authenticateUser: vi.fn(async () => access),
-		hasAcceptedCurrentRules: vi.fn(async () => true),
-		...serviceOverrides,
-	};
-	const getSession = vi.fn(async (request: Request) => {
-		if (request.headers.get("authorization") === "Bearer native-session") {
-			return { user: { id: "user-1" } };
-		}
-		if (request.headers.get("cookie") === "better-auth.session_token=browser-session") {
-			return { user: { id: "user-1" } };
-		}
-		return null;
-	});
-	const openSocket = vi.fn(async () => new Response(null, { status: 204 }));
-	const analytics: AnalyticsTracker = {
-		begin: vi.fn(async () => FUNNEL_ID),
-		track: vi.fn(async () => FUNNEL_ID),
-	};
-	const handlers = createRoomHandlers({
-		createService: () => service,
-		createAnalyticsTracker: () => analytics,
-		getSession,
-		openSocket,
-	});
-	const app = new Hono();
-	app.route("/rooms", handlers);
-	return { analytics, app, getSession, openSocket, service };
-}
-
-const browserHeaders = {
-	"content-type": "application/json",
-	cookie: "better-auth.session_token=browser-session",
-};
+	snapshot,
+} from "./room-handlers.fixtures";
 
 describe("flight room authenticated HTTP API", () => {
 	it("returns the caller's past flights and requires a session for them", async () => {
@@ -265,6 +168,58 @@ describe("flight room authenticated HTTP API", () => {
 		}
 	});
 
+	it("rejects an unparsable body in Polish on every room mutation route", async () => {
+		// Malformed and empty bodies both reach the schema as `undefined`; the reply must
+		// stay the family's own Polish copy rather than a raw zod message.
+		const routes = [
+			{
+				path: "/rooms/join",
+				method: "POST",
+				code: "ROOM_JOIN_INVALID",
+				error: "Wybierz rozpoznany lot.",
+				called: (service: FlightRoomService) => service.join,
+			},
+			{
+				path: `/rooms/${room.id}/selection`,
+				method: "PUT",
+				code: "ROOM_SELECTION_INVALID",
+				error: "Nieprawidłowy wybór transportu.",
+				called: (service: FlightRoomService) => service.replaceSelection,
+			},
+			{
+				path: `/rooms/${room.id}/messages`,
+				method: "POST",
+				code: "ROOM_MESSAGE_INVALID",
+				error: "Nieprawidłowa wiadomość.",
+				called: (service: FlightRoomService) => service.createMessage,
+			},
+		] as const;
+		for (const route of routes) {
+			for (const body of ["{", ""]) {
+				const { app, service } = buildApp();
+				const response = await app.request(route.path, {
+					method: route.method,
+					headers: browserHeaders,
+					body,
+				});
+				expect(response.status).toBe(400);
+				expect(await response.json()).toEqual({ code: route.code, error: route.error });
+				expect(route.called(service)).not.toHaveBeenCalled();
+			}
+		}
+	});
+
+	it("still accepts a valid JSON body sent without a content-type header", async () => {
+		const { app, service } = buildApp();
+		const response = await app.request("/rooms/join", {
+			method: "POST",
+			headers: { cookie: "better-auth.session_token=browser-session" },
+			body: JSON.stringify({ flightInstanceId: "flight-1" }),
+		});
+		expect(response.status).toBe(200);
+		expect(service.join).toHaveBeenCalledWith("flight-1", "user-1");
+	});
+
 	it("returns a typed rules_acceptance_required response for an unaccepted HTTP send", async () => {
 		const { app } = buildApp({
 			createMessage: vi.fn(async () => {
@@ -347,88 +302,6 @@ describe("flight room authenticated HTTP API", () => {
 			expiresAt: "2026-09-14T07:01:00.000Z",
 		});
 		expect(service.issueTicket).toHaveBeenCalledWith(room.id, "user-1");
-	});
-});
-
-describe("flight room WebSocket authorization matrix", () => {
-	it("accepts one browser ticket once, then rejects its replay", async () => {
-		const authenticateTicket = vi
-			.fn<FlightRoomService["authenticateTicket"]>()
-			.mockResolvedValueOnce(access)
-			.mockResolvedValueOnce(null);
-		const { app, openSocket } = buildApp({ authenticateTicket });
-		const url = `/rooms/${room.id}/connect?ticket=${"a".repeat(64)}`;
-		expect(
-			(
-				await app.request(url, {
-					headers: { Upgrade: "websocket" },
-				})
-			).status,
-		).toBe(204);
-		expect(
-			(
-				await app.request(url, {
-					headers: { Upgrade: "websocket" },
-				})
-			).status,
-		).toBe(401);
-		expect(openSocket).toHaveBeenCalledTimes(1);
-	});
-
-	it.each([
-		"wrong-room",
-		"expired",
-		"malformed",
-	])("fails closed for a %s browser ticket", async () => {
-		const { app, openSocket } = buildApp({
-			authenticateTicket: vi.fn(async () => null),
-		});
-		const response = await app.request(`/rooms/${room.id}/connect?ticket=${"b".repeat(64)}`, {
-			headers: { Upgrade: "websocket" },
-		});
-		expect(response.status).toBe(401);
-		expect(openSocket).not.toHaveBeenCalled();
-	});
-
-	it("accepts a native Bearer upgrade without cookies", async () => {
-		const { app, getSession, openSocket, service } = buildApp();
-		const response = await app.request(`/rooms/${room.id}/connect`, {
-			headers: { Upgrade: "websocket", Authorization: "Bearer native-session" },
-		});
-		expect(response.status).toBe(204);
-		expect(getSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				headers: expect.objectContaining({}),
-			}),
-		);
-		const sessionRequest = getSession.mock.calls[0]?.[0];
-		expect(sessionRequest?.headers.get("cookie")).toBeNull();
-		expect(service.authenticateUser).toHaveBeenCalledWith(room.id, "user-1");
-		expect(openSocket).toHaveBeenCalledWith(access, expect.any(Request), true, undefined);
-	});
-
-	it("rejects a cookie-only WebSocket upgrade so browsers must use a ticket", async () => {
-		const { app, getSession, openSocket } = buildApp();
-		const response = await app.request(`/rooms/${room.id}/connect`, {
-			headers: {
-				Upgrade: "websocket",
-				cookie: "better-auth.session_token=browser-session",
-			},
-		});
-		expect(response.status).toBe(401);
-		expect(getSession).not.toHaveBeenCalled();
-		expect(openSocket).not.toHaveBeenCalled();
-	});
-
-	it("allows an unaccepted member to connect for reading but marks the socket unaccepted", async () => {
-		const { app, openSocket } = buildApp({
-			hasAcceptedCurrentRules: vi.fn(async () => false),
-		});
-		const response = await app.request(`/rooms/${room.id}/connect?ticket=${"a".repeat(64)}`, {
-			headers: { Upgrade: "websocket" },
-		});
-		expect(response.status).toBe(204);
-		expect(openSocket).toHaveBeenCalledWith(access, expect.any(Request), false, undefined);
 	});
 });
 

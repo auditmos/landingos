@@ -18,6 +18,7 @@ import {
 	type UserVariables,
 } from "../middleware/session-auth";
 import { invalidRoomId, serviceErrorResponder } from "../utils/api-errors";
+import { parseJsonBody } from "../utils/request-body";
 
 export interface SafetyHandlerDependencies {
 	createService(env: Env): SafetyService;
@@ -52,10 +53,8 @@ export function createSafetyHandlers(
 	});
 
 	safety.post("/rules/accept", authenticated, async (c) => {
-		const parsed = CommunityRulesAcceptanceRequestSchema.safeParse(
-			await c.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, CommunityRulesAcceptanceRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json(
 				{ code: "safety_request_invalid", error: "Nieprawidłowa wersja zasad społeczności." },
 				400,
@@ -63,7 +62,7 @@ export function createSafetyHandlers(
 		}
 		try {
 			return c.json(
-				await dependencies.createService(c.env).acceptRules(c.get("userId"), parsed.data),
+				await dependencies.createService(c.env).acceptRules(c.get("userId"), body.data),
 			);
 		} catch (error) {
 			return serviceError(c, error);
@@ -85,15 +84,15 @@ export function createSafetyHandlers(
 	safety.put("/rooms/:roomId/blocks", authenticated, mutationLimiter, async (c) => {
 		const parsedRoomId = RoomIdSchema.safeParse(c.req.param("roomId"));
 		if (!parsedRoomId.success) return invalidRoomId(c);
-		const parsed = RoomBlockRequestSchema.safeParse(await c.req.json().catch(() => undefined));
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, RoomBlockRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json({ code: "safety_request_invalid", error: "Wskaż prawidłowy pseudonim." }, 400);
 		}
 		try {
 			return c.json(
 				await dependencies
 					.createService(c.env)
-					.block(c.get("userId"), parsedRoomId.data, parsed.data),
+					.block(c.get("userId"), parsedRoomId.data, body.data),
 			);
 		} catch (error) {
 			return serviceError(c, error);
@@ -129,16 +128,14 @@ export function createSafetyHandlers(
 	safety.post("/rooms/:roomId/reports", authenticated, mutationLimiter, async (c) => {
 		const parsedRoomId = RoomIdSchema.safeParse(c.req.param("roomId"));
 		if (!parsedRoomId.success) return invalidRoomId(c);
-		const parsed = SafetyReportCreateRequestSchema.safeParse(
-			await c.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, SafetyReportCreateRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json({ code: "safety_request_invalid", error: "Sprawdź dane zgłoszenia." }, 400);
 		}
 		try {
 			const result = await dependencies
 				.createService(c.env)
-				.report(c.get("userId"), parsedRoomId.data, parsed.data);
+				.report(c.get("userId"), parsedRoomId.data, body.data);
 			return c.json(result, result.created ? 201 : 200);
 		} catch (error) {
 			return serviceError(c, error);

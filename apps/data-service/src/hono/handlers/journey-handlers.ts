@@ -18,7 +18,9 @@ import {
 import { createJourneyService } from "../../journey/service";
 import { resolveCatalogFreshnessDays } from "../../operator/catalog-service";
 import { type DiagnosticContext, resolveProviderAdapters } from "../../providers";
+import { validationErrorBody } from "../utils/api-errors";
 import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
+import { parseJsonBody } from "../utils/request-body";
 
 export interface JourneyHandlerOperations {
 	recommend(input: JourneyRecommendationRequest): Promise<JourneyRecommendationResult>;
@@ -124,19 +126,12 @@ export function createJourneyHandlers(
 ) {
 	const journeys = new Hono<{ Bindings: Env }>();
 	journeys.post("/recommend", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = JourneyRecommendationRequestSchema.safeParse(body);
-		if (!parsed.success) {
-			return c.json(
-				{
-					status: "validation_error" as const,
-					fieldErrors: parsed.error.flatten().fieldErrors,
-				},
-				400,
-			);
+		const body = await parseJsonBody(c, JourneyRecommendationRequestSchema, {});
+		if (!body.ok) {
+			return c.json(validationErrorBody(body.error), 400);
 		}
 		const result = await operationsFactory(c.env, requestDiagnosticContext(c, "trasa")).recommend(
-			parsed.data,
+			body.data,
 		);
 		if (result.status === "recommendations") {
 			const funnelId = await analyticsFactory(c.env).track(readRequestedFunnelId(c.req.raw), {

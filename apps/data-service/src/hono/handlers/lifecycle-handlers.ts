@@ -1,6 +1,7 @@
 import { AccountRedactionRequestSchema } from "@repo/data-ops/lifecycle";
 import { RoomRedactedEventSchema } from "@repo/data-ops/room";
 import { Hono } from "hono";
+import { parseJsonBody } from "../utils/request-body";
 
 export interface LifecycleHandlerDependencies {
 	expectedToken(env: Env): string;
@@ -28,20 +29,18 @@ export function createLifecycleHandlers(
 		if (!expected || c.req.header("Authorization") !== `Bearer ${expected}`) {
 			return c.json({ code: "unauthorized", error: "Brak dostępu do operacji wewnętrznej." }, 401);
 		}
-		const parsed = AccountRedactionRequestSchema.safeParse(
-			await c.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, AccountRedactionRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json(
 				{ code: "lifecycle_request_invalid", error: "Nieprawidłowa lista pokojów." },
 				400,
 			);
 		}
 		const event = RoomRedactedEventSchema.parse({ type: "room_redacted" });
-		for (const room of parsed.data.rooms) {
+		for (const room of body.data.rooms) {
 			await dependencies.broadcastRedaction(c.env, room.coordinatorKey, room.roomId, event);
 		}
-		return c.json({ redactedRooms: parsed.data.rooms.length });
+		return c.json({ redactedRooms: body.data.rooms.length });
 	});
 	return lifecycle;
 }

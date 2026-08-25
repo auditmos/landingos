@@ -19,6 +19,7 @@ import {
 	type OperatorVariables,
 	operatorOnly,
 } from "../middleware/operator-only";
+import { parseJsonBody } from "../utils/request-body";
 
 interface OperatorReportsHandlerDependencies extends OperatorOnlyOptions {
 	listReports(query: SafetyReportQueueQuery): Promise<SafetyReportQueueResponse>;
@@ -74,10 +75,8 @@ export function createOperatorReportsHandlers(
 		if (!reportId.success) {
 			return c.json({ code: "REPORT_NOT_FOUND", error: "Nie znaleziono zgłoszenia." }, 404);
 		}
-		const parsed = SafetyReportStatusPatchSchema.safeParse(
-			await c.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, SafetyReportStatusPatchSchema, undefined);
+		if (!body.ok) {
 			return c.json(
 				{ code: "REPORT_STATUS_INVALID", error: "Wskaż prawidłowy status zgłoszenia." },
 				400,
@@ -86,7 +85,7 @@ export function createOperatorReportsHandlers(
 		const result = await dependencies.setReportStatus({
 			reportId: reportId.data,
 			operatorId: c.get("operatorUserId"),
-			status: parsed.data.status,
+			status: body.data.status,
 		});
 		if (!result) {
 			return c.json({ code: "REPORT_NOT_FOUND", error: "Nie znaleziono zgłoszenia." }, 404);

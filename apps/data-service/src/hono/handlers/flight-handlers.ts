@@ -18,7 +18,9 @@ import {
 import { createFlightService } from "../../flight/service";
 import { type DiagnosticContext, resolveProviderAdapters } from "../../providers";
 import { turnstileGuard } from "../middleware/turnstile";
+import { validationErrorBody } from "../utils/api-errors";
 import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
+import { parseJsonBody } from "../utils/request-body";
 
 export interface FlightHandlerOperations {
 	resolve(input: FlightLookupRequest): Promise<FlightResolveResult>;
@@ -71,15 +73,6 @@ function publicResult(result: FlightResolveResult): FlightResolveResult {
 	};
 }
 
-function validationResponse(error: {
-	flatten(): { fieldErrors: Record<string, string[] | undefined> };
-}) {
-	return {
-		status: "validation_error" as const,
-		fieldErrors: error.flatten().fieldErrors,
-	};
-}
-
 export function createFlightHandlers(
 	operationsFactory: FlightOperationsFactory = defaultOperations,
 	analyticsFactory: FlightAnalyticsFactory = createDatabaseAnalyticsTracker,
@@ -90,15 +83,14 @@ export function createFlightHandlers(
 	const flights = new Hono<{ Bindings: Env }>();
 
 	flights.post("/resolve", captchaGuard, async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = FlightLookupRequestSchema.safeParse(body);
-		if (!parsed.success) {
-			return c.json(validationResponse(parsed.error), 400);
+		const body = await parseJsonBody(c, FlightLookupRequestSchema, {});
+		if (!body.ok) {
+			return c.json(validationErrorBody(body.error), 400);
 		}
 		const tracker = analyticsFactory(c.env);
 		let funnelId = await tracker.begin(readRequestedFunnelId(c.req.raw));
 		const result = await operationsFactory(c.env, requestDiagnosticContext(c, "lot")).resolve(
-			parsed.data,
+			body.data,
 		);
 		if (result.status === "recognized") {
 			funnelId = await tracker.track(funnelId, { eventName: "flight_recognized" });
@@ -108,17 +100,16 @@ export function createFlightHandlers(
 	});
 
 	flights.post("/manual", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = ManualFlightRequestSchema.safeParse(body);
-		if (!parsed.success) {
-			return c.json(validationResponse(parsed.error), 400);
+		const body = await parseJsonBody(c, ManualFlightRequestSchema, {});
+		if (!body.ok) {
+			return c.json(validationErrorBody(body.error), 400);
 		}
 		const tracker = analyticsFactory(c.env);
 		let funnelId = await tracker.begin(readRequestedFunnelId(c.req.raw));
 		const result = await operationsFactory(
 			c.env,
 			requestDiagnosticContext(c, "lot"),
-		).completeManual(parsed.data);
+		).completeManual(body.data);
 		if (result.status === "recognized") {
 			funnelId = await tracker.track(funnelId, { eventName: "flight_recognized" });
 		}

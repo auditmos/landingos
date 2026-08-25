@@ -100,6 +100,34 @@ function post(body: unknown) {
 }
 
 describe("anonymous journey route", () => {
+	it("reports every required field when the body will not parse", async () => {
+		// An unparsable body reads as `{}` here so the caller sees each missing field
+		// rather than one opaque form error — the fallback this family depends on.
+		for (const body of ["{", ""]) {
+			const service = operations();
+			const { app, analytics } = buildApp(service);
+			const response = await app.fetch(
+				new Request("http://localhost/recommend", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body,
+				}),
+				{} as Env,
+			);
+			expect(response.status).toBe(400);
+			expect(await response.json()).toEqual({
+				status: "validation_error",
+				fieldErrors: {
+					flightInstanceId: ["Invalid input: expected string, received undefined"],
+					scheduledArrivalUtc: ["Invalid input: expected string, received undefined"],
+					privateDestinationCoordinates: ["Invalid input: expected object, received undefined"],
+				},
+			});
+			expect(service.recommend).not.toHaveBeenCalled();
+			expect(analytics.track).not.toHaveBeenCalled();
+		}
+	});
+
 	it("rejects invalid buffer increments before any provider/service call", async () => {
 		const service = operations();
 		const { app, analytics } = buildApp(service);

@@ -19,6 +19,7 @@ import {
 	type OperatorSession,
 	operatorOnly,
 } from "../middleware/operator-only";
+import { type BodyError, parseJsonBody } from "../utils/request-body";
 
 interface OperatorCatalogHandlerDependencies extends OperatorOnlyOptions {
 	createService(env: Env): CatalogService;
@@ -41,7 +42,7 @@ function publicRecord(record: TransferCatalogRecord): TransferCatalogRecord {
 	return TransferCatalogRecordSchema.parse(record);
 }
 
-function inputError(error: { issues: { path: PropertyKey[] }[] }) {
+function inputError(error: BodyError) {
 	const fieldErrors: Record<string, string> = {};
 	for (const issue of error.issues) {
 		const field = typeof issue.path[0] === "string" ? issue.path[0] : "_form";
@@ -74,18 +75,16 @@ export function createOperatorCatalogHandlers(
 	});
 
 	catalog.post("/", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = TransferCatalogDraftInputSchema.safeParse(body);
-		if (!parsed.success) return c.json(inputError(parsed.error), 400);
-		const entry = await dependencies.createService(c.env).create(parsed.data);
+		const body = await parseJsonBody(c, TransferCatalogDraftInputSchema, {});
+		if (!body.ok) return c.json(inputError(body.error), 400);
+		const entry = await dependencies.createService(c.env).create(body.data);
 		return c.json(publicRecord(entry), 201);
 	});
 
 	catalog.post("/publish", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = TransferCatalogDraftInputSchema.safeParse(body);
-		if (!parsed.success) return c.json(inputError(parsed.error), 400);
-		const result = await dependencies.createService(c.env).saveAndPublish(null, parsed.data);
+		const body = await parseJsonBody(c, TransferCatalogDraftInputSchema, {});
+		if (!body.ok) return c.json(inputError(body.error), 400);
+		const result = await dependencies.createService(c.env).saveAndPublish(null, body.data);
 		if (!result.ok && result.reason === "validation_error") {
 			return c.json(
 				{
@@ -101,10 +100,9 @@ export function createOperatorCatalogHandlers(
 	});
 
 	catalog.patch("/:id", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = TransferCatalogDraftPatchSchema.safeParse(body);
-		if (!parsed.success) return c.json(inputError(parsed.error), 400);
-		const result = await dependencies.createService(c.env).update(c.req.param("id"), parsed.data);
+		const body = await parseJsonBody(c, TransferCatalogDraftPatchSchema, {});
+		if (!body.ok) return c.json(inputError(body.error), 400);
+		const result = await dependencies.createService(c.env).update(c.req.param("id"), body.data);
 		if (!result.ok && result.reason === "validation_error") {
 			return c.json(
 				{
@@ -118,6 +116,9 @@ export function createOperatorCatalogHandlers(
 		return result.ok ? c.json(publicRecord(result.data)) : c.json(notFound(), 404);
 	});
 
+	// The one route that reads its body by hand: `parseJsonBody`'s stand-ins cannot
+	// express "no body at all", and this route must tell that apart from `{}` to know
+	// whether it is publishing the saved draft or saving new values first.
 	catalog.post("/:id/publish", async (c) => {
 		const body = await c.req.json().catch(() => null);
 		const publishesSavedDraft =

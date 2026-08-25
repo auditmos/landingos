@@ -68,6 +68,45 @@ const cookieHeaders = {
 };
 
 describe("authenticated community safety API", () => {
+	it("rejects an unparsable body with the family's fixed Polish copy", async () => {
+		const routes = [
+			{
+				path: "/safety/rules/accept",
+				method: "POST",
+				error: "Nieprawidłowa wersja zasad społeczności.",
+				called: (service: SafetyService) => service.acceptRules,
+			},
+			{
+				path: `/safety/rooms/${ROOM_ID}/blocks`,
+				method: "PUT",
+				error: "Wskaż prawidłowy pseudonim.",
+				called: (service: SafetyService) => service.block,
+			},
+			{
+				path: `/safety/rooms/${ROOM_ID}/reports`,
+				method: "POST",
+				error: "Sprawdź dane zgłoszenia.",
+				called: (service: SafetyService) => service.report,
+			},
+		] as const;
+		for (const route of routes) {
+			for (const body of ["{", ""]) {
+				const { app, service } = buildApp();
+				const response = await app.request(route.path, {
+					method: route.method,
+					headers: cookieHeaders,
+					body,
+				});
+				expect(response.status).toBe(400);
+				expect(await response.json()).toEqual({
+					code: "safety_request_invalid",
+					error: route.error,
+				});
+				expect(route.called(service)).not.toHaveBeenCalled();
+			}
+		}
+	});
+
 	it("allows reading and accepting the current rules before sending", async () => {
 		const { app, service } = buildApp();
 		const status = await app.request("/safety/rules", { headers: cookieHeaders });

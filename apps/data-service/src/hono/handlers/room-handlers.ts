@@ -31,6 +31,7 @@ import {
 	type UserVariables,
 } from "../middleware/session-auth";
 import { invalidRoomId, serviceErrorResponder, UNAUTHORIZED_BODY } from "../utils/api-errors";
+import { parseJsonBody } from "../utils/request-body";
 
 export interface RoomHandlerDependencies {
 	createService(env: Env): FlightRoomService;
@@ -85,14 +86,14 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 
 	rooms.post("/join", authenticated, async (c) => {
 		const userId = c.get("userId");
-		const parsed = RoomJoinRequestSchema.safeParse(await c.req.json().catch(() => undefined));
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, RoomJoinRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json({ code: "ROOM_JOIN_INVALID", error: "Wybierz rozpoznany lot." }, 400);
 		}
 		try {
 			const snapshot = await dependencies
 				.createService(c.env)
-				.join(parsed.data.flightInstanceId, userId);
+				.join(body.data.flightInstanceId, userId);
 			const funnelId = await dependencies
 				.createAnalyticsTracker(c.env)
 				.track(readRequestedFunnelId(c.req.raw), {
@@ -123,10 +124,8 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		const userId = c.get("userId");
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
 		if (!roomId.success) return invalidRoomId(c);
-		const parsed = RoomSelectionUpdateRequestSchema.safeParse(
-			await c.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, RoomSelectionUpdateRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json(
 				{ code: "ROOM_SELECTION_INVALID", error: "Nieprawidłowy wybór transportu." },
 				400,
@@ -135,13 +134,13 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		try {
 			const member = await dependencies
 				.createService(c.env)
-				.replaceSelection(roomId.data, userId, parsed.data.selection);
+				.replaceSelection(roomId.data, userId, body.data.selection);
 			const funnelId = await dependencies
 				.createAnalyticsTracker(c.env)
 				.track(readRequestedFunnelId(c.req.raw), {
 					eventName: "transport_selected",
 					userId,
-					transportKind: parsed.data.selection.kind,
+					transportKind: body.data.selection.kind,
 				});
 			c.header(ANALYTICS_FUNNEL_HEADER, funnelId);
 			return c.json(member);
@@ -154,14 +153,17 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		const userId = c.get("userId");
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
 		if (!roomId.success) return invalidRoomId(c);
-		const parsed = RoomMessageCreateRequestSchema.safeParse(
-			await c.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
+		const body = await parseJsonBody(c, RoomMessageCreateRequestSchema, undefined);
+		if (!body.ok) {
 			return c.json(
 				{
 					code: "ROOM_MESSAGE_INVALID",
-					error: parsed.error.issues[0]?.message ?? "Nieprawidłowa wiadomość.",
+					// Only a field-level issue carries Polish copy. Zod's top-level
+					// "expected object, received undefined" — what an unparsable body
+					// produces — is English, so it must never reach the wire.
+					error:
+						body.error.issues.find((issue) => issue.path.length > 0)?.message ??
+						"Nieprawidłowa wiadomość.",
 				},
 				400,
 			);
@@ -169,7 +171,7 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		try {
 			const result = await dependencies
 				.createService(c.env)
-				.createMessage(roomId.data, userId, parsed.data);
+				.createMessage(roomId.data, userId, body.data);
 			const funnelId = await dependencies
 				.createAnalyticsTracker(c.env)
 				.track(readRequestedFunnelId(c.req.raw), {

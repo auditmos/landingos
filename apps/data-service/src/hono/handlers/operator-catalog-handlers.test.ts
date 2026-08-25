@@ -157,6 +157,62 @@ const currentPublishInput: TransferCatalogDraftInput = {
 };
 
 describe("operator catalog Hono API", () => {
+	it.each([
+		"{",
+		"",
+	] as const)("treats an unparsable draft body (%j) as an empty draft, and refuses an empty patch", async (body) => {
+		// Every draft field is optional by design — an operator saves incomplete work —
+		// so `{}` is a *valid* draft input and an unparsable POST body creates a blank
+		// entry rather than rejecting. The patch schema refuses `{}` on its own refine.
+		const app = buildApp();
+		const created = await app.request("/operator/catalog", {
+			method: "POST",
+			headers: operatorHeaders,
+			body,
+		});
+		expect(created.status).toBe(201);
+		const entry = (await created.json()) as TransferCatalogRecord;
+		expect(entry.operatorName).toBeNull();
+		expect(entry.publicationStatus).toBe("draft");
+
+		const patched = await app.request(`/operator/catalog/${entry.id}`, {
+			method: "PATCH",
+			headers: operatorHeaders,
+			body,
+		});
+		expect(patched.status).toBe(400);
+		expect(await patched.json()).toEqual({
+			code: "CATALOG_INPUT_INVALID",
+			error: "Popraw dane formularza.",
+			fieldErrors: { _form: "Nieprawidłowa wartość." },
+		});
+	});
+
+	it("keeps POST /:id/publish publishing the saved draft when the body will not parse", async () => {
+		// The one route that must tell an absent body from an empty object: it still
+		// reads its body by hand, with a `null` stand-in, and stays out of the sweep.
+		const app = buildApp();
+		const created = await app.request("/operator/catalog", {
+			method: "POST",
+			headers: operatorHeaders,
+			body: JSON.stringify(currentPublishInput),
+		});
+		const entry = (await created.json()) as TransferCatalogRecord;
+		for (const body of ["{", "", "{}"]) {
+			const published = await app.request(`/operator/catalog/${entry.id}/publish`, {
+				method: "POST",
+				headers: operatorHeaders,
+				body,
+			});
+			expect(published.status).toBe(200);
+			expect((await published.json()) as TransferCatalogRecord).toMatchObject({
+				id: entry.id,
+				operatorName: currentPublishInput.operatorName,
+				publicationStatus: "published",
+			});
+		}
+	});
+
 	const endpointMatrix = [
 		["GET", "/operator/catalog"],
 		["GET", "/operator/catalog/missing"],

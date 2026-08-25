@@ -38,6 +38,16 @@ function operations(
 	};
 }
 
+const MISSING_STRING = ["Invalid input: expected string, received undefined"];
+
+function raw(path: string, body: string) {
+	return new Request(`http://localhost${path}`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body,
+	});
+}
+
 function post(path: string, body: unknown) {
 	return new Request(`http://localhost${path}`, {
 		method: "POST",
@@ -47,6 +57,23 @@ function post(path: string, body: unknown) {
 }
 
 describe("anonymous private destination routes", () => {
+	it.each([
+		["/autocomplete", { query: MISSING_STRING, sessionToken: MISSING_STRING }],
+		["/select", { placeId: MISSING_STRING, sessionToken: MISSING_STRING }],
+	] as const)("reports every required field of %s when the body will not parse", async (path, fieldErrors) => {
+		// An unparsable body reads as `{}` here so the caller sees each missing field
+		// rather than one opaque form error — the fallback this family depends on.
+		for (const body of ["{", ""]) {
+			const service = operations();
+			const app = createDestinationHandlers(() => service);
+			const response = await app.fetch(raw(path, body), {} as Env);
+			expect(response.status).toBe(400);
+			expect(await response.json()).toEqual({ status: "validation_error", fieldErrors });
+			expect(service.autocomplete).not.toHaveBeenCalled();
+			expect(service.select).not.toHaveBeenCalled();
+		}
+	});
+
 	it("returns a Polish field error and makes zero service/provider calls below three characters", async () => {
 		const service = operations();
 		const app = createDestinationHandlers(() => service);

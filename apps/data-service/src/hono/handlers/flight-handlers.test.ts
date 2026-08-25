@@ -53,6 +53,16 @@ function buildApp(service: FlightHandlerOperations, analytics = tracker()) {
 	};
 }
 
+const MISSING_STRING = ["Invalid input: expected string, received undefined"];
+
+function raw(path: string, body: string) {
+	return new Request(`http://localhost${path}`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body,
+	});
+}
+
 function post(path: string, body: unknown, funnelId?: string) {
 	return new Request(`http://localhost${path}`, {
 		method: "POST",
@@ -65,6 +75,38 @@ function post(path: string, body: unknown, funnelId?: string) {
 }
 
 describe("anonymous flight routes", () => {
+	it.each([
+		[
+			"/resolve",
+			{
+				flightNumber: MISSING_STRING,
+				departureLocalDate: MISSING_STRING,
+			},
+		],
+		[
+			"/manual",
+			{
+				flightNumber: MISSING_STRING,
+				departureLocalDate: MISSING_STRING,
+				destinationIata: ["W tej wersji obsługiwane jest wyłącznie lotnisko BGY."],
+				scheduledArrivalUtc: MISSING_STRING,
+			},
+		],
+	] as const)("reports every required field of %s when the body will not parse", async (path, fieldErrors) => {
+		// An unparsable body reads as `{}` here so the caller sees each missing field
+		// rather than one opaque form error — the fallback this family depends on.
+		for (const body of ["{", ""]) {
+			const service = operations();
+			const { app, analytics } = buildApp(service);
+			const response = await app.fetch(raw(path, body), {} as Env);
+			expect(response.status).toBe(400);
+			expect(await response.json()).toEqual({ status: "validation_error", fieldErrors });
+			expect(service.resolve).not.toHaveBeenCalled();
+			expect(service.completeManual).not.toHaveBeenCalled();
+			expect(analytics.begin).not.toHaveBeenCalled();
+		}
+	});
+
 	it.each([
 		[{ flightNumber: "", departureLocalDate: "2026-09-14" }, "flightNumber"],
 		[{ flightNumber: "FR12345", departureLocalDate: "2026-09-14" }, "flightNumber"],

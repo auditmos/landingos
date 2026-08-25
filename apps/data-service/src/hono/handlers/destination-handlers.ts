@@ -9,7 +9,9 @@ import {
 import { Hono } from "hono";
 import { createDestinationService } from "../../destination/service";
 import { type DiagnosticContext, resolveProviderAdapters } from "../../providers";
+import { validationErrorBody } from "../utils/api-errors";
 import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
+import { parseJsonBody } from "../utils/request-body";
 
 export interface DestinationHandlerOperations {
 	autocomplete(input: DestinationAutocompleteRequest): Promise<DestinationAutocompleteResult>;
@@ -65,38 +67,27 @@ function publicSelectionResult(result: DestinationSelectionResult): DestinationS
 	};
 }
 
-function validationResponse(error: {
-	flatten(): { fieldErrors: Record<string, string[] | undefined> };
-}) {
-	return {
-		status: "validation_error" as const,
-		fieldErrors: error.flatten().fieldErrors,
-	};
-}
-
 export function createDestinationHandlers(
 	operationsFactory: DestinationOperationsFactory = defaultOperations,
 ) {
 	const destinations = new Hono<{ Bindings: Env }>();
 
 	destinations.post("/autocomplete", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = DestinationAutocompleteRequestSchema.safeParse(body);
-		if (!parsed.success) {
-			return c.json(validationResponse(parsed.error), 400);
+		const body = await parseJsonBody(c, DestinationAutocompleteRequestSchema, {});
+		if (!body.ok) {
+			return c.json(validationErrorBody(body.error), 400);
 		}
 		const operations = operationsFactory(c.env, requestDiagnosticContext(c, "miejsce"));
-		return c.json(publicAutocompleteResult(await operations.autocomplete(parsed.data)));
+		return c.json(publicAutocompleteResult(await operations.autocomplete(body.data)));
 	});
 
 	destinations.post("/select", async (c) => {
-		const body = await c.req.json().catch(() => ({}));
-		const parsed = DestinationSelectionRequestSchema.safeParse(body);
-		if (!parsed.success) {
-			return c.json(validationResponse(parsed.error), 400);
+		const body = await parseJsonBody(c, DestinationSelectionRequestSchema, {});
+		if (!body.ok) {
+			return c.json(validationErrorBody(body.error), 400);
 		}
 		const operations = operationsFactory(c.env, requestDiagnosticContext(c, "miejsce"));
-		return c.json(publicSelectionResult(await operations.select(parsed.data)));
+		return c.json(publicSelectionResult(await operations.select(body.data)));
 	});
 
 	return destinations;
