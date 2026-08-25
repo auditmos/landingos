@@ -30,52 +30,88 @@ import {
 const catalogQueryKey = ["operator", "transfer-catalog"] as const;
 
 type FormValues = Record<TransferCatalogEditableField, string>;
+type CatalogFieldErrors = Partial<Record<TransferCatalogEditableField, string>>;
 
+function toFormValue(
+	definition: OperatorCatalogFieldDefinition,
+	entry: TransferCatalogRecord | null,
+): string {
+	const current = entry?.[definition.name];
+	if (current === null || current === undefined) return "";
+	// A datetime-local input takes exactly "YYYY-MM-DDTHH:mm".
+	return definition.kind === "datetime" ? String(current).slice(0, 16) : String(current);
+}
+
+function toDraftValue(
+	definition: OperatorCatalogFieldDefinition,
+	raw: string,
+): string | number | null {
+	if (raw === "") return null;
+	if (definition.kind === "integer") return Number(raw);
+	if (definition.kind !== "datetime") return raw;
+	const parsed = new Date(raw);
+	// An unparsable moment travels untouched: the verdict on it is the server's.
+	return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString();
+}
+
+/*
+ * Both directions are driven by the field registry in data-ops, which owns the
+ * field list. A field added there renders, validates, and serializes here with
+ * no second list to keep in step — and none of its values can be dropped.
+ */
 function formValues(entry: TransferCatalogRecord | null): FormValues {
-	const value = (field: TransferCatalogEditableField) => {
-		const current = entry?.[field];
-		return current === null || current === undefined ? "" : String(current);
-	};
-	return {
-		operatorName: value("operatorName"),
-		serviceName: value("serviceName"),
-		destinationStopCode: value("destinationStopCode"),
-		destinationStopName: value("destinationStopName"),
-		durationMinutes: value("durationMinutes"),
-		transferCount: value("transferCount"),
-		walkingMinutes: value("walkingMinutes"),
-		walkingMeters: value("walkingMeters"),
-		sourceUrl: value("sourceUrl"),
-		checkedAt: entry?.checkedAt ? entry.checkedAt.slice(0, 16) : "",
-		costMinorMin: value("costMinorMin"),
-		costMinorMax: value("costMinorMax"),
-		purchaseUrl: value("purchaseUrl"),
-	};
+	return Object.fromEntries(
+		OPERATOR_CATALOG_FIELDS.map((definition) => [definition.name, toFormValue(definition, entry)]),
+	) as FormValues;
 }
 
 function draftInput(values: FormValues): TransferCatalogDraftInput {
-	const integer = (field: TransferCatalogEditableField) =>
-		values[field] === "" ? null : Number(values[field]);
-	let checkedAt: string | null = null;
-	if (values.checkedAt) {
-		const parsed = new Date(values.checkedAt);
-		checkedAt = Number.isNaN(parsed.getTime()) ? values.checkedAt : parsed.toISOString();
-	}
-	return {
-		operatorName: values.operatorName || null,
-		serviceName: values.serviceName || null,
-		destinationStopCode: values.destinationStopCode || null,
-		destinationStopName: values.destinationStopName || null,
-		durationMinutes: integer("durationMinutes"),
-		transferCount: integer("transferCount"),
-		walkingMinutes: integer("walkingMinutes"),
-		walkingMeters: integer("walkingMeters"),
-		sourceUrl: values.sourceUrl || null,
-		checkedAt,
-		costMinorMin: integer("costMinorMin"),
-		costMinorMax: integer("costMinorMax"),
-		purchaseUrl: values.purchaseUrl || null,
-	};
+	return Object.fromEntries(
+		OPERATOR_CATALOG_FIELDS.map((definition) => [
+			definition.name,
+			toDraftValue(definition, values[definition.name]),
+		]),
+	) as TransferCatalogDraftInput;
+}
+
+/** Everything the editor can ask of the catalog, as one dispatchable value. */
+type CatalogCommand =
+	| { kind: "save"; input: TransferCatalogDraftInput }
+	| { kind: "publish"; input: TransferCatalogDraftInput }
+	| { kind: "unpublish"; id: string }
+	| { kind: "delete"; id: string };
+
+/**
+ * The outcome of the last command, as one value: a success banner, a refusal
+ * from the server, and a publication blocked before it left the browser are
+ * variants of the same state, so two of them can never render at once.
+ */
+type CatalogFeedback =
+	| { kind: "idle" }
+	| { kind: "success"; message: string }
+	| { kind: "failure"; message: string; fieldErrors: CatalogFieldErrors }
+	| { kind: "invalid"; fieldErrors: CatalogFieldErrors };
+
+const SUCCESS_MESSAGE = {
+	save: "Szkic został zapisany.",
+	publish: "Wpis został opublikowany.",
+	unpublish: "Wpis został wycofany do szkicu.",
+	// Deleting takes the editor with it — there is nothing left to report in.
+	delete: null,
+} as const satisfies Record<CatalogCommand["kind"], string | null>;
+
+function fieldErrorsOf(feedback: CatalogFeedback): CatalogFieldErrors {
+	return feedback.kind === "failure" || feedback.kind === "invalid" ? feedback.fieldErrors : {};
+}
+
+/** Marks the fields that keep a publication in the browser, or nothing. */
+function publicationBlock(input: TransferCatalogDraftInput): CatalogFeedback | null {
+	const fieldErrors = getCatalogPublishFieldErrors(
+		input,
+		new Date(),
+		DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
+	);
+	return Object.keys(fieldErrors).length > 0 ? { kind: "invalid", fieldErrors } : null;
 }
 
 function statusLabel(entry: TransferCatalogRecord) {
@@ -151,62 +187,53 @@ interface CatalogEditorProps {
 
 function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEditorProps) {
 	const queryClient = useQueryClient();
-	const [fieldErrors, setFieldErrors] = useState<
-		Partial<Record<TransferCatalogEditableField, string>>
-	>({});
-	const [message, setMessage] = useState<string | null>(null);
+	const [feedback, setFeedback] = useState<CatalogFeedback>({ kind: "idle" });
 
-	const refresh = async () => queryClient.invalidateQueries({ queryKey: catalogQueryKey });
-	const saveMutation = useMutation({
-		mutationFn: (input: TransferCatalogDraftInput) =>
-			entry ? updateCatalogDraft(entry.id, input) : createCatalogDraft(input),
-		onSuccess: async (saved) => {
-			setFieldErrors({});
-			setMessage("Szkic został zapisany.");
-			form.reset(formValues(saved));
-			onSaved(saved);
-			await refresh();
+	const commandMutation = useMutation({
+		mutationFn: (command: CatalogCommand): Promise<TransferCatalogRecord | null> => {
+			switch (command.kind) {
+				case "save":
+					return entry
+						? updateCatalogDraft(entry.id, command.input)
+						: createCatalogDraft(command.input);
+				case "publish":
+					return saveAndPublishCatalogEntry(command.input, entry?.id);
+				case "unpublish":
+					return unpublishCatalogEntry(command.id);
+				case "delete":
+					return deleteCatalogEntry(command.id).then(() => null);
+			}
+		},
+		onSuccess: async (saved, command) => {
+			const message = SUCCESS_MESSAGE[command.kind];
+			setFeedback(message ? { kind: "success", message } : { kind: "idle" });
+			if (command.kind === "delete") {
+				onDeleted();
+			} else if (saved) {
+				if (command.kind !== "unpublish") form.reset(formValues(saved));
+				onSaved(saved);
+			}
+			await queryClient.invalidateQueries({ queryKey: catalogQueryKey });
 		},
 		onError: (error) => {
-			if (error instanceof CatalogApiError) setFieldErrors(error.fieldErrors);
+			setFeedback({
+				kind: "failure",
+				message: error instanceof Error ? error.message : "Spróbuj ponownie.",
+				fieldErrors: error instanceof CatalogApiError ? error.fieldErrors : {},
+			});
 		},
 	});
-	const publishMutation = useMutation({
-		mutationFn: ({ input, id }: { input: TransferCatalogDraftInput; id: string | null }) =>
-			saveAndPublishCatalogEntry(input, id ?? undefined),
-		onSuccess: async (saved) => {
-			setFieldErrors({});
-			setMessage("Wpis został opublikowany.");
-			form.reset(formValues(saved));
-			onSaved(saved);
-			await refresh();
-		},
-		onError: (error) => {
-			if (error instanceof CatalogApiError) setFieldErrors(error.fieldErrors);
-		},
-	});
-	const unpublishMutation = useMutation({
-		mutationFn: (id: string) => unpublishCatalogEntry(id),
-		onSuccess: async (saved) => {
-			setMessage("Wpis został wycofany do szkicu.");
-			onSaved(saved);
-			await refresh();
-		},
-	});
-	const deleteMutation = useMutation({
-		mutationFn: (id: string) => deleteCatalogEntry(id),
-		onSuccess: async () => {
-			onDeleted();
-			await refresh();
-		},
-	});
+
+	/** The one entry point: every command replaces the previous outcome. */
+	const dispatch = (command: CatalogCommand) => {
+		const blocked = command.kind === "publish" ? publicationBlock(command.input) : null;
+		setFeedback(blocked ?? { kind: "idle" });
+		if (!blocked) commandMutation.mutate(command);
+	};
 
 	const form = useForm({
 		defaultValues: formValues(entry),
-		onSubmit: async ({ value }) => {
-			setMessage(null);
-			saveMutation.mutate(draftInput(value));
-		},
+		onSubmit: ({ value }) => dispatch({ kind: "save", input: draftInput(value) }),
 	});
 	const isDirty = useStore(form.store, (state) => state.isDirty);
 
@@ -221,26 +248,8 @@ function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEdit
 		return () => window.removeEventListener("beforeunload", preventSilentLeave);
 	}, [isDirty, onDirtyChange]);
 
-	const errorMessage =
-		saveMutation.error ?? publishMutation.error ?? unpublishMutation.error ?? deleteMutation.error;
-	const isPending =
-		saveMutation.isPending ||
-		publishMutation.isPending ||
-		unpublishMutation.isPending ||
-		deleteMutation.isPending;
-
-	const publish = () => {
-		const input = draftInput(form.state.values);
-		const errors = getCatalogPublishFieldErrors(
-			input,
-			new Date(),
-			DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS,
-		);
-		setFieldErrors(errors);
-		if (Object.keys(errors).length === 0) {
-			publishMutation.mutate({ input, id: entry?.id ?? null });
-		}
-	};
+	const fieldErrors = fieldErrorsOf(feedback);
+	const isPending = commandMutation.isPending;
 
 	return (
 		<Card>
@@ -262,17 +271,15 @@ function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEdit
 						</AlertDescription>
 					</Alert>
 				)}
-				{message && (
+				{feedback.kind === "success" && (
 					<Alert variant="success">
-						<AlertDescription>{message}</AlertDescription>
+						<AlertDescription>{feedback.message}</AlertDescription>
 					</Alert>
 				)}
-				{errorMessage && (
+				{feedback.kind === "failure" && (
 					<Alert variant="destructive">
 						<AlertTitle>Nie udało się zapisać zmiany</AlertTitle>
-						<AlertDescription>
-							{errorMessage instanceof Error ? errorMessage.message : "Spróbuj ponownie."}
-						</AlertDescription>
+						<AlertDescription>{feedback.message}</AlertDescription>
 					</Alert>
 				)}
 				<form
@@ -302,7 +309,12 @@ function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEdit
 							Zapisz szkic
 						</Button>
 						{entry?.publicationStatus !== "published" && (
-							<Button type="button" variant="secondary" disabled={isPending} onClick={publish}>
+							<Button
+								type="button"
+								variant="secondary"
+								disabled={isPending}
+								onClick={() => dispatch({ kind: "publish", input: draftInput(form.state.values) })}
+							>
 								<Send className="size-4" />
 								Zapisz i opublikuj
 							</Button>
@@ -312,7 +324,7 @@ function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEdit
 								type="button"
 								variant="secondary"
 								disabled={isPending || isDirty}
-								onClick={() => unpublishMutation.mutate(entry.id)}
+								onClick={() => dispatch({ kind: "unpublish", id: entry.id })}
 							>
 								<Archive className="size-4" />
 								Wycofaj publikację
@@ -323,7 +335,7 @@ function CatalogEditor({ entry, onDirtyChange, onSaved, onDeleted }: CatalogEdit
 								type="button"
 								variant="destructive"
 								disabled={isPending || isDirty}
-								onClick={() => deleteMutation.mutate(entry.id)}
+								onClick={() => dispatch({ kind: "delete", id: entry.id })}
 							>
 								<Trash2 className="size-4" />
 								Usuń

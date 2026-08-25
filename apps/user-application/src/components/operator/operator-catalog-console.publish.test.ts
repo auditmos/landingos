@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import type { TransferCatalogDraftInput, TransferCatalogRecord } from "@repo/data-ops/journey";
+import {
+	OPERATOR_CATALOG_FIELDS,
+	type TransferCatalogDraftInput,
+	type TransferCatalogRecord,
+} from "@repo/data-ops/journey";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -214,6 +218,28 @@ describe("operator catalog atomic publication", () => {
 				costMinorMax: 1_000,
 				checkedAt: new Date(visibleValues.checkedAt).toISOString(),
 			});
+		} finally {
+			await act(async () => root.unmount());
+			container.remove();
+		}
+	});
+	it("serializes exactly the fields data-ops declares, never a stale subset", async () => {
+		const { container, fetchSpy, root } = await renderConsole(null);
+		try {
+			for (const definition of OPERATOR_CATALOG_FIELDS) {
+				const input = container.querySelector<HTMLInputElement>(`#catalog-${definition.name}`);
+				expect(input, definition.name).not.toBeNull();
+				await enter(input as HTMLInputElement, visibleValues[definition.name]);
+			}
+
+			await click(button(container, "Zapisz i opublikuj"));
+
+			const publishCalls = fetchSpy.mock.calls.filter((call) => call[1]?.method === "POST");
+			expect(publishCalls).toHaveLength(1);
+			const body = JSON.parse(String(publishCalls[0]?.[1]?.body)) as Record<string, unknown>;
+			expect(Object.keys(body).sort()).toEqual(
+				OPERATOR_CATALOG_FIELDS.map((definition) => definition.name).sort(),
+			);
 		} finally {
 			await act(async () => root.unmount());
 			container.remove();

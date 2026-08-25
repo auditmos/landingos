@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CatalogApiError } from "@/lib/operator-catalog-api";
 import { OperatorCatalogConsole } from "./operator-catalog-console";
 
 const mocks = vi.hoisted(() => ({
@@ -165,5 +166,26 @@ describe("operator catalog panel", () => {
 		await click(button(container, "Usuń"));
 		expect(mocks.remove).toHaveBeenCalledWith("entry-1");
 		expect(container.textContent).toContain("Katalog nie zawiera jeszcze wpisów");
+	});
+	it("replaces a failed publish outcome with the outcome of the next command", async () => {
+		const operatorInput = container.querySelector<HTMLInputElement>("#catalog-operatorName");
+		await enter(operatorInput as HTMLInputElement, "Operator");
+		await click(button(container, "Zapisz szkic"));
+
+		mocks.publish.mockRejectedValueOnce(
+			new CatalogApiError("Publikacja nie powiodła się.", "CATALOG_PUBLISH_FAILED", 409, {
+				operatorName: "Uzupełnij nazwę operatora.",
+			}),
+		);
+		await click(button(container, "Zapisz i opublikuj"));
+		expect(container.textContent).toContain("Nie udało się zapisać zmiany");
+		expect(container.textContent).toContain("Publikacja nie powiodła się.");
+		expect(container.textContent).toContain("Uzupełnij nazwę operatora.");
+
+		await click(button(container, "Zapisz szkic"));
+		expect(container.textContent).toContain("Szkic został zapisany.");
+		expect(container.textContent).not.toContain("Nie udało się zapisać zmiany");
+		expect(container.textContent).not.toContain("Publikacja nie powiodła się.");
+		expect(container.textContent).not.toContain("Uzupełnij nazwę operatora.");
 	});
 });
