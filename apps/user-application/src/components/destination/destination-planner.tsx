@@ -2,8 +2,10 @@ import type {
 	DestinationAutocompleteResult,
 	DestinationPrediction,
 	DestinationSelectionResult,
+	DestinationUnavailableReason,
 	PrivateDestination,
 } from "@repo/data-ops/destination";
+import type { ProviderDiagnostic } from "@repo/data-ops/diagnostics";
 import { CheckCircle2, MapPin, RotateCcw, Search } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -49,23 +51,57 @@ export function DestinationPredictionList({
 	);
 }
 
+/**
+ * Exactly one thing is true of the destination stage at a time. Autocomplete and
+ * selection faults land in the same `fault` phase because they render the same
+ * way and can never both be current; "in flight" and "loading" are questions
+ * about the phase, not fields that have to be kept consistent with it.
+ */
+type DestinationOutcome =
+	| { phase: "idle" }
+	| { phase: "searching" }
+	| { phase: "suggestions"; predictions: DestinationPrediction[] }
+	| { phase: "fault"; reason: DestinationUnavailableReason; diagnostic?: ProviderDiagnostic }
+	| { phase: "selecting"; prediction: DestinationPrediction }
+	| { phase: "selected"; destination: PrivateDestination }
+	| { phase: "unsupported"; prediction: DestinationPrediction }
+	| { phase: "transport_error"; message: string };
+
+function faultOutcome(result: {
+	reason: DestinationUnavailableReason;
+	diagnostic?: ProviderDiagnostic;
+}): DestinationOutcome {
+	return {
+		phase: "fault",
+		reason: result.reason,
+		...(result.diagnostic ? { diagnostic: result.diagnostic } : {}),
+	};
+}
+
+function selectionOutcome(
+	result: DestinationSelectionResult,
+	prediction: DestinationPrediction,
+): DestinationOutcome {
+	if (result.status === "destination_selected") {
+		return { phase: "selected", destination: result.destination };
+	}
+	if (result.status === "destination_not_supported") return { phase: "unsupported", prediction };
+	return faultOutcome(result);
+}
+
 export function DestinationPlanner({
 	onDestinationChange,
 }: {
 	onDestinationChange?: (destination: PrivateDestination | undefined) => void;
 } = {}) {
 	const [query, setQuery] = useState("");
-	const [predictions, setPredictions] = useState<DestinationPrediction[]>([]);
-	const [autocompleteFault, setAutocompleteFault] = useState<
-		Extract<DestinationAutocompleteResult, { status: "autocomplete_unavailable" }> | undefined
-	>();
-	const [selectedPrediction, setSelectedPrediction] = useState<DestinationPrediction>();
-	const [selectionResult, setSelectionResult] = useState<DestinationSelectionResult>();
-	const [error, setError] = useState("");
-	const [loading, setLoading] = useState(false);
+	const [outcome, setOutcome] = useState<DestinationOutcome>({ phase: "idle" });
 	const [sessionToken, setSessionToken] = useState(createDestinationSessionToken);
 	const inputRef = useRef<HTMLInputElement>(null);
-	const selectionInFlight = useRef(false);
+	// Re-entrancy guard, not a copy of the phase: two clicks dispatched in one
+	// tick both read the pre-render `outcome`, so the phase alone cannot stop
+	// the second from opening a second billed selection request.
+	const selecting = useRef(false);
 	const scheduler = useMemo(
 		() =>
 			createDestinationSearchScheduler((nextQuery, signal) =>
@@ -76,78 +112,73 @@ export function DestinationPlanner({
 	useEffect(() => () => scheduler.cancel(), [scheduler]);
 
 	function receiveAutocomplete(result: DestinationAutocompleteResult) {
-		setLoading(false);
-		if (result.status === "suggestions") {
-			setPredictions(result.predictions);
-			setAutocompleteFault(undefined);
-		} else {
-			setPredictions([]);
-			setAutocompleteFault(result);
-		}
+		// Only a search that is still the current phase may answer for it — a
+		// result that outlived its search (the traveler has since selected, or
+		// typed the query back under three characters) is not news.
+		setOutcome((current) =>
+			current.phase !== "searching"
+				? current
+				: result.status === "suggestions"
+					? { phase: "suggestions", predictions: result.predictions }
+					: faultOutcome(result),
+		);
 	}
 
 	function scheduleSearch(nextQuery: string) {
 		onDestinationChange?.(undefined);
 		setQuery(nextQuery);
-		setPredictions([]);
-		setAutocompleteFault(undefined);
-		setSelectedPrediction(undefined);
-		setSelectionResult(undefined);
-		setError("");
 		const eligible = scheduler.update(nextQuery, receiveAutocomplete, (caught) => {
-			setLoading(false);
-			setError(
-				caught instanceof Error
-					? caught.message
-					: "Nie udało się wyszukać miejsca. Spróbuj ponownie.",
+			setOutcome((current) =>
+				current.phase === "searching"
+					? {
+							phase: "transport_error",
+							message:
+								caught instanceof Error
+									? caught.message
+									: "Nie udało się wyszukać miejsca. Spróbuj ponownie.",
+						}
+					: current,
 			);
 		});
-		setLoading(eligible);
+		setOutcome(eligible ? { phase: "searching" } : { phase: "idle" });
 	}
 
 	async function selectPrediction(prediction: DestinationPrediction) {
-		if (selectionInFlight.current) return;
-		selectionInFlight.current = true;
+		if (selecting.current) return;
+		selecting.current = true;
 		scheduler.cancel();
-		setSelectedPrediction(prediction);
-		setPredictions([]);
-		setSelectionResult(undefined);
-		setAutocompleteFault(undefined);
-		setError("");
-		setLoading(true);
+		setOutcome({ phase: "selecting", prediction });
 		try {
 			const next = await selectDestinationApi({
 				placeId: prediction.placeId,
 				sessionToken,
 			});
-			setSelectionResult(next);
+			setOutcome(selectionOutcome(next, prediction));
 			onDestinationChange?.(next.status === "destination_selected" ? next.destination : undefined);
 		} catch (caught) {
 			onDestinationChange?.(undefined);
-			setError(
-				caught instanceof Error ? caught.message : "Nie udało się sprawdzić wybranego miejsca.",
-			);
+			setOutcome({
+				phase: "transport_error",
+				message:
+					caught instanceof Error ? caught.message : "Nie udało się sprawdzić wybranego miejsca.",
+			});
 		} finally {
-			selectionInFlight.current = false;
+			selecting.current = false;
+			// One session token per selection attempt, per the provider's billing
+			// session contract — rotated whichever way the attempt ended.
 			setSessionToken(createDestinationSessionToken());
-			setLoading(false);
 		}
 	}
 
 	function changeInput() {
 		onDestinationChange?.(undefined);
-		setSelectedPrediction(undefined);
-		setSelectionResult(undefined);
-		setAutocompleteFault(undefined);
-		setError("");
+		setOutcome({ phase: "idle" });
 		inputRef.current?.focus();
 		inputRef.current?.select();
 	}
 
-	const selectionFault =
-		selectionResult?.status === "destination_unavailable" ? selectionResult : undefined;
-	const unavailableReason = autocompleteFault?.reason ?? selectionFault?.reason;
-	const unavailableDiagnostic = autocompleteFault?.diagnostic ?? selectionFault?.diagnostic;
+	const loading = outcome.phase === "searching" || outcome.phase === "selecting";
+	const predictions = outcome.phase === "suggestions" ? outcome.predictions : [];
 
 	return (
 		<Card>
@@ -188,14 +219,14 @@ export function DestinationPlanner({
 					onSelect={selectPrediction}
 				/>
 
-				{unavailableReason ? (
+				{outcome.phase === "fault" ? (
 					<Alert className="mt-4" variant="destructive">
 						<AlertTitle>Nie udało się znaleźć miejsca</AlertTitle>
 						<AlertDescription>
 							<ProviderFailureNotice
-								message={destinationReasonCopy[unavailableReason]}
-								guidance={destinationOutcomeGuidance[unavailableReason]}
-								diagnostic={unavailableDiagnostic}
+								message={destinationReasonCopy[outcome.reason]}
+								guidance={destinationOutcomeGuidance[outcome.reason]}
+								diagnostic={outcome.diagnostic}
 							/>
 							<div className="mt-3 flex flex-wrap gap-2">
 								<Button
@@ -215,12 +246,12 @@ export function DestinationPlanner({
 					</Alert>
 				) : null}
 
-				{selectionResult?.status === "destination_not_supported" ? (
+				{outcome.phase === "unsupported" ? (
 					<Alert className="mt-4" variant="destructive">
 						<AlertTitle>Cel jeszcze nieobsługiwany</AlertTitle>
 						<AlertDescription>
 							<p>
-								{selectedPrediction?.primaryText} jest poza obsługiwanym obszarem Mediolanu. Lot i
+								{outcome.prediction.primaryText} jest poza obsługiwanym obszarem Mediolanu. Lot i
 								wpisane miejsce pozostały bez zmian.
 							</p>
 							<Button
@@ -236,12 +267,12 @@ export function DestinationPlanner({
 					</Alert>
 				) : null}
 
-				{selectionResult?.status === "destination_selected" ? (
+				{outcome.phase === "selected" ? (
 					<Alert className="mt-4">
 						<CheckCircle2 className="h-4 w-4" />
 						<AlertTitle>Miejsce wybrane</AlertTitle>
 						<AlertDescription>
-							{selectionResult.destination.displayName}
+							{outcome.destination.displayName}
 							<Button
 								className="mt-3 block"
 								type="button"
@@ -255,10 +286,10 @@ export function DestinationPlanner({
 					</Alert>
 				) : null}
 
-				{error ? (
+				{outcome.phase === "transport_error" ? (
 					<Alert className="mt-4" variant="destructive">
 						<AlertTitle>Nie udało się wykonać operacji</AlertTitle>
-						<AlertDescription>{error}</AlertDescription>
+						<AlertDescription>{outcome.message}</AlertDescription>
 					</Alert>
 				) : null}
 			</CardContent>

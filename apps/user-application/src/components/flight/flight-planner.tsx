@@ -1,4 +1,3 @@
-import type { PrivateDestination } from "@repo/data-ops/destination";
 import {
 	type FlightLookupRequest,
 	FlightLookupRequestSchema,
@@ -8,7 +7,7 @@ import {
 import { ArrowRight, MessageCircle, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
-import { PlannerResults } from "@/components/flight/flight-planner-results";
+import { type FlightLookupState, PlannerResults } from "@/components/flight/flight-planner-results";
 import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { FieldInfo, PolishPicker } from "@/components/ui/field-controls";
@@ -91,13 +90,15 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 	const [flightNumber, setFlightNumber] = useState(initialFlightNumber);
 	const [departureDateInput, setDepartureDateInput] = useState(currentDateInPoland);
 	const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-	const [result, setResult] = useState<FlightResolveResult | null>(null);
+	const [lookup, setLookup] = useState<FlightLookupState>({ phase: "idle" });
 	const [manualArrival, setManualArrival] = useState("");
 	const [manualArrivalError, setManualArrivalError] = useState("");
-	const [error, setError] = useState("");
-	const [loading, setLoading] = useState(false);
-	const [destination, setDestination] = useState<PrivateDestination>();
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+	// Identity of the current resolution, not rendered state: it keys the
+	// destination stage so two consecutive lookups never share one.
+	const resolutionCount = useRef(0);
+	const busy =
+		lookup.phase === "loading" || (lookup.phase === "resolved" && lookup.manualPending === true);
 	const captchaRef = useRef<TurnstileHandle>(null);
 	const captchaRequired = Boolean(TURNSTILE_SITE_KEY);
 	const resultsRef = useRef<HTMLElement>(null);
@@ -112,14 +113,15 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 
 	// Once a lookup resolves (or errors), bring the results into view so the answer
 	// is visible without scrolling — on mobile the form fills the first screen.
+	const outcomeKey = lookup.phase === "resolved" ? `resolved:${lookup.attempt}` : lookup.phase;
 	useEffect(() => {
-		if (!result && !error) return;
+		if (outcomeKey === "idle" || outcomeKey === "loading") return;
 		const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 		resultsRef.current?.scrollIntoView?.({
 			behavior: reduceMotion ? "auto" : "smooth",
 			block: "start",
 		});
-	}, [result, error]);
+	}, [outcomeKey]);
 
 	// Turnstile tokens are single-use — drop the current one and re-run the widget
 	// so the next lookup has a fresh token ready. No-op when the challenge is off.
@@ -129,7 +131,8 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 	}
 
 	function applyLookupResult(next: FlightResolveResult) {
-		setResult(next);
+		resolutionCount.current += 1;
+		setLookup({ phase: "resolved", attempt: resolutionCount.current, result: next });
 		if (next.status === "manual_required") {
 			setManualArrival("");
 			setManualArrivalError("");
@@ -138,56 +141,72 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 
 	async function submitLookup(event?: FormEvent) {
 		event?.preventDefault();
-		setError("");
+		// A previous failure is not evidence about the lookup about to run.
+		setLookup((current) => (current.phase === "failed" ? { phase: "idle" } : current));
 		const parsed = parseLookupForm(flightNumber, departureDateInput);
 		if (parsed.errors) {
 			setFieldErrors(parsed.errors);
 			return;
 		}
 		if (captchaRequired && !captchaToken) {
-			setError("Potwierdź, że nie jesteś robotem.");
+			setLookup({ phase: "failed", message: "Potwierdź, że nie jesteś robotem." });
 			return;
 		}
 		setFieldErrors({});
-		setDestination(undefined);
 		setFlightNumber(parsed.input.flightNumber);
 		setDepartureDateInput(parsed.input.departureLocalDate);
-		setLoading(true);
+		setLookup({ phase: "loading" });
 		try {
 			applyLookupResult(await resolveFlightApi(parsed.input, fetch, captchaToken ?? undefined));
 		} catch (caught) {
-			setError(caught instanceof Error ? caught.message : "Nie udało się sprawdzić lotu.");
+			setLookup({
+				phase: "failed",
+				message: caught instanceof Error ? caught.message : "Nie udało się sprawdzić lotu.",
+			});
 		} finally {
-			setLoading(false);
 			refreshCaptcha();
 		}
 	}
 
 	async function submitManual(event: FormEvent) {
 		event.preventDefault();
-		if (result?.status !== "manual_required") return;
-		setError("");
+		if (lookup.phase !== "resolved" || lookup.result.status !== "manual_required") return;
+		const pending = lookup.result;
 		const manualArrivalUtc = romeLocalDateTimeToUtc(manualArrival);
 		if (!formatPolishDateTimeInput(manualArrival) || !manualArrivalUtc) {
 			setManualArrivalError("Podaj prawidłową datę i godzinę w formacie DD.MM.RRRR, GG:MM.");
 			return;
 		}
 		setManualArrivalError("");
-		setLoading(true);
+		setLookup((current) =>
+			current.phase === "resolved"
+				? { ...current, manualPending: true, manualError: undefined }
+				: current,
+		);
 		try {
-			const completed = await completeManualFlightApi({
-				flightNumber: result.flightNumber,
-				departureLocalDate: result.departureLocalDate,
-				destinationIata: "BGY",
-				scheduledArrivalUtc: manualArrivalUtc,
-			});
-			setResult(completed);
-		} catch (caught) {
-			setError(
-				caught instanceof Error ? caught.message : "Nie udało się zapisać godziny przylotu.",
+			applyLookupResult(
+				await completeManualFlightApi({
+					flightNumber: pending.flightNumber,
+					departureLocalDate: pending.departureLocalDate,
+					destinationIata: "BGY",
+					scheduledArrivalUtc: manualArrivalUtc,
+				}),
 			);
-		} finally {
-			setLoading(false);
+		} catch (caught) {
+			// The manual card stays: the failure belongs to this resolution, not
+			// to a new one, so the traveler keeps the form they were filling in.
+			setLookup((current) =>
+				current.phase === "resolved"
+					? {
+							...current,
+							manualPending: false,
+							manualError:
+								caught instanceof Error
+									? caught.message
+									: "Nie udało się zapisać godziny przylotu.",
+						}
+					: current,
+			);
 		}
 	}
 
@@ -415,10 +434,10 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 										className="h-12 w-full text-base font-bold"
 										size="lg"
 										type="submit"
-										disabled={loading || (captchaRequired && !captchaToken)}
+										disabled={busy || (captchaRequired && !captchaToken)}
 									>
-										{loading ? "Sprawdzamy lot…" : "Sprawdź lot"}
-										{loading ? null : <ArrowRight className="size-4" aria-hidden="true" />}
+										{busy ? "Sprawdzamy lot…" : "Sprawdź lot"}
+										{busy ? null : <ArrowRight className="size-4" aria-hidden="true" />}
 									</Button>
 								</form>
 								<p className="mt-5 text-pretty text-center text-xs leading-5 text-muted-foreground">
@@ -435,19 +454,22 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 					aria-label="Wynik planowania lotu"
 				>
 					<PlannerResults
-						error={error}
-						result={result}
+						state={lookup}
 						manualArrival={manualArrival}
 						manualArrivalError={manualArrivalError}
-						loading={loading}
-						destination={destination}
 						onManualArrivalChange={(value) => {
 							setManualArrival(value);
 							setManualArrivalError("");
 						}}
 						onManualSubmit={submitManual}
 						onRetry={() => submitLookup()}
-						onDestinationChange={setDestination}
+						onDestinationChange={(next) =>
+							// Only the resolution that owns the destination stage can record
+							// a selection — a callback from a superseded one is dropped.
+							setLookup((current) =>
+								current.phase === "resolved" ? { ...current, destination: next } : current,
+							)
+						}
 					/>
 				</section>
 			</main>

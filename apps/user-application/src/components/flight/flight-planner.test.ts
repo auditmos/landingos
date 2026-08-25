@@ -238,16 +238,18 @@ describe("FlightPlanner manual fallback", () => {
 	] as const)("renders actionable Polish copy for %s and preserves input", (reason, copy) => {
 		const html = renderToStaticMarkup(
 			createElement(PlannerResults, {
-				error: "",
-				result: {
-					status: "manual_required",
-					reason,
-					flightNumber: "W61431",
-					departureLocalDate: "2026-09-16",
+				state: {
+					phase: "resolved",
+					attempt: 1,
+					result: {
+						status: "manual_required",
+						reason,
+						flightNumber: "W61431",
+						departureLocalDate: "2026-09-16",
+					},
 				},
 				manualArrival: "",
 				manualArrivalError: "",
-				loading: false,
 				onManualArrivalChange: () => undefined,
 				onManualSubmit: () => undefined,
 				onRetry: () => undefined,
@@ -264,31 +266,33 @@ describe("FlightPlanner manual fallback", () => {
 	it("shows the shared first arrival when a later manual entry conflicts", () => {
 		const html = renderToStaticMarkup(
 			createElement(PlannerResults, {
-				error: "",
-				result: {
-					status: "recognized",
-					flight: {
-						id: "manual-flight-id",
-						marketingCarrierCode: "W6",
-						marketingCarrierName: "W6",
-						marketingFlightNumber: "1431",
-						operatingCarrierCode: null,
-						operatingFlightNumber: null,
-						departureLocalDate: "2026-08-11",
-						originIata: "ZZZ",
-						destinationIata: "BGY",
-						scheduledArrivalUtc: "2026-08-11T08:20:00.000Z",
-						displayTimezone: "Europe/Rome",
-						source: "manual",
-					},
-					manualArrivalConflict: {
-						requestedScheduledArrivalUtc: "2026-08-11T08:37:00.000Z",
-						sharedScheduledArrivalUtc: "2026-08-11T08:20:00.000Z",
+				state: {
+					phase: "resolved",
+					attempt: 1,
+					result: {
+						status: "recognized",
+						flight: {
+							id: "manual-flight-id",
+							marketingCarrierCode: "W6",
+							marketingCarrierName: "W6",
+							marketingFlightNumber: "1431",
+							operatingCarrierCode: null,
+							operatingFlightNumber: null,
+							departureLocalDate: "2026-08-11",
+							originIata: "ZZZ",
+							destinationIata: "BGY",
+							scheduledArrivalUtc: "2026-08-11T08:20:00.000Z",
+							displayTimezone: "Europe/Rome",
+							source: "manual",
+						},
+						manualArrivalConflict: {
+							requestedScheduledArrivalUtc: "2026-08-11T08:37:00.000Z",
+							sharedScheduledArrivalUtc: "2026-08-11T08:20:00.000Z",
+						},
 					},
 				},
 				manualArrival: "",
 				manualArrivalError: "",
-				loading: false,
 				onManualArrivalChange: () => undefined,
 				onManualSubmit: () => undefined,
 				onRetry: () => undefined,
@@ -301,5 +305,88 @@ describe("FlightPlanner manual fallback", () => {
 		expect(html).toContain("Korzystamy ze wspólnej godziny przylotu");
 		expect(html).toContain("11.08.2026, 10:20");
 		expect(html).toContain("podana przez podróżnych");
+	});
+
+	it("drops the previous flight summary when a re-lookup fails", async () => {
+		const fetchSpy = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				Response.json({
+					status: "recognized",
+					flight: {
+						id: "flight-id",
+						marketingCarrierCode: "FR",
+						marketingCarrierName: "Ryanair",
+						marketingFlightNumber: "1234",
+						operatingCarrierCode: "FR",
+						operatingFlightNumber: "1234",
+						departureLocalDate: "2026-09-14",
+						originIata: "WAW",
+						destinationIata: "BGY",
+						scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+						displayTimezone: "Europe/Rome",
+						source: "provider",
+					},
+				}),
+			)
+			.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+		vi.stubGlobal("fetch", fetchSpy);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		const departureDate = container.querySelector<HTMLInputElement>("#departure-date-native");
+		await act(async () => {
+			setInputValue(flightNumber as HTMLInputElement, "FR1234");
+			setInputValue(departureDate as HTMLInputElement, "2026-09-14");
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+		expect(container.textContent).toContain("Ryanair FR 1234");
+
+		await act(async () => {
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		expect(container.textContent).toContain("Nie udało się wykonać operacji");
+		expect(container.textContent).not.toContain("Lot rozpoznany");
+		expect(container.textContent).not.toContain("Ryanair FR 1234");
+		expect(container.textContent).not.toContain("Dokąd jedziesz w Mediolanie?");
+	});
+
+	it("keeps the manual card visible when manual completion fails", async () => {
+		const fetchSpy = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				Response.json({
+					status: "manual_required",
+					reason: "not_found",
+					flightNumber: "W61431",
+					departureLocalDate: "2026-09-16",
+				}),
+			)
+			.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+		vi.stubGlobal("fetch", fetchSpy);
+		await act(async () => root.render(createElement(FlightPlanner)));
+
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		await act(async () => {
+			setInputValue(flightNumber as HTMLInputElement, "W61431");
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		const arrival = container.querySelector<HTMLInputElement>("#arrival-native");
+		await act(async () => setInputValue(arrival as HTMLInputElement, "2026-09-16T10:30"));
+		const manualSubmit = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+			(button) => button.textContent?.includes("Zapisz i kontynuuj"),
+		);
+		await act(async () => {
+			manualSubmit?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		});
+		await settle();
+
+		expect(container.textContent).toContain("Nie udało się wykonać operacji");
+		expect(container.textContent).toContain("Uzupełnij przylot ręcznie");
 	});
 });

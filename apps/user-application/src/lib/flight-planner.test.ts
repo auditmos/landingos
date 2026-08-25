@@ -38,16 +38,18 @@ describe("anonymous flight planner UI integration", () => {
 	it("renders manual arrival using Polish date order and 24-hour time", () => {
 		const html = renderToStaticMarkup(
 			createElement(PlannerResults, {
-				error: "",
-				result: {
-					status: "manual_required",
-					reason: "not_found",
-					flightNumber: "FR1234",
-					departureLocalDate: "2026-09-14",
+				state: {
+					phase: "resolved",
+					attempt: 1,
+					result: {
+						status: "manual_required",
+						reason: "not_found",
+						flightNumber: "FR1234",
+						departureLocalDate: "2026-09-14",
+					},
 				},
 				manualArrival: "2026-09-14T12:00",
 				manualArrivalError: "",
-				loading: false,
 				onManualArrivalChange: () => undefined,
 				onManualSubmit: () => undefined,
 				onRetry: () => undefined,

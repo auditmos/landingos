@@ -306,4 +306,206 @@ describe("anonymous flight-to-destination flow", () => {
 		expect(container.textContent).toContain("Spróbuj ponownie");
 		expect(container.textContent).toContain("Zmień wpisane miejsce");
 	});
+
+	it("clears a previous destination selection when a new lookup is submitted", async () => {
+		const flightBody = (id: string) => ({
+			status: "recognized",
+			flight: {
+				id,
+				marketingCarrierCode: "FR",
+				marketingCarrierName: "Ryanair",
+				marketingFlightNumber: "1234",
+				operatingCarrierCode: "FR",
+				operatingFlightNumber: "1234",
+				departureLocalDate: "2026-09-14",
+				originIata: "WAW",
+				destinationIata: "BGY",
+				scheduledArrivalUtc: "2026-09-14T08:20:00.000Z",
+				displayTimezone: "Europe/Rome",
+				source: "provider",
+			},
+		});
+		let resolveCount = 0;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const path = new URL(String(input)).pathname;
+				if (path === "/flights/resolve") {
+					resolveCount += 1;
+					return Response.json(flightBody(`flight-${resolveCount}`));
+				}
+				if (path === "/destinations/autocomplete") {
+					return Response.json({
+						status: "suggestions",
+						predictions: [
+							{
+								placeId: "fixture:place:duomo",
+								primaryText: "Duomo di Milano",
+								secondaryText: "Piazza del Duomo, Milano",
+							},
+						],
+					});
+				}
+				if (path === "/destinations/select") {
+					return Response.json({
+						status: "destination_selected",
+						destination: {
+							placeId: "fixture:place:duomo",
+							displayName: "Duomo di Milano",
+							coordinates: { latitude: 45.464098, longitude: 9.191926 },
+							supportedAreaVersion: "milan-municipality-v1",
+						},
+					});
+				}
+				if (path === "/journeys/recommend") {
+					return Response.json({
+						status: "journey_unavailable",
+						reason: "provider_error",
+					});
+				}
+				throw new Error(`Unexpected request: ${path}`);
+			}),
+		);
+
+		await act(async () => root.render(createElement(FlightPlanner)));
+		const flightNumber = container.querySelector<HTMLInputElement>("#flight-number");
+		const departureDate = container.querySelector<HTMLInputElement>("#departure-date-native");
+		await act(async () => {
+			setInputValue(flightNumber as HTMLInputElement, "FR1234");
+			setInputValue(departureDate as HTMLInputElement, "2026-09-14");
+		});
+		await act(async () => {
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+			await Promise.resolve();
+		});
+		await act(async () => {
+			setInputValue(
+				container.querySelector<HTMLInputElement>("#destination-query") as HTMLInputElement,
+				"Duomo",
+			);
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		const prediction = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Duomo di Milano"),
+		);
+		await act(async () => {
+			prediction?.click();
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain("Miejsce wybrane");
+
+		await act(async () => {
+			flightNumber?.form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+			await Promise.resolve();
+		});
+
+		// The destination stage belongs to exactly one resolution: a fresh lookup
+		// must not leave a "selected" claim standing without its journey planner.
+		expect(container.textContent).not.toContain("Miejsce wybrane");
+		expect(container.querySelector<HTMLInputElement>("#destination-query")?.value).toBe("");
+	});
+
+	it("returns to searching when retry is pressed on an autocomplete fault", async () => {
+		const responses = [
+			{ status: "autocomplete_unavailable", reason: "timeout" },
+			{
+				status: "suggestions",
+				predictions: [
+					{
+						placeId: "fixture:place:duomo",
+						primaryText: "Duomo di Milano",
+						secondaryText: "Piazza del Duomo, Milano",
+					},
+				],
+			},
+		];
+		let call = 0;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json(responses[Math.min(call++, responses.length - 1)])),
+		);
+		await act(async () => root.render(createElement(DestinationPlanner)));
+		const destinationInput = container.querySelector<HTMLInputElement>("#destination-query");
+		await act(async () => {
+			setInputValue(destinationInput as HTMLInputElement, "Duomo");
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		expect(container.textContent).toContain("Wyszukiwanie nie odpowiedziało na czas");
+
+		const retry = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Spróbuj ponownie"),
+		);
+		await act(async () => {
+			retry?.click();
+		});
+
+		expect(container.textContent).toContain("Szukamy miejsca…");
+		expect(container.textContent).not.toContain("Wyszukiwanie nie odpowiedziało na czas");
+		expect(destinationInput?.value).toBe("Duomo");
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		expect(container.textContent).toContain("Duomo di Milano");
+		expect(container.textContent).not.toContain("Szukamy miejsca…");
+	});
+
+	it("makes one selection request when a prediction is clicked twice", async () => {
+		const selectCalls: string[] = [];
+		let releaseSelect: (() => void) | undefined;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const path = new URL(String(input)).pathname;
+				if (path === "/destinations/autocomplete") {
+					return Response.json({
+						status: "suggestions",
+						predictions: [
+							{
+								placeId: "fixture:place:duomo",
+								primaryText: "Duomo di Milano",
+								secondaryText: "Piazza del Duomo, Milano",
+							},
+						],
+					});
+				}
+				selectCalls.push(path);
+				await new Promise<void>((resolve) => {
+					releaseSelect = resolve;
+				});
+				return Response.json({
+					status: "destination_selected",
+					destination: {
+						placeId: "fixture:place:duomo",
+						displayName: "Duomo di Milano",
+						coordinates: { latitude: 45.464098, longitude: 9.191926 },
+						supportedAreaVersion: "milan-municipality-v1",
+					},
+				});
+			}),
+		);
+		await act(async () => root.render(createElement(DestinationPlanner)));
+		await act(async () => {
+			setInputValue(
+				container.querySelector<HTMLInputElement>("#destination-query") as HTMLInputElement,
+				"Duomo",
+			);
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		const prediction = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Duomo di Milano"),
+		);
+		await act(async () => {
+			prediction?.click();
+			prediction?.click();
+			await Promise.resolve();
+		});
+		expect(selectCalls).toHaveLength(1);
+
+		await act(async () => {
+			releaseSelect?.();
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain("Miejsce wybrane");
+	});
 });

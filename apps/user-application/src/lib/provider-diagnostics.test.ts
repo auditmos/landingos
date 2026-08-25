@@ -34,17 +34,19 @@ const minimalDiagnostic: ProviderDiagnostic = {
 function plannerMarkup(diagnostic?: ProviderDiagnostic): string {
 	return renderToStaticMarkup(
 		createElement(PlannerResults, {
-			error: "",
-			result: {
-				status: "manual_required",
-				reason: "provider_error",
-				flightNumber: "W61431",
-				departureLocalDate: "2026-09-16",
-				...(diagnostic ? { diagnostic } : {}),
+			state: {
+				phase: "resolved",
+				attempt: 1,
+				result: {
+					status: "manual_required",
+					reason: "provider_error",
+					flightNumber: "W61431",
+					departureLocalDate: "2026-09-16",
+					...(diagnostic ? { diagnostic } : {}),
+				},
 			},
 			manualArrival: "",
 			manualArrivalError: "",
-			loading: false,
 			onManualArrivalChange: () => undefined,
 			onManualSubmit: () => undefined,
 			onRetry: () => undefined,
@@ -156,16 +158,18 @@ describe("flight screen diagnostics", () => {
 	] as const)("gives %s distinct retryability copy and both fallback actions", (reason, recovery) => {
 		const html = renderToStaticMarkup(
 			createElement(PlannerResults, {
-				error: "",
-				result: {
-					status: "manual_required",
-					reason,
-					flightNumber: "W61431",
-					departureLocalDate: "2026-09-16",
+				state: {
+					phase: "resolved",
+					attempt: 1,
+					result: {
+						status: "manual_required",
+						reason,
+						flightNumber: "W61431",
+						departureLocalDate: "2026-09-16",
+					},
 				},
 				manualArrival: "",
 				manualArrivalError: "",
-				loading: false,
 				onManualArrivalChange: () => undefined,
 				onManualSubmit: () => undefined,
 				onRetry: () => undefined,
