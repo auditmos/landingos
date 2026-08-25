@@ -73,7 +73,7 @@ describe("analytics privacy and configuration boundary", () => {
 			env?: Record<string, { triggers?: { crons?: string[] } }>;
 		};
 		for (const environment of ["dev", "staging", "production"]) {
-			expect(config.env?.[environment]?.triggers?.crons).toEqual(["*/5 * * * *"]);
+			expect(config.env?.[environment]?.triggers?.crons).toEqual(["0 * * * *"]);
 		}
 	});
 

@@ -80,7 +80,7 @@ describe("S8 public privacy boundaries", () => {
 				.replace(/^\s*\/\/.*$/gm, ""),
 		);
 		for (const environment of ["dev", "staging", "production"]) {
-			expect(config.env[environment].triggers.crons).toEqual(["*/5 * * * *"]);
+			expect(config.env[environment].triggers.crons).toEqual(["0 * * * *"]);
 		}
 		const scheduled = read("apps/data-service/src/scheduled/index.ts");
 		expect(scheduled).toContain("purgeExpiredRoomContent");
@@ -101,7 +101,7 @@ describe("S8 policy artifact drift", () => {
 		expect(`${notice}\n${matrix}`).toContain("30 dni");
 		expect(`${notice}\n${matrix}`).toContain("5 minut");
 		expect(matrix).toContain("100 pokojów");
-		expect(matrix).toContain("co 5 minut");
+		expect(matrix).toContain("co godzinę");
 		expect(matrix).toContain("snapshot");
 		expect(matrix).toContain("zgod");
 		expect(notice).toContain("kopii");
