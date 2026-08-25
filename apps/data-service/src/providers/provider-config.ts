@@ -1,6 +1,8 @@
+import type { RuntimeVars } from "../runtime-vars";
+
 type RuntimeEnvironment = "local" | "dev" | "test" | "staging" | "production";
 
-type ProviderEnvironment = Record<string, string | undefined>;
+type ProviderEnvironment = RuntimeVars;
 
 interface FixtureProviderConfig {
 	mode: "fixture";

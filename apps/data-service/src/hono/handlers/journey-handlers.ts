@@ -17,13 +17,7 @@ import {
 } from "../../analytics/service";
 import { createJourneyService } from "../../journey/service";
 import { resolveCatalogFreshnessDays } from "../../operator/catalog-service";
-import {
-	createFixtureProviderAdapters,
-	createLiveProviderAdapters,
-	type DiagnosticContext,
-	resolveProviderConfig,
-	type TransitProvider,
-} from "../../providers";
+import { type DiagnosticContext, resolveProviderAdapters } from "../../providers";
 import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
 
 export interface JourneyHandlerOperations {
@@ -36,27 +30,8 @@ export type JourneyOperationsFactory = (
 ) => JourneyHandlerOperations;
 export type JourneyAnalyticsFactory = (env: Env) => AnalyticsTracker;
 
-function unavailableTransit(): TransitProvider {
-	return {
-		route: async () => ({
-			status: "provider_error",
-			httpStatus: 503,
-			retryable: true,
-		}),
-	};
-}
-
 function defaultOperations(env: Env, diagnostics: DiagnosticContext): JourneyHandlerOperations {
-	const config = resolveProviderConfig(env as unknown as Record<string, string | undefined>);
-	let transit = unavailableTransit();
-	if (config.ok && config.config.mode === "fixture") {
-		transit = createFixtureProviderAdapters().transit;
-	} else if (config.ok && config.config.mode === "live") {
-		transit = createLiveProviderAdapters(config.config.credentials, (input, init) =>
-			fetch(input, init),
-		).transit;
-	}
-	return createJourneyService(transit, getDb(), {
+	return createJourneyService(resolveProviderAdapters(env).transit, getDb(), {
 		freshnessDays: resolveCatalogFreshnessDays(env),
 		diagnostics,
 	});

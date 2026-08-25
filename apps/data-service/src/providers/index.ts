@@ -54,6 +54,10 @@ export {
 	type ProviderEvidence,
 	validateProviderEvidence,
 } from "./provider-evidence";
+export {
+	createUnavailableProviderAdapters,
+	resolveProviderAdapters,
+} from "./resolve-adapters";
 export type {
 	Airport,
 	FlightInstance,

@@ -16,13 +16,7 @@ import {
 	readRequestedFunnelId,
 } from "../../analytics/service";
 import { createFlightService } from "../../flight/service";
-import {
-	createFixtureProviderAdapters,
-	createLiveProviderAdapters,
-	type DiagnosticContext,
-	type FlightProvider,
-	resolveProviderConfig,
-} from "../../providers";
+import { type DiagnosticContext, resolveProviderAdapters } from "../../providers";
 import { turnstileGuard } from "../middleware/turnstile";
 import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
 
@@ -37,28 +31,8 @@ export type FlightOperationsFactory = (
 ) => FlightHandlerOperations;
 export type FlightAnalyticsFactory = (env: Env) => AnalyticsTracker;
 
-function unavailableProvider(): FlightProvider {
-	return {
-		lookup: async () => ({
-			status: "provider_error",
-			httpStatus: 503,
-			retryable: true,
-		}),
-	};
-}
-
 function defaultOperations(env: Env, diagnostics: DiagnosticContext): FlightHandlerOperations {
-	const runtimeEnv = env as unknown as Record<string, string | undefined>;
-	const config = resolveProviderConfig(runtimeEnv);
-	let provider: FlightProvider = unavailableProvider();
-	if (config.ok && config.config.mode === "fixture") {
-		provider = createFixtureProviderAdapters().flight;
-	} else if (config.ok && config.config.mode === "live") {
-		provider = createLiveProviderAdapters(config.config.credentials, (input, init) =>
-			fetch(input, init),
-		).flight;
-	}
-	return createFlightService(provider, getDb(), diagnostics);
+	return createFlightService(resolveProviderAdapters(env).flight, getDb(), diagnostics);
 }
 
 function publicFlight(flight: FlightInstance): FlightInstance {

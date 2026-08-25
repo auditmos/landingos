@@ -13,6 +13,7 @@ import {
 	updateTransferCatalogDraft,
 	validateTransferCatalogPublish,
 } from "@repo/data-ops/journey";
+import type { RuntimeVars } from "../runtime-vars";
 
 export interface CatalogRepository {
 	list(options: CatalogClockOptions): Promise<TransferCatalogRecord[]>;
@@ -39,8 +40,8 @@ export interface CatalogRepository {
 	delete(id: string): Promise<boolean>;
 }
 
-export function resolveCatalogFreshnessDays(env: unknown): number {
-	const raw = (env as Record<string, string | undefined>).TRANSFER_CATALOG_FRESHNESS_DAYS;
+export function resolveCatalogFreshnessDays(env: RuntimeVars): number {
+	const raw = env.TRANSFER_CATALOG_FRESHNESS_DAYS;
 	const parsed = Number(raw ?? DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS);
 	return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_TRANSFER_CATALOG_FRESHNESS_DAYS;
 }

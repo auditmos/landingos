@@ -8,14 +8,7 @@ import {
 } from "@repo/data-ops/destination";
 import { Hono } from "hono";
 import { createDestinationService } from "../../destination/service";
-import {
-	createFixtureProviderAdapters,
-	createLiveProviderAdapters,
-	type DiagnosticContext,
-	MILAN_MUNICIPALITY_VIEWPORT,
-	type PlacesProvider,
-	resolveProviderConfig,
-} from "../../providers";
+import { type DiagnosticContext, resolveProviderAdapters } from "../../providers";
 import { publicDiagnostic, requestDiagnosticContext } from "../utils/diagnostics-context";
 
 export interface DestinationHandlerOperations {
@@ -28,33 +21,8 @@ export type DestinationOperationsFactory = (
 	diagnostics: DiagnosticContext,
 ) => DestinationHandlerOperations;
 
-function unavailableProvider(): PlacesProvider {
-	return {
-		viewport: MILAN_MUNICIPALITY_VIEWPORT,
-		autocomplete: async () => ({
-			status: "provider_error",
-			httpStatus: 503,
-			retryable: true,
-		}),
-		details: async () => ({
-			status: "provider_error",
-			httpStatus: 503,
-			retryable: true,
-		}),
-	};
-}
-
 function defaultOperations(env: Env, diagnostics: DiagnosticContext): DestinationHandlerOperations {
-	const config = resolveProviderConfig(env as unknown as Record<string, string | undefined>);
-	let provider = unavailableProvider();
-	if (config.ok && config.config.mode === "fixture") {
-		provider = createFixtureProviderAdapters().places;
-	} else if (config.ok && config.config.mode === "live") {
-		provider = createLiveProviderAdapters(config.config.credentials, (input, init) =>
-			fetch(input, init),
-		).places;
-	}
-	return createDestinationService(provider, diagnostics);
+	return createDestinationService(resolveProviderAdapters(env).places, diagnostics);
 }
 
 function publicAutocompleteResult(

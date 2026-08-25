@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "hono";
+import { runtimeVars } from "../../runtime-vars";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const CAPTCHA_HEADER = "x-captcha-response";
@@ -52,7 +53,7 @@ export function turnstileGuard(
 	options: TurnstileGuardOptions = {},
 ): MiddlewareHandler<{ Bindings: Env }> {
 	return async (c, next) => {
-		const runtimeEnv = c.env as unknown as Record<string, string | undefined>;
+		const runtimeEnv = runtimeVars(c.env);
 		const secret = runtimeEnv.TURNSTILE_SECRET_KEY;
 
 		if (!secret) {

@@ -15,7 +15,7 @@ export function requestDiagnosticContext(
 	return {
 		providerClass,
 		reference: requestId ?? c.req.header("x-request-id") ?? crypto.randomUUID(),
-		exposure: diagnosticExposure(c.env as unknown as Record<string, string | undefined>),
+		exposure: diagnosticExposure(c.env),
 	};
 }
 

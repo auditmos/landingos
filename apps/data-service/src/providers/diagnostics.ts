@@ -4,6 +4,7 @@ import type {
 	ProviderDiagnosticCategory,
 	ProviderRecoveryAction,
 } from "@repo/data-ops/diagnostics";
+import type { RuntimeVars } from "../runtime-vars";
 import type { ProviderResult } from "./types";
 
 export type { ProviderClass, ProviderDiagnostic, ProviderDiagnosticCategory };
@@ -192,7 +193,7 @@ const RECOVERY_BY_CLASS: Readonly<
  * Explicit environment rule for diagnostic exposure. Only a known non-production
  * runtime gets the expandable QA detail; anything unknown fails closed to minimal.
  */
-export function diagnosticExposure(env: Record<string, string | undefined>): DiagnosticExposure {
+export function diagnosticExposure(env: RuntimeVars): DiagnosticExposure {
 	return DETAILED_DIAGNOSTIC_ENVIRONMENTS.has(env.CLOUDFLARE_ENV ?? "") ? "detailed" : "minimal";
 }
 

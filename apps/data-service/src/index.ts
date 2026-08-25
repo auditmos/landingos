@@ -3,6 +3,7 @@ import { setAuth } from "@repo/data-ops/auth/server";
 import { getDb, initDatabase } from "@repo/data-ops/database/setup";
 import { App } from "@/hono/app";
 import { handleQueue } from "./queues";
+import { runtimeVars } from "./runtime-vars";
 import { handleScheduled } from "./scheduled";
 
 export { FlightRoomDurableObject } from "./durable-objects/flight-room";
@@ -20,7 +21,7 @@ export default class DataService extends WorkerEntrypoint<Env> {
 			username: env.DATABASE_USERNAME,
 			password: env.DATABASE_PASSWORD,
 		});
-		const optionalEnv = env as unknown as Record<string, string | undefined>;
+		const optionalEnv = runtimeVars(env);
 		setAuth({
 			secret: optionalEnv.BETTER_AUTH_SECRET,
 			baseURL: optionalEnv.BETTER_AUTH_BASE_URL,

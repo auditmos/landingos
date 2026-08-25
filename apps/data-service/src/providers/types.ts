@@ -186,7 +186,8 @@ export interface TransferCatalogProvider {
 }
 
 export interface ProviderAdapters {
-	mode: ProviderMode;
+	/** `unavailable` is the degraded state: no mode resolved, so no provider is called. */
+	mode: ProviderMode | "unavailable";
 	flight: FlightProvider;
 	places: PlacesProvider;
 	transit: TransitProvider;
