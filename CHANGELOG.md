@@ -1,3 +1,10 @@
+## [1.36.4](https://github.com/auditmos/landingos/compare/v1.36.3...v1.36.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* **data-service:** stop leaking internal error messages in 500 bodies (F16) ([2ad761f](https://github.com/auditmos/landingos/commit/2ad761f05d9997335315d78f6279a337cb2104f2)), closes [#34](https://github.com/auditmos/landingos/issues/34)
+
 ## [1.36.3](https://github.com/auditmos/landingos/compare/v1.36.2...v1.36.3) (2026-08-25)
 
 
