@@ -1,12 +1,37 @@
-import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { parseFlightDesignator } from "../packages/data-ops/dist/flight/index.js";
 import {
+	DestinationAutocompleteResultSchema,
+	DestinationSelectionResultSchema,
+} from "../packages/data-ops/dist/destination/index.js";
+import {
+	FlightResolveResultSchema,
+	parseFlightDesignator,
+} from "../packages/data-ops/dist/flight/index.js";
+import { JourneyRecommendationResultSchema } from "../packages/data-ops/dist/journey/index.js";
+import {
+	ConnectionTicketResponseSchema,
+	PublicRoomMemberSchema,
+	RoomMessageCreateResponseSchema,
+	RoomSnapshotSchema,
+} from "../packages/data-ops/dist/room/index.js";
+import {
+	BlockedMembersResponseSchema,
 	COMMUNITY_RULES_TOPICS,
 	COMMUNITY_RULES_VERSION,
+	CommunityRulesAcceptanceResponseSchema,
+	CommunityRulesStatusResponseSchema,
+	RoomBlockResponseSchema,
+	SafetyReportCreateResponseSchema,
+	SafetyReportQueueResponseSchema,
 } from "../packages/data-ops/dist/safety/index.js";
 import { authenticateFixtureRequest, handleAuthFixtureRequest } from "./e2e-auth-fixture.ts";
-import { fixtureFlight, fixtureJourneyVariant } from "./e2e-fixture-data.ts";
+import { assertFixtureContracts, contract } from "./e2e-fixture-contracts.ts";
+import {
+	fixtureConnectionTicket,
+	fixtureFlight,
+	fixtureJourneyVariant,
+	fixtureNoTrustworthyRoute,
+} from "./e2e-fixture-data.ts";
 import { FixtureStore, type FixtureUser } from "./e2e-fixture-store.ts";
 import { readJsonBody as body, applyFixtureCors as cors, sendJson as json } from "./e2e-http.ts";
 import {
@@ -48,6 +73,10 @@ function requireUser(
 }
 
 export async function startFixtureServer(port = DEFAULT_PORT) {
+	// Fail before a single scenario runs: a fixture that no longer matches the
+	// real API contract would otherwise keep `pnpm run test:e2e` green while
+	// testing a shape the product does not serve.
+	assertFixtureContracts();
 	const store = new FixtureStore();
 	const connections = new Set<ConnectionRecord>();
 	const upgradeUsers = new WeakMap<IncomingMessage, FixtureUser>();
@@ -143,14 +172,22 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 					return json(response, 503, { error: "fixture_provider_error" });
 				}
 				if (flightNumber === "FR404" || flightNumber === "W61431") {
-					return json(response, 200, {
-						status: "manual_required",
-						reason: "not_found",
-						flightNumber,
-						departureLocalDate: input.departureLocalDate,
-					});
+					return json(
+						response,
+						200,
+						contract("flights/resolve", FlightResolveResultSchema, {
+							status: "manual_required",
+							reason: "not_found",
+							flightNumber,
+							departureLocalDate: input.departureLocalDate,
+						}),
+					);
 				}
-				return json(response, 200, fixtureFlight(flightNumber));
+				return json(
+					response,
+					200,
+					contract("flights/resolve", FlightResolveResultSchema, fixtureFlight(flightNumber)),
+				);
 			}
 			if (url.pathname === "/flights/manual" && request.method === "POST") {
 				const input = await body(request);
@@ -168,66 +205,86 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				return json(
 					response,
 					200,
-					fixtureFlight(parsedDesignator.canonical, {
-						manual: true,
-						departureLocalDate,
-						scheduledArrivalUtc: manual.sharedScheduledArrivalUtc,
-						id: manual.id,
-						...(manual.conflict ? { manualArrivalConflict: manual.conflict } : {}),
-					}),
+					contract(
+						"flights/manual",
+						FlightResolveResultSchema,
+						fixtureFlight(parsedDesignator.canonical, {
+							manual: true,
+							departureLocalDate,
+							scheduledArrivalUtc: manual.sharedScheduledArrivalUtc,
+							id: manual.id,
+							...(manual.conflict ? { manualArrivalConflict: manual.conflict } : {}),
+						}),
+					),
 				);
 			}
 			if (url.pathname === "/destinations/autocomplete" && request.method === "POST") {
 				const input = await body(request);
 				const query = String(input.query ?? "").toLowerCase();
 				if (query.includes("błąd")) {
-					return json(response, 200, {
-						status: "autocomplete_unavailable",
-						reason: "provider_error",
-					});
+					return json(
+						response,
+						200,
+						contract("destinations/autocomplete", DestinationAutocompleteResultSchema, {
+							status: "autocomplete_unavailable",
+							reason: "provider_error",
+						}),
+					);
 				}
 				const placeId = query.includes("poza")
 					? "fixture:outside"
 					: query.includes("bez trasy")
 						? "fixture:no-route"
 						: "fixture:duomo";
-				return json(response, 200, {
-					status: "suggestions",
-					predictions: [
-						{
-							placeId,
-							primaryText:
-								placeId === "fixture:outside"
-									? "Poza Mediolanem"
-									: placeId === "fixture:no-route"
-										? "Miejsce bez trasy"
-										: "Duomo di Milano",
-							secondaryText: "Mediolan, Włochy",
-						},
-					],
-				});
+				return json(
+					response,
+					200,
+					contract("destinations/autocomplete", DestinationAutocompleteResultSchema, {
+						status: "suggestions",
+						predictions: [
+							{
+								placeId,
+								primaryText:
+									placeId === "fixture:outside"
+										? "Poza Mediolanem"
+										: placeId === "fixture:no-route"
+											? "Miejsce bez trasy"
+											: "Duomo di Milano",
+								secondaryText: "Mediolan, Włochy",
+							},
+						],
+					}),
+				);
 			}
 			if (url.pathname === "/destinations/select" && request.method === "POST") {
 				const input = await body(request);
 				if (input.placeId === "fixture:outside") {
-					return json(response, 200, {
-						status: "destination_not_supported",
-						supportedAreaVersion: "milan-municipality-v1",
-					});
+					return json(
+						response,
+						200,
+						contract("destinations/select", DestinationSelectionResultSchema, {
+							status: "destination_not_supported",
+							supportedAreaVersion: "milan-municipality-v1",
+						}),
+					);
 				}
 				const noRoute = input.placeId === "fixture:no-route";
-				return json(response, 200, {
-					status: "destination_selected",
-					destination: {
-						placeId: input.placeId,
-						displayName: noRoute ? "Miejsce bez trasy" : "Duomo di Milano",
-						coordinates: {
-							latitude: noRoute ? 45.9 : 45.4642,
-							longitude: noRoute ? 9.5 : 9.19,
+				return json(
+					response,
+					200,
+					contract("destinations/select", DestinationSelectionResultSchema, {
+						status: "destination_selected",
+						destination: {
+							placeId: input.placeId,
+							displayName: noRoute ? "Miejsce bez trasy" : "Duomo di Milano",
+							coordinates: {
+								latitude: noRoute ? 45.9 : 45.4642,
+								longitude: noRoute ? 9.5 : 9.19,
+							},
+							supportedAreaVersion: "milan-municipality-v1",
 						},
-						supportedAreaVersion: "milan-municipality-v1",
-					},
-				});
+					}),
+				);
 			}
 			if (url.pathname === "/journeys/recommend" && request.method === "POST") {
 				const input = await body(request);
@@ -235,17 +292,15 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 					| { latitude?: number }
 					| undefined;
 				if (coordinates?.latitude === 45.9) {
-					return json(response, 200, {
-						status: "no_trustworthy_route",
-						reason: "zero_result",
-						manualAlternatives: [
-							{
-								kind: "source",
-								label: "Sprawdź połączenia z lotniska BGY",
-								url: "https://www.milanbergamoairport.it/en/bus/",
-							},
-						],
-					});
+					return json(
+						response,
+						200,
+						contract(
+							"journeys/recommend",
+							JourneyRecommendationResultSchema,
+							fixtureNoTrustworthyRoute(),
+						),
+					);
 				}
 				const published = store
 					.listCatalog()
@@ -256,7 +311,15 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 					),
 					fixtureJourneyVariant(),
 				].slice(0, 3);
-				return json(response, 200, { status: "recommendations", variants, explanation: null });
+				return json(
+					response,
+					200,
+					contract("journeys/recommend", JourneyRecommendationResultSchema, {
+						status: "recommendations",
+						variants,
+						explanation: null,
+					}),
+				);
 			}
 			if (url.pathname === "/rooms/join" && request.method === "POST") {
 				const user = requireUser(store, request, response);
@@ -269,7 +332,11 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				}
 				const input = await body(request);
 				const roomId = store.joinRoom(user, String(input.flightInstanceId ?? ""));
-				return json(response, 200, store.snapshot(roomId, user));
+				return json(
+					response,
+					200,
+					contract("rooms/join", RoomSnapshotSchema, store.snapshot(roomId, user)),
+				);
 			}
 			const roomMatch = ROOM_PATH.exec(url.pathname);
 			if (roomMatch && request.method === "GET") {
@@ -277,7 +344,7 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				if (!user) return;
 				const snapshot = store.snapshot(roomMatch[1] ?? "", user);
 				return snapshot
-					? json(response, 200, snapshot)
+					? json(response, 200, contract("rooms/{id}", RoomSnapshotSchema, snapshot))
 					: json(response, 404, { code: "ROOM_NOT_FOUND", error: "Nie znaleziono pokoju." });
 			}
 			const selectionMatch = SELECTION_PATH.exec(url.pathname);
@@ -288,7 +355,11 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				store.updateSelection(selectionMatch[1] ?? "", user.id, input.selection);
 				const member = store.member(selectionMatch[1] ?? "", user.id);
 				broadcast(selectionMatch[1] ?? "", { type: "selection_changed", member });
-				return json(response, 200, member);
+				return json(
+					response,
+					200,
+					contract("rooms/{id}/selection", PublicRoomMemberSchema, member),
+				);
 			}
 			const messagesMatch = MESSAGES_PATH.exec(url.pathname);
 			if (messagesMatch && request.method === "POST") {
@@ -310,63 +381,90 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				if (created.created) {
 					broadcast(messagesMatch[1] ?? "", { type: "message_created", message: created.message });
 				}
-				return json(response, 200, created);
+				return json(
+					response,
+					200,
+					contract("rooms/{id}/messages", RoomMessageCreateResponseSchema, created),
+				);
 			}
 			const ticketMatch = TICKETS_PATH.exec(url.pathname);
 			if (ticketMatch && request.method === "POST") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
-				const ticket = `landingos-e2e-ticket-${randomUUID()}`;
-				store.tickets.set(ticket, user.id);
-				return json(response, 200, {
-					ticket,
-					expiresAt: new Date(Date.now() + 60_000).toISOString(),
-				});
+				const issued = fixtureConnectionTicket();
+				store.tickets.set(issued.ticket, user.id);
+				return json(
+					response,
+					200,
+					contract("rooms/{id}/tickets", ConnectionTicketResponseSchema, issued),
+				);
 			}
 			if (url.pathname === "/safety/rules" && request.method === "GET") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
-				return json(response, 200, {
-					version: COMMUNITY_RULES_VERSION,
-					accepted: user.rulesAccepted,
-					topics: COMMUNITY_RULES_TOPICS,
-				});
+				return json(
+					response,
+					200,
+					contract("safety/rules", CommunityRulesStatusResponseSchema, {
+						version: COMMUNITY_RULES_VERSION,
+						accepted: user.rulesAccepted,
+						topics: COMMUNITY_RULES_TOPICS,
+					}),
+				);
 			}
 			if (url.pathname === "/safety/rules/accept" && request.method === "POST") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
 				store.acceptRules(user.id);
-				return json(response, 200, {
-					version: COMMUNITY_RULES_VERSION,
-					acceptedAt: new Date().toISOString(),
-					created: true,
-				});
+				return json(
+					response,
+					200,
+					contract("safety/rules/accept", CommunityRulesAcceptanceResponseSchema, {
+						version: COMMUNITY_RULES_VERSION,
+						acceptedAt: new Date().toISOString(),
+						created: true,
+					}),
+				);
 			}
 			const blocksMatch = BLOCKS_PATH.exec(url.pathname);
 			if (blocksMatch) {
 				const user = requireUser(store, request, response);
 				if (!user) return;
 				if (request.method === "GET") {
-					return json(response, 200, { blockedPseudonyms: store.blockedPseudonyms(user.id) });
+					return json(
+						response,
+						200,
+						contract("safety/rooms/{id}/blocks", BlockedMembersResponseSchema, {
+							blockedPseudonyms: store.blockedPseudonyms(user.id),
+						}),
+					);
 				}
 				if (request.method === "PUT") {
 					const input = await body(request);
 					const target = String(input.targetPseudonym ?? "");
 					store.block(user.id, target, true);
-					return json(response, 200, {
-						blockedPseudonym: target,
-						active: true,
-						changed: true,
-					});
+					return json(
+						response,
+						200,
+						contract("safety/rooms/{id}/blocks", RoomBlockResponseSchema, {
+							blockedPseudonym: target,
+							active: true,
+							changed: true,
+						}),
+					);
 				}
 				if (request.method === "DELETE") {
 					const target = decodeURIComponent(blocksMatch[2] ?? "");
 					store.block(user.id, target, false);
-					return json(response, 200, {
-						blockedPseudonym: target,
-						active: false,
-						changed: true,
-					});
+					return json(
+						response,
+						200,
+						contract("safety/rooms/{id}/blocks", RoomBlockResponseSchema, {
+							blockedPseudonym: target,
+							active: false,
+							changed: true,
+						}),
+					);
 				}
 			}
 			const reportsMatch = REPORTS_PATH.exec(url.pathname);
@@ -376,14 +474,26 @@ export async function startFixtureServer(port = DEFAULT_PORT) {
 				return json(
 					response,
 					201,
-					store.createReport(user.id, reportsMatch[1] ?? "", await body(request)),
+					contract(
+						"safety/rooms/{id}/reports",
+						SafetyReportCreateResponseSchema,
+						store.createReport(user.id, reportsMatch[1] ?? "", await body(request)),
+					),
 				);
 			}
 			if (url.pathname === "/operator/reports" && request.method === "GET") {
 				const user = requireUser(store, request, response);
 				if (!user) return;
 				if (user.role !== "operator") return json(response, 403, { error: "Brak uprawnień." });
-				return json(response, 200, store.listReports(Object.fromEntries(url.searchParams)));
+				return json(
+					response,
+					200,
+					contract(
+						"operator/reports",
+						SafetyReportQueueResponseSchema,
+						store.listReports(Object.fromEntries(url.searchParams)),
+					),
+				);
 			}
 			if (url.pathname === "/operator/catalog" && request.method === "GET") {
 				const user = requireUser(store, request, response);

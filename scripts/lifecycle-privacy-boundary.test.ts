@@ -1,9 +1,14 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { isRuntimeSource, matching, source as read, scanFiles } from "./leak-scan";
 
-const root = resolve(import.meta.dirname, "..");
-const read = (path: string) => readFileSync(resolve(root, path), "utf8");
+/** Every path that handles account/room lifecycle data or terminal errors. */
+const LIFECYCLE_DIRECTORIES = [
+	"packages/data-ops/src/lifecycle",
+	"apps/data-service/src/hono/handlers",
+	"apps/data-service/src/hono/middleware",
+	"apps/data-service/src/durable-objects",
+] as const;
+const ACCOUNT_FILE = /account-deletion/i;
 const STATUS = "implementation verified; independent compliance approval pending";
 const COMMUNITY_RULES_VERSION = "2026-07-26-v1";
 const COMMUNITY_RULES_TOPICS = [
@@ -43,24 +48,19 @@ describe("S8 public privacy boundaries", () => {
 	});
 
 	it("keeps lifecycle and error paths free of request-body or private-value logging", () => {
-		for (const path of [
-			"apps/data-service/src/hono/handlers/lifecycle-handlers.ts",
-			"apps/data-service/src/hono/handlers/room-handlers.ts",
-			"apps/data-service/src/hono/middleware/error-handler.ts",
-			"apps/data-service/src/durable-objects/flight-room.ts",
-			"apps/user-application/src/lib/account-deletion-api.ts",
-			"apps/user-application/src/lib/account-deletion-hook.ts",
-			"packages/data-ops/src/lifecycle/queries.ts",
-		]) {
-			const source = read(path);
-			expect(source).not.toMatch(/console\.(debug|error|info|log|warn)/);
-			expect(source).not.toMatch(/log(Request|Body|Payload|Destination|Message|Email)/i);
-			expect(source).not.toContain(canaries.email);
-			expect(source).not.toContain(canaries.address);
-			expect(source).not.toContain(canaries.placeId);
-			expect(source).not.toContain(canaries.coordinates);
-			expect(source).not.toContain(canaries.message);
-		}
+		const lifecycleFiles = [
+			...scanFiles(LIFECYCLE_DIRECTORIES, { include: isRuntimeSource }),
+			...scanFiles(["apps/user-application/src/lib"], {
+				include: (path) => isRuntimeSource(path) && ACCOUNT_FILE.test(path),
+			}),
+		];
+
+		expect(lifecycleFiles.length).toBeGreaterThan(0);
+		expect(matching(lifecycleFiles, /console\.(debug|error|info|log|warn)/)).toEqual([]);
+		expect(
+			matching(lifecycleFiles, /log(Request|Body|Payload|Destination|Message|Email)/i),
+		).toEqual([]);
+		expect(matching(lifecycleFiles, new RegExp(Object.values(canaries).join("|")))).toEqual([]);
 	});
 
 	it("locks the exact lifecycle constants, tombstones, migration, and every-environment cron", () => {

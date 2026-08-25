@@ -1,26 +1,15 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	JourneySourceReferenceSchema,
 	TransferCatalogEntrySchema,
 } from "../packages/data-ops/src/journey/schema";
+import { isRuntimeSource, matching, scanFiles, scannedSource, source } from "./leak-scan";
 
-const ROOT = resolve(import.meta.dirname, "..");
 const PRIVATE_DESTINATION_FIELDS =
 	/\b(placeId|displayName|coordinates|latitude|longitude|destinationDisplayText|address)\b/;
 
-function source(path: string): string {
-	return readFileSync(resolve(ROOT, path), "utf8");
-}
-
-function filesUnder(path: string): string[] {
-	return readdirSync(path).flatMap((entry) => {
-		if (["node_modules", "dist", ".wrangler"].includes(entry)) return [];
-		const child = join(path, entry);
-		return statSync(child).isDirectory() ? filesUnder(child) : [child];
-	});
-}
+/** Anything that writes somewhere durable, wherever it happens to live. */
+const TELEMETRY_FILE = /(analytics|telemetry|logger|error-handler)/i;
 
 describe("journey privacy boundary", () => {
 	it("keeps exact destination fields out of catalog rows, seed, and queries", () => {
@@ -78,28 +67,22 @@ describe("journey privacy boundary", () => {
 	});
 
 	it("keeps exact destination values out of logging and analytics source files", () => {
-		const telemetryFiles = filesUnder(resolve(ROOT, "apps")).filter(
-			(path) =>
-				/\.(ts|tsx)$/.test(path) &&
-				!path.endsWith(".test.ts") &&
-				/(analytics|telemetry|logger|error-handler)/i.test(path),
-		);
+		const telemetryFiles = scanFiles(["apps"], {
+			include: (path) => isRuntimeSource(path) && TELEMETRY_FILE.test(path),
+		});
+
 		expect(telemetryFiles.length).toBeGreaterThan(0);
-		for (const path of telemetryFiles) {
-			expect(readFileSync(path, "utf8"), path).not.toMatch(PRIVATE_DESTINATION_FIELDS);
-		}
+		expect(matching(telemetryFiles, PRIVATE_DESTINATION_FIELDS)).toEqual([]);
 	});
 
 	it("contains no LandingOS payment form, credential field, or transaction API", () => {
-		const paymentSurface = [
-			"apps/user-application/src/components/journey/journey-planner.tsx",
-			"apps/user-application/src/components/operator/operator-catalog-console.tsx",
-			"apps/user-application/src/lib/operator-catalog-api.ts",
-			"apps/data-service/src/hono/handlers/journey-handlers.ts",
-			"apps/data-service/src/hono/handlers/operator-catalog-handlers.ts",
-		]
-			.map(source)
-			.join("\n");
+		// The MVP takes no payment anywhere, so the whole app surface is scanned
+		// rather than the handful of files that happen to render journey links.
+		const paymentSurface = scannedSource(
+			scanFiles(["apps/user-application/src", "apps/data-service/src"], {
+				include: isRuntimeSource,
+			}),
+		);
 		expect(paymentSurface).not.toMatch(
 			/\b(cardNumber|cardholder|cvv|cvc|iban|paymentMethod|paymentIntent|stripe|paypal)\b/i,
 		);

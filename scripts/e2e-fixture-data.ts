@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { parseFlightDesignator } from "../packages/data-ops/dist/flight/index.js";
 
 export function fixtureFlight(
@@ -42,6 +43,32 @@ export function fixtureFlight(
 		...(options.manualArrivalConflict
 			? { manualArrivalConflict: options.manualArrivalConflict }
 			: {}),
+	};
+}
+
+export function fixtureConnectionTicket() {
+	return {
+		ticket: `landingos-e2e-ticket-${randomUUID()}`,
+		expiresAt: new Date(Date.now() + 60_000).toISOString(),
+	};
+}
+
+/**
+ * The real engine always answers a failed recommendation with both alternative
+ * lists — an empty `catalogAlternatives` is still the array, never an omission.
+ */
+export function fixtureNoTrustworthyRoute() {
+	return {
+		status: "no_trustworthy_route",
+		reason: "zero_result",
+		manualAlternatives: [
+			{
+				kind: "source",
+				label: "Sprawdź połączenia z lotniska BGY",
+				url: "https://www.milanbergamoairport.it/en/bus/",
+			},
+		],
+		catalogAlternatives: [],
 	};
 }
 

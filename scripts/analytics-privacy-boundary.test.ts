@@ -1,23 +1,23 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { isRuntimeSource, matching, source as read, scanFiles } from "./leak-scan";
 
 function stripJsoncComments(text: string): string {
 	return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
-const analyticsTable = readFileSync("packages/data-ops/src/analytics/table.ts", "utf8");
-const analyticsQueries = readFileSync("packages/data-ops/src/analytics/queries.ts", "utf8");
-const serverAnalyticsSources = [
-	"apps/data-service/src/analytics/repository.ts",
-	"apps/data-service/src/analytics/service.ts",
-	"apps/data-service/src/scheduled/index.ts",
-].map((path) => readFileSync(path, "utf8"));
-const clientSources = [
-	"apps/user-application/src/lib/analytics-funnel.ts",
-	"apps/user-application/src/lib/flight-planner.ts",
-	"apps/user-application/src/lib/journey-planner.ts",
-	"apps/user-application/src/lib/room-api.ts",
-].map((path) => readFileSync(path, "utf8"));
+const analyticsTable = read("packages/data-ops/src/analytics/table.ts");
+const analyticsQueries = read("packages/data-ops/src/analytics/queries.ts");
+/** The whole server-side ledger surface, swept whole. */
+const serverAnalyticsFiles = scanFiles(
+	[
+		"packages/data-ops/src/analytics",
+		"apps/data-service/src/analytics",
+		"apps/data-service/src/scheduled",
+	],
+	{ include: isRuntimeSource },
+);
+/** The whole browser bundle — the secret must not reach any of it. */
+const clientFiles = scanFiles(["apps/user-application/src"], { include: isRuntimeSource });
 
 describe("analytics privacy and configuration boundary", () => {
 	it("keeps the ledger free of arbitrary metadata and forbidden private columns", () => {
@@ -38,38 +38,31 @@ describe("analytics privacy and configuration boundary", () => {
 	});
 
 	it("keeps the HMAC secret and raw actor IDs out of the browser bundle", () => {
-		const clientSource = clientSources.join("\n");
-		expect(clientSource).not.toMatch(
-			/ANALYTICS_PSEUDONYM_SECRET|actorPseudonym|HMAC|raw-user|internal-user/i,
-		);
-		expect(readFileSync("apps/data-service/.dev.vars.example", "utf8")).toContain(
-			"ANALYTICS_PSEUDONYM_SECRET=",
-		);
-		expect(readFileSync("apps/user-application/.env.example", "utf8")).not.toContain(
-			"ANALYTICS_PSEUDONYM_SECRET",
-		);
-		expect(serverAnalyticsSources.join("\n")).not.toMatch(/\bconsole\.(log|info|warn|error)\b/);
+		expect(clientFiles.length).toBeGreaterThan(0);
+		expect(serverAnalyticsFiles.length).toBeGreaterThan(0);
+		expect(
+			matching(
+				clientFiles,
+				/ANALYTICS_PSEUDONYM_SECRET|actorPseudonym|HMAC|raw-user|internal-user/i,
+			),
+		).toEqual([]);
+		expect(read("apps/data-service/.dev.vars.example")).toContain("ANALYTICS_PSEUDONYM_SECRET=");
+		expect(read("apps/user-application/.env.example")).not.toContain("ANALYTICS_PSEUDONYM_SECRET");
+		expect(matching(serverAnalyticsFiles, /\bconsole\.(log|info|warn|error)\b/)).toEqual([]);
 	});
 
 	it("uses no third-party or Cloudflare Analytics Engine ledger", () => {
-		const dependencies = [
-			"package.json",
-			"packages/data-ops/package.json",
-			"apps/data-service/package.json",
-			"apps/user-application/package.json",
-		]
-			.map((path) => readFileSync(path, "utf8"))
-			.join("\n");
-		expect(dependencies).not.toMatch(/posthog|segment|mixpanel|amplitude/i);
-		expect(readFileSync("apps/data-service/wrangler.jsonc", "utf8")).not.toContain(
-			"analytics_engine_datasets",
-		);
+		const manifests = scanFiles(["package.json", "packages", "apps"], {
+			include: (path) => path.endsWith("package.json"),
+		});
+
+		expect(manifests.length).toBeGreaterThan(0);
+		expect(matching(manifests, /posthog|segment|mixpanel|amplitude/i)).toEqual([]);
+		expect(read("apps/data-service/wrangler.jsonc")).not.toContain("analytics_engine_datasets");
 	});
 
 	it("registers one bounded cron in every data-service environment", () => {
-		const config = JSON.parse(
-			stripJsoncComments(readFileSync("apps/data-service/wrangler.jsonc", "utf8")),
-		) as {
+		const config = JSON.parse(stripJsoncComments(read("apps/data-service/wrangler.jsonc"))) as {
 			env?: Record<string, { triggers?: { crons?: string[] } }>;
 		};
 		for (const environment of ["dev", "staging", "production"]) {
@@ -79,14 +72,11 @@ describe("analytics privacy and configuration boundary", () => {
 
 	it("registers analytics tables in every Drizzle environment and migration", () => {
 		for (const environment of ["dev", "staging", "production"]) {
-			expect(readFileSync(`packages/data-ops/drizzle-${environment}.config.ts`, "utf8")).toContain(
+			expect(read(`packages/data-ops/drizzle-${environment}.config.ts`)).toContain(
 				'"./src/analytics/table.ts"',
 			);
 		}
-		const migration = readFileSync(
-			"packages/data-ops/src/drizzle/migrations/dev/0008_normal_ma_gnuci.sql",
-			"utf8",
-		);
+		const migration = read("packages/data-ops/src/drizzle/migrations/dev/0008_normal_ma_gnuci.sql");
 		expect(migration).toContain('CREATE TABLE "analytics_funnels"');
 		expect(migration).toContain('CREATE TABLE "analytics_events"');
 		expect(migration).toContain(

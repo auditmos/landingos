@@ -1,14 +1,16 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OPERATOR_CATALOG_FIELDS } from "../packages/data-ops/src/journey/operator-fields";
 import { CatalogTransferAlternativeSchema } from "../packages/data-ops/src/journey/schema";
+import { isRuntimeSource, matching, scanFiles, source } from "./leak-scan";
 
-const ROOT = resolve(import.meta.dirname, "..");
-
-function source(path: string): string {
-	return readFileSync(resolve(ROOT, path), "utf8");
-}
+/** Every surface that renders or serves the operator catalog. */
+const CATALOG_SURFACE = [
+	"apps/user-application/src/components/journey",
+	"apps/user-application/src/components/operator",
+	"apps/user-application/src/lib/operator-catalog-api.ts",
+	"apps/data-service/src/journey",
+	"apps/data-service/src/hono/handlers/operator-catalog-handlers.ts",
+] as const;
 
 const alternative = {
 	id: "catalog-1",
@@ -76,14 +78,11 @@ describe("operator catalog boundary", () => {
 	});
 
 	it("still contains no payment or ticket-purchase flow", () => {
-		for (const path of [
-			"apps/user-application/src/components/journey/journey-planner.tsx",
-			"apps/user-application/src/components/operator/operator-catalog-console.tsx",
-			"apps/data-service/src/journey/engine.ts",
-		]) {
-			expect(source(path)).not.toMatch(
-				/stripe|checkout|payment[_-]?intent|card[_-]?number|koszyk|zapłać/i,
-			);
-		}
+		const catalogFiles = scanFiles(CATALOG_SURFACE, { include: isRuntimeSource });
+
+		expect(catalogFiles.length).toBeGreaterThan(0);
+		expect(
+			matching(catalogFiles, /stripe|checkout|payment[_-]?intent|card[_-]?number|koszyk|zapłać/i),
+		).toEqual([]);
 	});
 });

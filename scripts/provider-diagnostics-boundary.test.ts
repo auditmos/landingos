@@ -1,13 +1,6 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ProviderDiagnosticSchema } from "../packages/data-ops/src/diagnostics/schema";
-
-const ROOT = resolve(import.meta.dirname, "..");
-
-function source(path: string): string {
-	return readFileSync(resolve(ROOT, path), "utf8");
-}
+import { source } from "./leak-scan";
 
 const validDiagnostic = {
 	reference: "cf-ray-abc123",

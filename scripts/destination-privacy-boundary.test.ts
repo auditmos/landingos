@@ -1,46 +1,42 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FlightInstanceSchema } from "../packages/data-ops/src/flight/schema";
+import { isRuntimeSource, matching, scanFiles } from "./leak-scan";
 
-const ROOT = resolve(import.meta.dirname, "..");
 const FORBIDDEN_DESTINATION_FIELDS =
 	/\b(placeId|displayName|coordinates|latitude|longitude|destinationDisplayText)\b/;
 
-function filesUnder(path: string): string[] {
-	return readdirSync(path).flatMap((entry) => {
-		if (["node_modules", "dist", ".wrangler"].includes(entry)) return [];
-		const child = join(path, entry);
-		return statSync(child).isDirectory() ? filesUnder(child) : [child];
-	});
-}
+const TELEMETRY_FILE = /(analytics|telemetry|logger|error-handler)/i;
 
 describe("destination privacy boundary", () => {
 	it("keeps exact destination fields out of flight persistence and non-private public schemas", () => {
-		const publicSchemaFiles = filesUnder(resolve(ROOT, "packages/data-ops/src")).filter(
-			(file) =>
-				/(schema|table)\.ts$/.test(file) &&
-				!file.includes("/destination/") &&
-				!file.includes("/journey/") &&
-				!file.endsWith(".test.ts"),
-		);
-		const publicHandlerFiles = filesUnder(
-			resolve(ROOT, "apps/data-service/src/hono/handlers"),
-		).filter(
-			(file) =>
-				file.endsWith("-handlers.ts") &&
-				!file.endsWith("destination-handlers.ts") &&
-				!file.endsWith("journey-handlers.ts"),
-		);
-		const telemetryAndLogFiles = filesUnder(resolve(ROOT, "apps")).filter(
-			(file) =>
-				/\.(ts|tsx)$/.test(file) &&
-				!file.endsWith(".test.ts") &&
-				/(analytics|telemetry|logger|error-handler)/i.test(file),
-		);
-		for (const file of [...publicSchemaFiles, ...publicHandlerFiles, ...telemetryAndLogFiles]) {
-			expect(readFileSync(file, "utf8"), file).not.toMatch(FORBIDDEN_DESTINATION_FIELDS);
-		}
+		// The destination and journey domains own the private planner data; every
+		// other schema, handler, and telemetry file must stay clear of it.
+		const publicSchemaFiles = scanFiles(["packages/data-ops/src"], {
+			include: (path) =>
+				/(schema|table)\.ts$/.test(path) &&
+				isRuntimeSource(path) &&
+				!path.includes("/destination/") &&
+				!path.includes("/journey/"),
+		});
+		const publicHandlerFiles = scanFiles(["apps/data-service/src/hono/handlers"], {
+			include: (path) =>
+				path.endsWith("-handlers.ts") &&
+				!path.endsWith("destination-handlers.ts") &&
+				!path.endsWith("journey-handlers.ts"),
+		});
+		const telemetryAndLogFiles = scanFiles(["apps"], {
+			include: (path) => isRuntimeSource(path) && TELEMETRY_FILE.test(path),
+		});
+
+		expect(publicSchemaFiles.length).toBeGreaterThan(0);
+		expect(publicHandlerFiles.length).toBeGreaterThan(0);
+		expect(telemetryAndLogFiles.length).toBeGreaterThan(0);
+		expect(
+			matching(
+				[...publicSchemaFiles, ...publicHandlerFiles, ...telemetryAndLogFiles],
+				FORBIDDEN_DESTINATION_FIELDS,
+			),
+		).toEqual([]);
 		expect(() =>
 			FlightInstanceSchema.parse({
 				id: "flight",
