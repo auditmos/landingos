@@ -1,3 +1,5 @@
+## [1.36.8](https://github.com/auditmos/landingos/compare/v1.36.7...v1.36.8) (2026-08-25)
+
 ## [1.36.7](https://github.com/auditmos/landingos/compare/v1.36.6...v1.36.7) (2026-08-25)
 
 ## [1.36.6](https://github.com/auditmos/landingos/compare/v1.36.5...v1.36.6) (2026-08-25)
