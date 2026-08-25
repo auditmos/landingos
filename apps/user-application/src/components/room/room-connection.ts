@@ -30,8 +30,39 @@ async function openRoomConnection(
 	return { recovered, socket };
 }
 
-function applyRealtimeEvent(setSnapshot: SnapshotSetter, event: RoomRealtimeEvent) {
-	if (event.type === "room_redacted") return;
+type RealtimeFrame =
+	| { kind: "event"; event: Exclude<RoomRealtimeEvent, { type: "room_redacted" }> }
+	| { kind: "redaction" }
+	| { kind: "socket_error"; message: string }
+	| { kind: "invalid" };
+
+/**
+ * Classifies one raw socket frame exactly once. Every downstream outcome —
+ * message, member, redaction, server-side error, unusable payload — is a
+ * distinct variant, so the dispatch site owns each one and only once.
+ */
+function parseRealtimeFrame(raw: string): RealtimeFrame {
+	let value: unknown;
+	try {
+		value = JSON.parse(raw);
+	} catch {
+		return { kind: "invalid" };
+	}
+	const event = RoomRealtimeEventSchema.safeParse(value);
+	if (event.success) {
+		return event.data.type === "room_redacted"
+			? { kind: "redaction" }
+			: { kind: "event", event: event.data };
+	}
+	const realtimeError = RoomRealtimeErrorSchema.safeParse(value);
+	if (realtimeError.success) return { kind: "socket_error", message: realtimeError.data.error };
+	return { kind: "invalid" };
+}
+
+function applyRealtimeEvent(
+	setSnapshot: SnapshotSetter,
+	event: Exclude<RoomRealtimeEvent, { type: "room_redacted" }>,
+) {
 	setSnapshot((current) => {
 		if (!current) return current;
 		if (event.type === "message_created") {
@@ -45,25 +76,6 @@ function applyRealtimeEvent(setSnapshot: SnapshotSetter, event: RoomRealtimeEven
 			members: upsertMember(current.members, event.member),
 		};
 	});
-}
-
-function handleRealtimePayload(
-	rawData: string,
-	setSnapshot: SnapshotSetter,
-	setError: Dispatch<SetStateAction<string>>,
-) {
-	try {
-		const value: unknown = JSON.parse(rawData);
-		const event = RoomRealtimeEventSchema.safeParse(value);
-		if (event.success) {
-			applyRealtimeEvent(setSnapshot, event.data);
-			return;
-		}
-		const realtimeError = RoomRealtimeErrorSchema.safeParse(value);
-		if (realtimeError.success) setError(realtimeError.data.error);
-	} catch {
-		setError("Odebrano nieprawidłowe zdarzenie pokoju.");
-	}
 }
 
 /**
@@ -117,18 +129,37 @@ export function useRoomSocket(
 			if (active) setConnection("Połączono");
 		}
 
+		// A redaction removes content the client already holds, so the whole
+		// snapshot is refetched. Like every other socket callback it must not
+		// write after teardown: a refetch still in flight when the room closes
+		// would otherwise re-open a socket to a room the server already ended.
+		function refetchAfterRedaction() {
+			void fetchRoomSnapshot(activeRoomId)
+				.then((refreshed) => {
+					if (active) setSnapshot(refreshed);
+				})
+				.catch(() => {
+					if (active) closeRoomView();
+				});
+		}
+
 		function handleMessage(raw: MessageEvent) {
 			if (!active || typeof raw.data !== "string") return;
-			try {
-				const parsed = RoomRealtimeEventSchema.safeParse(JSON.parse(raw.data));
-				if (parsed.success && parsed.data.type === "room_redacted") {
-					void fetchRoomSnapshot(activeRoomId).then(setSnapshot).catch(closeRoomView);
+			const frame = parseRealtimeFrame(raw.data);
+			switch (frame.kind) {
+				case "event":
+					applyRealtimeEvent(setSnapshot, frame.event);
 					return;
-				}
-			} catch {
-				// The shared payload parser below renders the Polish validation error.
+				case "redaction":
+					refetchAfterRedaction();
+					return;
+				case "socket_error":
+					setError(frame.message);
+					return;
+				case "invalid":
+					setError("Odebrano nieprawidłowe zdarzenie pokoju.");
+					return;
 			}
-			handleRealtimePayload(raw.data, setSnapshot, setError);
 		}
 
 		function handleClose(event: CloseEvent) {

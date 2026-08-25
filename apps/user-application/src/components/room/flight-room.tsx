@@ -41,46 +41,133 @@ import {
 } from "./room-safety-panel";
 import { useRoomSafety } from "./use-room-safety";
 
-function handleInitializationError(
-	caught: unknown,
-	setNeedsPseudonym: Dispatch<SetStateAction<boolean>>,
-	setError: Dispatch<SetStateAction<string>>,
-	closeRoomView: () => void,
-) {
+/**
+ * The one phase the room view can be in. Every phase carries exactly the data
+ * it renders, so a transition is a single assignment and a write that lands
+ * after the view moved on (a refetch resolving past a close) is a structural
+ * no-op instead of a hazard masked by render order.
+ */
+type RoomView =
+	| { kind: "loading" }
+	| { kind: "closed" }
+	| { kind: "needs_pseudonym" }
+	| { kind: "planner_required"; pastFlights: PastFlightListing[] }
+	| { kind: "entry_failed"; message: string }
+	| { kind: "room"; snapshot: RoomSnapshot; publicOption: PublicTransportSelection | null };
+
+function viewFromInitializationError(caught: unknown): RoomView {
 	if (caught instanceof Error && caught.name === "PSEUDONYM_REQUIRED") {
-		setNeedsPseudonym(true);
-	} else if (caught instanceof Error && caught.name === "room_closed") {
-		closeRoomView();
-	} else {
-		setError(caught instanceof Error ? caught.message : "Nie udało się wejść do pokoju.");
+		return { kind: "needs_pseudonym" };
+	}
+	if (caught instanceof Error && caught.name === "room_closed") return { kind: "closed" };
+	return {
+		kind: "entry_failed",
+		message: caught instanceof Error ? caught.message : "Nie udało się wejść do pokoju.",
+	};
+}
+
+/**
+ * Snapshot writes, both shapes, routed through the phase. `updateSnapshot` is
+ * what this component uses; `setSnapshot` keeps the existing
+ * `Dispatch<SetStateAction<RoomSnapshot | null>>` contract the socket and
+ * safety hooks are typed against. Outside the room phase there is no snapshot
+ * to update, so a write that lands after the view moved on is a no-op.
+ */
+function useSnapshotWriters(setView: Dispatch<SetStateAction<RoomView>>) {
+	const updateSnapshot = useCallback(
+		(apply: (snapshot: RoomSnapshot) => RoomSnapshot) => {
+			setView((current) =>
+				current.kind === "room" ? { ...current, snapshot: apply(current.snapshot) } : current,
+			);
+		},
+		[setView],
+	);
+	const setSnapshot = useCallback<Dispatch<SetStateAction<RoomSnapshot | null>>>(
+		(update) => {
+			updateSnapshot((current) => {
+				const next = typeof update === "function" ? update(current) : update;
+				return next ?? current;
+			});
+		},
+		[updateSnapshot],
+	);
+	return { updateSnapshot, setSnapshot };
+}
+
+/** The phases that replace the room shell instead of rendering inside it. */
+function standalonePhase(view: RoomView, onPseudonymSaved: () => void) {
+	switch (view.kind) {
+		case "closed":
+			return <ClosedRoom />;
+		case "loading":
+			return <p aria-live="polite">Przygotowujemy pokój lotu…</p>;
+		case "needs_pseudonym":
+			return <PseudonymSetup onSaved={onPseudonymSaved} />;
+		default:
+			return null;
+	}
+}
+
+/** Flattens the phase into what the room shell renders, once, in one place. */
+function presentRoomView(view: RoomView) {
+	switch (view.kind) {
+		case "room":
+			return {
+				snapshot: view.snapshot,
+				publicOption: view.publicOption,
+				pastFlights: [] as PastFlightListing[],
+				plannerPrompt: false,
+				entryFailure: "",
+			};
+		case "planner_required":
+			return {
+				snapshot: null,
+				publicOption: null,
+				pastFlights: view.pastFlights,
+				plannerPrompt: true,
+				entryFailure: "",
+			};
+		case "entry_failed":
+			return {
+				snapshot: null,
+				publicOption: null,
+				pastFlights: [] as PastFlightListing[],
+				plannerPrompt: false,
+				entryFailure: view.message,
+			};
+		default:
+			return {
+				snapshot: null,
+				publicOption: null,
+				pastFlights: [] as PastFlightListing[],
+				plannerPrompt: false,
+				entryFailure: "",
+			};
 	}
 }
 
 export function FlightRoom({ roomId }: { roomId?: string }) {
-	const [publicOption, setPublicOption] = useState<PublicTransportSelection | null>(null);
-	const [pastFlights, setPastFlights] = useState<PastFlightListing[]>([]);
-	const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
+	const [view, setView] = useState<RoomView>({ kind: "loading" });
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
-	const [loading, setLoading] = useState(true);
-	const [needsPseudonym, setNeedsPseudonym] = useState(false);
 	const [retryKey, setRetryKey] = useState(0);
 	const [connection, setConnection] = useState("Łączenie…");
-	const [closed, setClosed] = useState(false);
 	const messagesRef = useRef<HTMLDivElement>(null);
 	const refreshOpenRoomCount = useRefreshOpenRoomCount();
+	const { snapshot, publicOption, pastFlights, plannerPrompt, entryFailure } =
+		presentRoomView(view);
+	const { updateSnapshot, setSnapshot } = useSnapshotWriters(setView);
+
 	const closeRoomView = useCallback(() => {
 		clearRoomIntent();
 		clearPrivateDropOff();
-		setSnapshot(null);
-		setClosed(true);
-		setConnection("Pokój zamknięty");
-		setError("");
 		refreshOpenRoomCount();
+		setView({ kind: "closed" });
 	}, [refreshOpenRoomCount]);
+
 	const safety = useRoomSafety(snapshot?.room.id, async () => {
-		const roomId = snapshot?.room.id;
-		if (roomId) setSnapshot(await fetchRoomSnapshot(roomId));
+		const openRoomId = snapshot?.room.id;
+		if (openRoomId) setSnapshot(await fetchRoomSnapshot(openRoomId));
 	});
 
 	useEffect(() => {
@@ -92,31 +179,27 @@ export function FlightRoom({ roomId }: { roomId?: string }) {
 	useEffect(() => {
 		void retryKey;
 		let active = true;
-		setLoading(true);
+		setView({ kind: "loading" });
 		setError("");
-		setNeedsPseudonym(false);
 		resolveRoomEntry(roomId)
 			.then((entry) => {
 				if (!active) return;
 				if (entry.kind === "planner_required") {
-					setPastFlights(entry.pastFlights);
-					setError("Najpierw wybierz lot i wariant przejazdu w planerze.");
+					setView({ kind: "planner_required", pastFlights: entry.pastFlights });
 					return;
 				}
 				if (entry.kind === "flight_choice") {
 					window.location.assign("/app/flights");
 					return;
 				}
-				setPublicOption(entry.publicOption);
-				setSnapshot(entry.snapshot);
+				setView({ kind: "room", snapshot: entry.snapshot, publicOption: entry.publicOption });
 				refreshOpenRoomCount();
 			})
 			.catch((caught: unknown) => {
 				if (!active) return;
-				handleInitializationError(caught, setNeedsPseudonym, setError, closeRoomView);
-			})
-			.finally(() => {
-				if (active) setLoading(false);
+				const next = viewFromInitializationError(caught);
+				if (next.kind === "closed") closeRoomView();
+				else setView(next);
 			});
 		return () => {
 			active = false;
@@ -132,15 +215,11 @@ export function FlightRoom({ roomId }: { roomId?: string }) {
 		setError("");
 		try {
 			const member = await updateRoomSelection(snapshot.room.id, selection);
-			setSnapshot((current) =>
-				current
-					? {
-							...current,
-							member,
-							members: upsertMember(current.members, member),
-						}
-					: current,
-			);
+			updateSnapshot((current) => ({
+				...current,
+				member,
+				members: upsertMember(current.members, member),
+			}));
 		} catch (caught) {
 			if (caught instanceof Error && caught.name === "room_closed") {
 				closeRoomView();
@@ -164,11 +243,10 @@ export function FlightRoom({ roomId }: { roomId?: string }) {
 		setError("");
 		try {
 			const result = await sendRoomMessage(snapshot.room.id, parsed.data);
-			setSnapshot((current) =>
-				current
-					? { ...current, messages: upsertMessage(current.messages, result.message) }
-					: current,
-			);
+			updateSnapshot((current) => ({
+				...current,
+				messages: upsertMessage(current.messages, result.message),
+			}));
 			setMessage("");
 		} catch (caught) {
 			if (caught instanceof Error && caught.name === "room_closed") {
@@ -179,20 +257,26 @@ export function FlightRoom({ roomId }: { roomId?: string }) {
 		}
 	}
 
-	if (closed) return <ClosedRoom />;
-	if (loading) return <p aria-live="polite">Przygotowujemy pokój lotu…</p>;
-	if (needsPseudonym) return <PseudonymSetup onSaved={() => setRetryKey((value) => value + 1)} />;
+	const standalone = standalonePhase(view, () => setRetryKey((value) => value + 1));
+	if (standalone) return standalone;
 
 	const gated = !!snapshot && !!safety.rules && !safety.rules.accepted;
+	const failure = entryFailure || error;
 
 	return (
 		<section className="mx-auto max-w-3xl space-y-5">
 			{snapshot ? <CommunityRulesGate safety={safety} /> : null}
 
-			{error ? (
+			{plannerPrompt ? (
+				<Alert>
+					<AlertDescription>Najpierw wybierz lot i wariant przejazdu w planerze.</AlertDescription>
+				</Alert>
+			) : null}
+
+			{failure ? (
 				<Alert variant="destructive">
 					<AlertTitle>Nie udało się wykonać operacji</AlertTitle>
-					<AlertDescription>{error}</AlertDescription>
+					<AlertDescription>{failure}</AlertDescription>
 				</Alert>
 			) : null}
 

@@ -100,6 +100,9 @@ class FakeWebSocket extends EventTarget {
 	emit(data: unknown) {
 		this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(data) }));
 	}
+	emitRaw(data: string) {
+		this.dispatchEvent(new MessageEvent("message", { data }));
+	}
 	disconnect(code = 1006) {
 		this.dispatchEvent(new CloseEvent("close", { code }));
 	}
@@ -433,6 +436,93 @@ describe("room re-entry without planner intent", () => {
 		expect(mocks.join).not.toHaveBeenCalled();
 		expect(mocks.select).not.toHaveBeenCalled();
 		expect(mocks.refresh).toHaveBeenCalledWith(secondRoomId);
+		expect(container.textContent).toContain("Wspólny czat");
+	});
+});
+
+describe("room view phases", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		FakeWebSocket.instances = [];
+		vi.stubGlobal("WebSocket", FakeWebSocket);
+		sessionStorage.clear();
+		sessionStorage.setItem("landingos.room-intent", JSON.stringify(intentFixture));
+		primeRoomMocks();
+	});
+
+	afterEach(unmountRoom);
+
+	it("keeps a closed room closed when a refetch pending at close time resolves", async () => {
+		await mountRoom();
+		let resolveRefetch: ((value: RoomSnapshot) => void) | undefined;
+		mocks.refresh.mockImplementationOnce(
+			() =>
+				new Promise<RoomSnapshot>((resolve) => {
+					resolveRefetch = resolve;
+				}),
+		);
+		FakeWebSocket.instances[0]?.emit({ type: "room_redacted" });
+		await settle();
+		FakeWebSocket.instances[0]?.disconnect(4001);
+		await settle();
+		expect(container.textContent).toContain("Pokój został zamknięty");
+
+		await act(async () => {
+			resolveRefetch?.(snapshot);
+			await Promise.resolve();
+		});
+		await settle();
+
+		expect(container.textContent).toContain("Pokój został zamknięty");
+		expect(container.querySelector("#room-message")).toBeNull();
+		expect(FakeWebSocket.instances).toHaveLength(1);
+		expect(mocks.ticket).toHaveBeenCalledTimes(1);
+	});
+
+	it("asks for a pseudonym before entry and re-enters the room once it is saved", async () => {
+		const rejection = new Error("Ustaw pseudonim, zanim wejdziesz do pokoju.");
+		rejection.name = "PSEUDONYM_REQUIRED";
+		mocks.join.mockRejectedValueOnce(rejection);
+		await mountRoom();
+		expect(container.textContent).toContain("Ustaw pseudonim");
+		expect(container.textContent).not.toContain("Nie udało się wykonać operacji");
+		expect(FakeWebSocket.instances).toHaveLength(0);
+
+		const profileFetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+		vi.stubGlobal("fetch", profileFetch);
+		const pseudonym = container.querySelector<HTMLInputElement>("#room-pseudonym");
+		expect(pseudonym).not.toBeNull();
+		await enter(pseudonym as HTMLInputElement, "Celina BGY");
+		const save = container.querySelector<HTMLButtonElement>('button[type="submit"]');
+		await act(async () => save?.click());
+		await settle();
+		await settle();
+
+		expect(profileFetch).toHaveBeenCalledWith(
+			"/api/profile",
+			expect.objectContaining({ method: "PATCH" }),
+		);
+		expect(mocks.join).toHaveBeenCalledTimes(2);
+		expect(container.textContent).toContain("Pokój lotu");
+		expect(container.textContent).not.toContain("Ustaw pseudonim");
+	});
+
+	it("replaces the snapshot from the server when a frame reports redacted content", async () => {
+		await mountRoom();
+		expect(container.textContent).toContain("Jestem przy autobusie.");
+		mocks.refresh.mockResolvedValueOnce({ ...snapshot, messages: [] });
+		FakeWebSocket.instances[0]?.emit({ type: "room_redacted" });
+		await settle();
+		expect(mocks.refresh).toHaveBeenCalledWith(roomId);
+		expect(container.textContent).not.toContain("Jestem przy autobusie.");
+		expect(container.textContent).toContain("Nie ma jeszcze wiadomości.");
+	});
+
+	it("reports a malformed realtime frame in Polish without dropping the room", async () => {
+		await mountRoom();
+		FakeWebSocket.instances[0]?.emitRaw("{not json");
+		await settle();
+		expect(container.textContent).toContain("Odebrano nieprawidłowe zdarzenie pokoju.");
 		expect(container.textContent).toContain("Wspólny czat");
 	});
 });
