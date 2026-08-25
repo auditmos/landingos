@@ -1,5 +1,5 @@
 import { type ProviderFetch, requestProviderJson } from "./live-http";
-import type { FlightInstance, FlightProvider, ProviderResult } from "./types";
+import type { FlightProvider, ProviderFlight, ProviderResult } from "./types";
 
 interface LiveFlightConfig {
 	aviationstackAccessKey: string;
@@ -126,6 +126,48 @@ function romeScheduledArrival(fallbackDate: string, value: string): string | nul
 	return offset ? `${date}T${time}${offset}` : null;
 }
 
+type NormalizedFlight =
+	| { ok: true; flight: ProviderFlight }
+	| { ok: false; missingFields: string[] };
+
+/**
+ * The presence check *produces* the typed record, so a field can never be read
+ * out of `fields` without having been checked — the field list and the object
+ * that feeds it are the same object, and the compiler keeps them in sync.
+ * `missingFields` follows the literal's key order, which is what callers pin.
+ */
+function requireStrings<K extends string>(
+	fields: Record<K, unknown>,
+): { ok: true; value: Record<K, string> } | { ok: false; missingFields: K[] } {
+	const missingFields: K[] = [];
+	const value = {} as Record<K, string>;
+	for (const [field, raw] of Object.entries(fields) as Array<[K, unknown]>) {
+		if (typeof raw === "string" && raw.length > 0) value[field] = raw;
+		else missingFields.push(field);
+	}
+	return missingFields.length > 0 ? { ok: false, missingFields } : { ok: true, value };
+}
+
+/** Both endpoints fold the same way: first incomplete row wins, >1 match is ambiguous. */
+function foldFlights<T>(
+	raws: T[],
+	normalize: (raw: T) => NormalizedFlight,
+): ProviderResult<ProviderFlight> {
+	const flights: ProviderFlight[] = [];
+	for (const raw of raws) {
+		const normalized = normalize(raw);
+		if (!normalized.ok) {
+			return { status: "incomplete_response", missingFields: normalized.missingFields };
+		}
+		flights.push(normalized.flight);
+	}
+	const [first, ...rest] = flights;
+	if (!first) return { status: "zero_result" };
+	return rest.length > 0
+		? { status: "ambiguous", options: flights }
+		: { status: "success", value: first };
+}
+
 function futureDesignator(raw: AviationstackFutureFlight, flightNumber: string): boolean {
 	return [raw.flight?.iataNumber, raw.codeshared?.flight?.iataNumber].some(
 		(value) => typeof value === "string" && value.trim().toUpperCase() === flightNumber,
@@ -136,7 +178,7 @@ function normalizeFutureFlight(
 	raw: AviationstackFutureFlight,
 	date: string,
 	flightNumber: string,
-): FlightInstance | string[] {
+): NormalizedFlight {
 	const codeshareMatches =
 		typeof raw.codeshared?.flight?.iataNumber === "string" &&
 		raw.codeshared.flight.iataNumber.trim().toUpperCase() === flightNumber;
@@ -148,7 +190,7 @@ function normalizeFutureFlight(
 	const arrivalTime =
 		typeof raw.arrival?.scheduledTime === "string" ? raw.arrival.scheduledTime.trim() : "";
 	const scheduledArrival = romeScheduledArrival(date, arrivalTime);
-	const fields = {
+	const required = requireStrings({
 		carrier:
 			typeof marketingAirline?.name === "string" && marketingAirline.name.trim()
 				? marketingAirline.name.trim()
@@ -158,22 +200,23 @@ function normalizeFutureFlight(
 		originIata,
 		destinationIata,
 		scheduledArrival: scheduledArrival ?? "",
-	};
-	const missingFields = Object.entries(fields)
-		.filter(([, value]) => typeof value !== "string" || value.length === 0)
-		.map(([field]) => field);
-	if (missingFields.length > 0) return missingFields;
+	});
+	if (!required.ok) return required;
+	const fields = required.value;
 	return {
-		id: `${flightNumber.toLowerCase()}:${date}:${originIata.toLowerCase()}-${destinationIata.toLowerCase()}`,
-		carrier: fields.carrier as string,
-		flightNumber,
-		operatingCarrierCode: (fields.operatingCarrierCode as string).trim().toUpperCase(),
-		operatingFlightNumber: (fields.operatingFlightNumber as string).trim(),
-		date,
-		origin: { iata: originIata, name: originIata },
-		destination: { iata: destinationIata, name: destinationIata },
-		scheduledArrival: fields.scheduledArrival,
-		timeZone: "Europe/Rome",
+		ok: true,
+		flight: {
+			id: `${flightNumber.toLowerCase()}:${date}:${originIata.toLowerCase()}-${destinationIata.toLowerCase()}`,
+			carrier: fields.carrier,
+			flightNumber,
+			operatingCarrierCode: fields.operatingCarrierCode.trim().toUpperCase(),
+			operatingFlightNumber: fields.operatingFlightNumber.trim(),
+			date,
+			origin: { iata: originIata, name: originIata },
+			destination: { iata: destinationIata, name: destinationIata },
+			scheduledArrival: fields.scheduledArrival,
+			timeZone: "Europe/Rome",
+		},
 	};
 }
 
@@ -181,32 +224,22 @@ function normalizeFutureResponse(
 	response: AviationstackFutureResponse,
 	date: string,
 	flightNumber: string,
-): ProviderResult<FlightInstance> {
+): ProviderResult<ProviderFlight> {
 	if (!Array.isArray(response.data)) {
 		return { status: "incomplete_response", missingFields: ["data"] };
 	}
 	const matching = response.data.filter((raw) => futureDesignator(raw, flightNumber));
 	if (matching.length === 0) return { status: "zero_result" };
-	const flights: FlightInstance[] = [];
-	for (const raw of matching) {
-		const normalized = normalizeFutureFlight(raw, date, flightNumber);
-		if (Array.isArray(normalized)) {
-			return { status: "incomplete_response", missingFields: normalized };
-		}
-		flights.push(normalized);
-	}
-	if (flights.length > 1) return { status: "ambiguous", options: flights };
-	return { status: "success", value: flights[0] as FlightInstance };
+	return foldFlights(matching, (raw) => normalizeFutureFlight(raw, date, flightNumber));
 }
 
-function normalizeFlight(raw: AviationstackFlight, date: string): FlightInstance | string[] {
-	const missingFields: string[] = [];
+function normalizeFlight(raw: AviationstackFlight, date: string): NormalizedFlight {
 	const marketingFlight =
 		typeof raw.flight?.iata === "string" ? raw.flight.iata.trim().toUpperCase() : "";
 	const marketingMatch = /^([A-Z0-9]{2})(\d{1,4})$/.exec(marketingFlight);
 	const codeshareCarrier = raw.flight?.codeshared?.airline_iata;
 	const codeshareNumber = raw.flight?.codeshared?.flight_number;
-	const fields = {
+	const required = requireStrings({
 		flightNumber: marketingFlight,
 		operatingCarrierCode:
 			typeof codeshareCarrier === "string"
@@ -221,42 +254,39 @@ function normalizeFlight(raw: AviationstackFlight, date: string): FlightInstance
 		destinationName: raw.arrival?.airport,
 		scheduledArrival: raw.arrival?.scheduled,
 		timeZone: raw.arrival?.timezone,
-	};
-	for (const [field, value] of Object.entries(fields)) {
-		if (typeof value !== "string" || value.length === 0) {
-			missingFields.push(field);
-		}
-	}
-	if (missingFields.length > 0) {
-		return missingFields;
-	}
-	const flightNumber = (fields.flightNumber as string).toUpperCase();
-	const originIata = (fields.originIata as string).toUpperCase();
-	const destinationIata = (fields.destinationIata as string).toUpperCase();
+	});
+	if (!required.ok) return required;
+	const fields = required.value;
+	const flightNumber = fields.flightNumber.toUpperCase();
+	const originIata = fields.originIata.toUpperCase();
+	const destinationIata = fields.destinationIata.toUpperCase();
 	return {
-		id: `${flightNumber.toLowerCase()}:${date}:${originIata.toLowerCase()}-${destinationIata.toLowerCase()}`,
-		carrier: fields.carrier as string,
-		flightNumber,
-		operatingCarrierCode: fields.operatingCarrierCode as string,
-		operatingFlightNumber: fields.operatingFlightNumber as string,
-		date,
-		origin: {
-			iata: originIata,
-			name: fields.originName as string,
+		ok: true,
+		flight: {
+			id: `${flightNumber.toLowerCase()}:${date}:${originIata.toLowerCase()}-${destinationIata.toLowerCase()}`,
+			carrier: fields.carrier,
+			flightNumber,
+			operatingCarrierCode: fields.operatingCarrierCode,
+			operatingFlightNumber: fields.operatingFlightNumber,
+			date,
+			origin: {
+				iata: originIata,
+				name: fields.originName,
+			},
+			destination: {
+				iata: destinationIata,
+				name: fields.destinationName,
+			},
+			scheduledArrival: fields.scheduledArrival,
+			timeZone: fields.timeZone,
 		},
-		destination: {
-			iata: destinationIata,
-			name: fields.destinationName as string,
-		},
-		scheduledArrival: fields.scheduledArrival as string,
-		timeZone: fields.timeZone as string,
 	};
 }
 
 function normalizeResponse(
 	response: AviationstackResponse,
 	date: string,
-): ProviderResult<FlightInstance> {
+): ProviderResult<ProviderFlight> {
 	if (!Array.isArray(response.data)) {
 		return {
 			status: "incomplete_response",
@@ -266,21 +296,7 @@ function normalizeResponse(
 	if (response.data.length === 0) {
 		return { status: "zero_result" };
 	}
-	const flights: FlightInstance[] = [];
-	for (const raw of response.data) {
-		const normalized = normalizeFlight(raw, date);
-		if (Array.isArray(normalized)) {
-			return {
-				status: "incomplete_response",
-				missingFields: normalized,
-			};
-		}
-		flights.push(normalized);
-	}
-	if (flights.length > 1) {
-		return { status: "ambiguous", options: flights };
-	}
-	return { status: "success", value: flights[0] as FlightInstance };
+	return foldFlights(response.data, (raw) => normalizeFlight(raw, date));
 }
 
 export function createLiveFlightProvider(

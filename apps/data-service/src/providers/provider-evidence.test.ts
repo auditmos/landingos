@@ -3,10 +3,60 @@ import { runFixtureSpike } from "./fixture-spike";
 import { MILAN_MUNICIPALITY_VIEWPORT } from "./milan-viewport";
 import { REQUIRED_LIVE_VARIABLES } from "./provider-config";
 import {
+	type CompleteLiveEvidence,
 	createCompleteProviderEvidence,
 	createMissingLiveEvidence,
+	serializeProviderEvidence,
 	validateProviderEvidence,
 } from "./provider-evidence";
+
+function completeLiveEvidence(): CompleteLiveEvidence {
+	return {
+		status: "complete",
+		generatedAt: "2026-07-27T12:00:00.000Z",
+		providers: {
+			flight: "aviationstack",
+			places: "google_places_new",
+			transit: "google_routes_transit",
+		},
+		coverage: {
+			flight: { total: 10, successful: 10 },
+			places: { total: 5, successful: 5 },
+			transit: { total: 10, successful: 10 },
+		},
+		resultQuality: { status: "unreviewed_against_official_sources" },
+		flightRecognition: {
+			total: 10,
+			correct: 10,
+			requiredCorrect: 9,
+			status: "passing",
+			requiredDecision: null,
+		},
+		airportDeparture: {
+			origin: { latitude: 45.6656872, longitude: 9.6978308 },
+			routesMeasured: 10,
+			routesFromAirportStop: 10,
+		},
+		callCount: 25,
+		latencyMs: { sampleCount: 25, p50: 100, p95: 200 },
+		billing: {
+			units: {
+				aviationstackCalls: 10,
+				googlePlacesAutocompleteCalls: 5,
+				googleRoutesComputeCalls: 10,
+			},
+			cost: {
+				status: "not_calculated_billing_export_required",
+				currency: "USD",
+				amount: null,
+			},
+		},
+		viewport: MILAN_MUNICIPALITY_VIEWPORT,
+		sources: [],
+		providerTerms: [],
+		scenarioResults: [],
+	};
+}
 
 describe("provider readiness evidence", () => {
 	it("distinguishes deterministic fixtures from missing live measurements and GO", async () => {
@@ -26,7 +76,6 @@ describe("provider readiness evidence", () => {
 				resumeCommand: "pnpm run spike:data",
 			},
 			productionReadiness: {
-				ready: false,
 				decision: "not_recorded",
 				blockers: [
 					"live_provider_measurement_missing",
@@ -44,7 +93,6 @@ describe("provider readiness evidence", () => {
 			...evidence,
 			productionReadiness: {
 				...evidence.productionReadiness,
-				ready: true,
 				decision: "GO" as const,
 				blockers: [],
 			},
@@ -57,62 +105,11 @@ describe("provider readiness evidence", () => {
 
 	it("keeps production closed after measurement until reviews are recorded", async () => {
 		const fixtureSummary = await runFixtureSpike();
-		const completeLiveEvidence = {
-			status: "complete" as const,
-			generatedAt: "2026-07-27T12:00:00.000Z",
-			providers: {
-				flight: "aviationstack" as const,
-				places: "google_places_new" as const,
-				transit: "google_routes_transit" as const,
-			},
-			coverage: {
-				flight: { total: 10, successful: 10 },
-				places: { total: 5, successful: 5 },
-				transit: { total: 10, successful: 10 },
-			},
-			resultQuality: {
-				status: "unreviewed_against_official_sources" as const,
-			},
-			flightRecognition: {
-				total: 10,
-				correct: 10,
-				requiredCorrect: 9,
-				status: "passing" as const,
-				requiredDecision: null,
-			},
-			airportDeparture: {
-				origin: { latitude: 45.6656872, longitude: 9.6978308 },
-				routesMeasured: 10,
-				routesFromAirportStop: 10,
-			},
-			callCount: 25,
-			latencyMs: { sampleCount: 25, p50: 100, p95: 200 },
-			billing: {
-				units: {
-					aviationstackCalls: 10,
-					googlePlacesAutocompleteCalls: 5,
-					googleRoutesComputeCalls: 10,
-				},
-				cost: {
-					status: "not_calculated_billing_export_required" as const,
-					currency: "USD" as const,
-					amount: null,
-				},
-			},
-			viewport: MILAN_MUNICIPALITY_VIEWPORT,
-			sources: [],
-			providerTerms: [],
-			scenarioResults: [],
-		};
+		const liveEvidence = completeLiveEvidence();
 
-		const evidence = createCompleteProviderEvidence(
-			fixtureSummary,
-			completeLiveEvidence,
-			"2026-07-27",
-		);
+		const evidence = createCompleteProviderEvidence(fixtureSummary, liveEvidence, "2026-07-27");
 
 		expect(evidence.productionReadiness).toEqual({
-			ready: false,
 			decision: "not_recorded",
 			blockers: [
 				"official_result_quality_review_missing",
@@ -129,7 +126,7 @@ describe("provider readiness evidence", () => {
 		const failingEvidence = createCompleteProviderEvidence(
 			fixtureSummary,
 			{
-				...completeLiveEvidence,
+				...liveEvidence,
 				flightRecognition: {
 					total: 10,
 					correct: 8,
@@ -148,7 +145,6 @@ describe("provider readiness evidence", () => {
 			validateProviderEvidence({
 				...failingEvidence,
 				productionReadiness: {
-					ready: true,
 					decision: "GO",
 					blockers: [],
 				},
@@ -157,5 +153,55 @@ describe("provider readiness evidence", () => {
 			valid: false,
 			issues: ["9/10 correct live flight recognition is required before a GO decision"],
 		});
+	});
+	it("rejects a GO decision that still carries blockers", async () => {
+		const fixtureSummary = await runFixtureSpike();
+		const evidence = createCompleteProviderEvidence(
+			fixtureSummary,
+			completeLiveEvidence(),
+			"2026-07-27",
+		);
+
+		expect(
+			validateProviderEvidence({
+				...evidence,
+				productionReadiness: {
+					decision: "GO",
+					blockers: ["commercial_licensing_acceptance_missing"],
+				},
+			}),
+		).toEqual({
+			valid: false,
+			issues: ["a GO decision cannot carry unresolved blockers"],
+		});
+	});
+
+	it("derives ready from the decision when the evidence is serialized", async () => {
+		const fixtureSummary = await runFixtureSpike();
+		const evidence = createMissingLiveEvidence(fixtureSummary, "2026-07-27");
+
+		// The committed s0-provider-readiness-v1 artifact carries `ready`; it is a
+		// projection of `decision`, never an independently settable claim.
+		expect(serializeProviderEvidence(evidence).productionReadiness).toEqual({
+			ready: false,
+			decision: "not_recorded",
+			blockers: [
+				"live_provider_measurement_missing",
+				"commercial_licensing_acceptance_missing",
+				"independent_privacy_compliance_approval_missing",
+			],
+		});
+		expect(
+			serializeProviderEvidence({
+				...evidence,
+				productionReadiness: { decision: "GO", blockers: [] },
+			}).productionReadiness.ready,
+		).toBe(true);
+		expect(
+			serializeProviderEvidence({
+				...evidence,
+				productionReadiness: { decision: "NO_GO", blockers: [] },
+			}).productionReadiness.ready,
+		).toBe(false);
 	});
 });

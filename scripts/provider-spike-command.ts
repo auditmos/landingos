@@ -4,6 +4,7 @@ import { runLiveSpike } from "../apps/data-service/src/providers/live-spike";
 import { resolveProviderConfig } from "../apps/data-service/src/providers/provider-config";
 import {
 	createCompleteProviderEvidence,
+	serializeProviderEvidence,
 	validateProviderEvidence,
 } from "../apps/data-service/src/providers/provider-evidence";
 
@@ -85,6 +86,8 @@ export async function executeProviderSpike(
 	}
 	return {
 		exitCode: liveEvidence.flightRecognition.status === "passing" ? 0 : 1,
-		payload: evidence,
+		// `ready` exists only on the wire, derived from the decision — the model
+		// never carries a readiness claim that could drift from it.
+		payload: serializeProviderEvidence(evidence),
 	};
 }

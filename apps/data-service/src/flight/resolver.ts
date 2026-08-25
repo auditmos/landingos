@@ -155,16 +155,14 @@ export async function resolveFlight(
 			date: input.departureLocalDate,
 		});
 	} catch (error) {
+		// A thrown transport failure is the same non-success outcome as a reported
+		// one, so it takes the single exit below instead of a parallel one that
+		// would have to re-derive the manual reason for itself.
 		const thrownAsTimeout =
 			error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-		const thrown = thrownAsTimeout
-			? ({ status: "timeout", retryable: true } as const)
-			: ({ status: "provider_error", httpStatus: 0, retryable: true } as const);
-		return manualRequired(
-			input,
-			thrownAsTimeout ? "timeout" : "provider_error",
-			contextDiagnostic(dependencies.diagnostics, thrown),
-		);
+		result = thrownAsTimeout
+			? { status: "timeout", retryable: true }
+			: { status: "provider_error", httpStatus: 0, retryable: true };
 	}
 	if (result.status !== "success") {
 		return manualRequired(

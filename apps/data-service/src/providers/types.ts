@@ -24,8 +24,6 @@ export interface ProviderFlight {
 	timeZone: string;
 }
 
-export type FlightInstance = ProviderFlight;
-
 interface ProviderSuccess<T> {
 	status: "success";
 	value: T;

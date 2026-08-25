@@ -157,4 +157,96 @@ describe("live flight provider", () => {
 			"https://api.aviationstack.com/v1/flights?access_key=test-flight-key&flight_iata=FR1234&flight_date=2026-09-14",
 		]);
 	});
+
+	it.each([
+		["airline", { name: "Ryanair" }, undefined, ["carrier"]],
+		["departure airport", { name: "Ryanair" }, "departure.airport", ["originName"]],
+		["arrival timezone", { name: "Ryanair" }, "arrival.timezone", ["timeZone"]],
+	] as const)("names exactly the absent %s of a past-dated response", async (_label, airline, omitted, expectedMissing) => {
+		const departure: Record<string, unknown> = {
+			iata: "WAW",
+			airport: "Lotnisko Chopina w Warszawie",
+		};
+		const arrival: Record<string, unknown> = {
+			iata: "BGY",
+			airport: "Mediolan-Bergamo",
+			scheduled: "2026-09-14T10:20:00+02:00",
+			timezone: "Europe/Rome",
+		};
+		if (omitted === "departure.airport") delete departure.airport;
+		if (omitted === "arrival.timezone") delete arrival.timezone;
+		const provider = createLiveFlightProvider(
+			{ aviationstackAccessKey: "test-flight-key" },
+			async () =>
+				Response.json({
+					data: [
+						{
+							flight: { iata: "FR1234" },
+							...(omitted === undefined ? {} : { airline }),
+							departure,
+							arrival,
+						},
+					],
+				}),
+			{ today: () => "2026-10-01" },
+		);
+
+		const result = await provider.lookup({ flightNumber: "FR1234", date: "2026-09-14" });
+
+		expect(result).toEqual({
+			status: "incomplete_response",
+			missingFields: expectedMissing,
+		});
+	});
+
+	it("names exactly the absent operating carrier of a future-dated response", async () => {
+		const provider = createLiveFlightProvider(
+			{ aviationstackAccessKey: "test-flight-key" },
+			async () =>
+				Response.json({
+					data: [
+						{
+							departure: { iataCode: "WAW", scheduledTime: "06:00" },
+							arrival: { iataCode: "BGY", scheduledTime: "08:05" },
+							airline: { name: "Wizz Air" },
+							flight: { number: "1431", iataNumber: "W61431" },
+							codeshared: null,
+						},
+					],
+				}),
+			{ today: () => "2026-08-12" },
+		);
+
+		const result = await provider.lookup({ flightNumber: "W61431", date: "2026-09-01" });
+
+		expect(result).toEqual({
+			status: "incomplete_response",
+			missingFields: ["operatingCarrierCode"],
+		});
+	});
+
+	it("names every absent future-schedule field in construction order", async () => {
+		const provider = createLiveFlightProvider(
+			{ aviationstackAccessKey: "test-flight-key" },
+			async () =>
+				Response.json({
+					data: [{ flight: { iataNumber: "W61431" }, codeshared: null }],
+				}),
+			{ today: () => "2026-08-12" },
+		);
+
+		const result = await provider.lookup({ flightNumber: "W61431", date: "2026-09-01" });
+
+		expect(result).toEqual({
+			status: "incomplete_response",
+			missingFields: [
+				"carrier",
+				"operatingCarrierCode",
+				"operatingFlightNumber",
+				"originIata",
+				"destinationIata",
+				"scheduledArrival",
+			],
+		});
+	});
 });

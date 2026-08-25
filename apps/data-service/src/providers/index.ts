@@ -52,6 +52,7 @@ export {
 	createCompleteProviderEvidence,
 	createMissingLiveEvidence,
 	type ProviderEvidence,
+	serializeProviderEvidence,
 	validateProviderEvidence,
 } from "./provider-evidence";
 export {
@@ -60,7 +61,6 @@ export {
 } from "./resolve-adapters";
 export type {
 	Airport,
-	FlightInstance,
 	FlightLookupInput,
 	FlightProvider,
 	Place,

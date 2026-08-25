@@ -16,15 +16,43 @@ interface MissingLiveEvidence {
 
 export type CompleteLiveEvidence = LiveSpikeEvidence;
 
+type ReadinessDecision = "not_recorded" | "GO" | "NO_GO";
+
 export interface ProviderEvidence {
 	schemaVersion: "s0-provider-readiness-v1";
 	generatedOn: string;
 	fixture: FixtureEvidence;
 	live: MissingLiveEvidence | CompleteLiveEvidence;
+	/**
+	 * `decision` is the single authority on readiness. The locked fail-closed
+	 * invariant — production is ready only on a GO with nothing left blocking it
+	 * — is the definition of the serialized `ready` flag, so "ready but NO_GO"
+	 * and "GO with blockers" cannot be written down here at all.
+	 */
+	productionReadiness: {
+		decision: ReadinessDecision;
+		blockers: string[];
+	};
+}
+
+/** Wire shape of the committed `s0-provider-readiness-v1` artifact. */
+export interface SerializedProviderEvidence extends Omit<ProviderEvidence, "productionReadiness"> {
 	productionReadiness: {
 		ready: boolean;
-		decision: "not_recorded" | "GO" | "NO_GO";
+		decision: ReadinessDecision;
 		blockers: string[];
+	};
+}
+
+export function serializeProviderEvidence(evidence: ProviderEvidence): SerializedProviderEvidence {
+	const { decision, blockers } = evidence.productionReadiness;
+	return {
+		...evidence,
+		productionReadiness: {
+			ready: decision === "GO" && blockers.length === 0,
+			decision,
+			blockers,
+		},
 	};
 }
 
@@ -51,7 +79,6 @@ export function createMissingLiveEvidence(
 			resumeCommand: "pnpm run spike:data",
 		},
 		productionReadiness: {
-			ready: false,
 			decision: "not_recorded",
 			blockers: [
 				"live_provider_measurement_missing",
@@ -77,7 +104,6 @@ export function createCompleteProviderEvidence(
 		},
 		live: liveEvidence,
 		productionReadiness: {
-			ready: false,
 			decision: "not_recorded",
 			blockers: [
 				...(liveEvidence.flightRecognition.status === "failing"
@@ -94,18 +120,20 @@ export function createCompleteProviderEvidence(
 
 export function validateProviderEvidence(evidence: ProviderEvidence): EvidenceValidationResult {
 	const issues: string[] = [];
-	if (
-		evidence.live.status !== "complete" &&
-		(evidence.productionReadiness.ready || evidence.productionReadiness.decision === "GO")
-	) {
+	const { decision, blockers } = evidence.productionReadiness;
+	const claimsGo = decision === "GO";
+	if (evidence.live.status !== "complete" && claimsGo) {
 		issues.push("live evidence is required before a GO decision");
 	}
 	if (
 		evidence.live.status === "complete" &&
 		evidence.live.flightRecognition.status === "failing" &&
-		(evidence.productionReadiness.ready || evidence.productionReadiness.decision === "GO")
+		claimsGo
 	) {
 		issues.push("9/10 correct live flight recognition is required before a GO decision");
+	}
+	if (claimsGo && blockers.length > 0) {
+		issues.push("a GO decision cannot carry unresolved blockers");
 	}
 	return {
 		valid: issues.length === 0,

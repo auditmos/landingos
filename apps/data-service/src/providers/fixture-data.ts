@@ -1,11 +1,11 @@
 import { FIXTURE_PROVENANCE, type FixtureScenario } from "./fixture-shared";
-import type { FlightInstance, FlightLookupInput, ProviderResult } from "./types";
+import type { FlightLookupInput, ProviderFlight, ProviderResult } from "./types";
 
 export { FIXTURE_PROVENANCE } from "./fixture-shared";
 
 export type FlightFixtureScenario = FixtureScenario<
 	FlightLookupInput,
-	ProviderResult<FlightInstance>
+	ProviderResult<ProviderFlight>
 >;
 
 interface FlightSpec {
@@ -93,7 +93,7 @@ const SUCCESS_FLIGHT_SPECS: FlightSpec[] = [
 	},
 ];
 
-function createFlightInstance(spec: FlightSpec): FlightInstance {
+function createProviderFlight(spec: FlightSpec): ProviderFlight {
 	const normalizedNumber = spec.flightNumber.toUpperCase();
 	const carrierCode = normalizedNumber.slice(0, 2);
 	const flightDigits = normalizedNumber.slice(2);
@@ -131,7 +131,7 @@ const successfulFlights: FlightFixtureScenario[] = SUCCESS_FLIGHT_SPECS.map((spe
 	},
 	result: {
 		status: "success",
-		value: createFlightInstance(spec),
+		value: createProviderFlight(spec),
 	},
 }));
 
@@ -142,7 +142,7 @@ const codeshareFlights: FlightFixtureScenario[] = [
 		input: { flightNumber: "FR8123", date: "2026-10-02" },
 		result: {
 			status: "success",
-			value: createFlightInstance({
+			value: createProviderFlight({
 				flightNumber: "FR8123",
 				date: "2026-10-02",
 				origin: "WAW",
@@ -158,7 +158,7 @@ const codeshareFlights: FlightFixtureScenario[] = [
 		input: { flightNumber: "W69000", date: "2026-10-02" },
 		result: {
 			status: "success",
-			value: createFlightInstance({
+			value: createProviderFlight({
 				flightNumber: "W69000",
 				date: "2026-10-02",
 				origin: "WAW",
@@ -173,7 +173,7 @@ const codeshareFlights: FlightFixtureScenario[] = [
 	},
 ];
 
-const ambiguousFlightA = createFlightInstance({
+const ambiguousFlightA = createProviderFlight({
 	flightNumber: "FX9001",
 	date: "2026-10-01",
 	origin: "WAW",
@@ -181,7 +181,7 @@ const ambiguousFlightA = createFlightInstance({
 	arrivalTime: "10:20",
 });
 
-const ambiguousFlightB = createFlightInstance({
+const ambiguousFlightB = createProviderFlight({
 	flightNumber: "FX9001",
 	date: "2026-10-01",
 	origin: "WMI",

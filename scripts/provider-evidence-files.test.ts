@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { runFixtureSpike } from "../apps/data-service/src/providers/fixture-spike";
+import {
+	createMissingLiveEvidence,
+	serializeProviderEvidence,
+} from "../apps/data-service/src/providers/provider-evidence";
 
 const REQUIRED_LIVE_VARIABLES = [
 	"LANDINGOS_FLIGHT_PROVIDER",
@@ -36,6 +40,20 @@ describe("checked-in S0 provider evidence", () => {
 		expect(JSON.stringify(evidence)).not.toMatch(
 			/("access_key"|X-Goog-Api-Key|rawPayload|raw_payload)/,
 		);
+	});
+
+	it("is exactly what the evidence constructors serialize today", async () => {
+		const committed = JSON.parse(
+			readFileSync("docs/evidence/data/s0-provider-fixture-results.json", "utf8"),
+		);
+		// `ready` lives only on the wire, derived from `decision` — this pins the
+		// committed artifact to the serializer, key order and all, so the
+		// derivation can never silently change the recorded readiness claim.
+		const rebuilt = serializeProviderEvidence(
+			createMissingLiveEvidence(await runFixtureSpike(), committed.generatedOn),
+		);
+
+		expect(JSON.stringify(rebuilt)).toBe(JSON.stringify(committed));
 	});
 
 	it("documents exact boundary provenance, measured live failure, and unresolved release gates", () => {
