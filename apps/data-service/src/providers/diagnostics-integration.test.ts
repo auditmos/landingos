@@ -156,7 +156,6 @@ describe("domain outcomes carry one safe diagnostic", () => {
 		const result = await recommendJourneys(journeyRequest, {
 			transit: transitProvider(fault.result),
 			catalog: { listPublished: async () => [] },
-			now: () => NOW,
 			diagnostics: context("trasa"),
 		});
 		expect(["no_trustworthy_route", "recommendation_unavailable"]).toContain(result.status);
@@ -215,7 +214,6 @@ describe("diagnostic exposure and privacy", () => {
 		const journey = await recommendJourneys(journeyRequest, {
 			transit: transitProvider({ status: "timeout", retryable: true }),
 			catalog: { listPublished: async () => [] },
-			now: () => NOW,
 			diagnostics: context("trasa"),
 		});
 		const serialized = JSON.stringify([
@@ -271,12 +269,12 @@ describe("documented fallbacks stay reachable", () => {
 						purchaseUrl: "https://www.terravision.eu/airport_transfer/",
 						publicationStatus: "published",
 						provenance: "operator_verified",
+						freshness: "fresh",
 						createdAt: "2026-08-01T00:00:00.000Z",
 						updatedAt: "2026-08-01T00:00:00.000Z",
 					},
 				],
 			},
-			now: () => NOW,
 			diagnostics: context("trasa"),
 		});
 		expect(result.status).toBe("recommendation_unavailable");

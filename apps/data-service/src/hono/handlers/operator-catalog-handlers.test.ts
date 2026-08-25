@@ -1,4 +1,10 @@
-import type { TransferCatalogDraftInput, TransferCatalogRecord } from "@repo/data-ops/journey";
+import {
+	type CatalogClockOptions,
+	type TransferCatalogDraftInput,
+	type TransferCatalogPublishOutcome,
+	type TransferCatalogRecord,
+	validateTransferCatalogPublish,
+} from "@repo/data-ops/journey";
 import { Hono } from "hono";
 import {
 	type CatalogRepository,
@@ -50,9 +56,11 @@ function createStatefulService(): CatalogService {
 			entries.set(id, updated);
 			return updated;
 		},
-		saveAndPublish: async (id, input) => {
+		saveAndPublish: async (id, input, options) => {
+			const refusal = publishRefusal(input, options);
+			if (refusal) return refusal;
 			const current = id ? entries.get(id) : undefined;
-			if (id && !current) return null;
+			if (id && !current) return { ok: false, reason: "not_found" };
 			const entryId = id ?? `entry-${++sequence}`;
 			const published: TransferCatalogRecord = {
 				...(current ?? {
@@ -70,18 +78,34 @@ function createStatefulService(): CatalogService {
 				updatedAt: now.toISOString(),
 			} as TransferCatalogRecord;
 			entries.set(entryId, published);
-			return published;
+			return { ok: true, record: published };
 		},
-		setPublicationStatus: async (id, publicationStatus) => {
+		setPublicationStatus: async (id, publicationStatus, options) => {
 			const entry = entries.get(id);
-			if (!entry) return null;
+			if (!entry) return { ok: false, reason: "not_found" };
+			const refusal = publicationStatus === "published" ? publishRefusal(entry, options) : null;
+			if (refusal) return refusal;
 			const updated = { ...entry, publicationStatus };
 			entries.set(id, updated);
-			return updated;
+			return { ok: true, record: updated };
 		},
 		delete: async (id) => entries.delete(id),
 	};
 	return createCatalogService(repository, { now: () => now, freshnessDays: 30 });
+}
+
+/** The publish guard lives in data-ops now, so the double answers in the same currency. */
+function publishRefusal(
+	draft: TransferCatalogDraftInput,
+	options: CatalogClockOptions,
+): Extract<TransferCatalogPublishOutcome, { reason: "validation_failed" }> | null {
+	const validation = validateTransferCatalogPublish(draft, {
+		now: options.now ?? now,
+		freshnessDays: options.freshnessDays ?? 30,
+	});
+	return validation.ok
+		? null
+		: { ok: false, reason: "validation_failed", fieldErrors: validation.fieldErrors };
 }
 
 function freshnessFor(

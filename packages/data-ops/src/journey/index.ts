@@ -36,6 +36,7 @@ export {
 	saveAndPublishTransferCatalog,
 	seedTransferCatalog,
 	setTransferCatalogPublicationStatus,
+	type TransferCatalogPublishOutcome,
 	updateTransferCatalogDraft,
 } from "./queries";
 export {
@@ -56,6 +57,7 @@ export {
 	JourneyStepSchema,
 	type JourneyVariant,
 	JourneyVariantSchema,
+	type PublishedTransferCatalogEntry,
 	type TransferCatalogEntry,
 	TransferCatalogEntrySchema,
 	type TransferCatalogEntryWrite,

@@ -9,6 +9,7 @@ import {
 	saveAndPublishTransferCatalog,
 	setTransferCatalogPublicationStatus,
 	type TransferCatalogDraftInput,
+	type TransferCatalogPublishOutcome,
 	type TransferCatalogRecord,
 	updateTransferCatalogDraft,
 	validateTransferCatalogPublish,
@@ -31,12 +32,12 @@ export interface CatalogRepository {
 		id: string | null,
 		input: TransferCatalogDraftInput,
 		options: CatalogClockOptions,
-	): Promise<TransferCatalogRecord | null>;
+	): Promise<TransferCatalogPublishOutcome>;
 	setPublicationStatus(
 		id: string,
 		status: "draft" | "published",
 		options: CatalogClockOptions,
-	): Promise<TransferCatalogRecord | null>;
+	): Promise<TransferCatalogPublishOutcome>;
 	delete(id: string): Promise<boolean>;
 }
 
@@ -73,6 +74,19 @@ export type CatalogResult<T> =
 			fieldErrors: Record<string, string>;
 	  };
 
+/** The data-ops publish outcome in service currency; no path re-validates what the query already refused. */
+function publishResult(
+	outcome: TransferCatalogPublishOutcome,
+): CatalogResult<TransferCatalogRecord> {
+	if (outcome.ok) return { ok: true, data: outcome.record };
+	if (outcome.reason === "not_found") return { ok: false, reason: "not_found" };
+	return {
+		ok: false,
+		reason: "validation_error",
+		fieldErrors: outcome.fieldErrors as Record<string, string>,
+	};
+}
+
 export function createCatalogService(
 	repository: CatalogRepository,
 	options: CatalogServiceOptions,
@@ -108,37 +122,13 @@ export function createCatalogService(
 			id: string | null,
 			input: TransferCatalogDraftInput,
 		): Promise<CatalogResult<TransferCatalogRecord>> {
-			if (id && !(await repository.get(id, clock()))) {
-				return { ok: false, reason: "not_found" };
-			}
-			const validation = validateTransferCatalogPublish(input, clock());
-			if (!validation.ok) {
-				return {
-					ok: false,
-					reason: "validation_error",
-					fieldErrors: validation.fieldErrors as Record<string, string>,
-				};
-			}
-			const published = await repository.saveAndPublish(id, input, clock());
-			return published ? { ok: true, data: published } : { ok: false, reason: "not_found" };
+			return publishResult(await repository.saveAndPublish(id, input, clock()));
 		},
 		async publish(id: string): Promise<CatalogResult<TransferCatalogRecord>> {
-			const entry = await repository.get(id, clock());
-			if (!entry) return { ok: false, reason: "not_found" };
-			const validation = validateTransferCatalogPublish(entry, clock());
-			if (!validation.ok) {
-				return {
-					ok: false,
-					reason: "validation_error",
-					fieldErrors: validation.fieldErrors as Record<string, string>,
-				};
-			}
-			const published = await repository.setPublicationStatus(id, "published", clock());
-			return published ? { ok: true, data: published } : { ok: false, reason: "not_found" };
+			return publishResult(await repository.setPublicationStatus(id, "published", clock()));
 		},
 		async unpublish(id: string): Promise<CatalogResult<TransferCatalogRecord>> {
-			const entry = await repository.setPublicationStatus(id, "draft", clock());
-			return entry ? { ok: true, data: entry } : { ok: false, reason: "not_found" };
+			return publishResult(await repository.setPublicationStatus(id, "draft", clock()));
 		},
 		delete: (id: string) => repository.delete(id),
 	};

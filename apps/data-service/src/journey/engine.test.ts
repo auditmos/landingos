@@ -1,7 +1,7 @@
 import {
 	DEFAULT_TRANSFER_CATALOG_SEED,
 	type JourneyRecommendationRequest,
-	type TransferCatalogEntry,
+	type PublishedTransferCatalogEntry,
 } from "@repo/data-ops/journey";
 import {
 	BGY_ROUTE_ORIGIN,
@@ -72,15 +72,19 @@ function transit(result: ProviderResult<TransitRoute[], TransitRoute>): TransitP
 	return { route: vi.fn(async () => result) };
 }
 
-function catalog(entries: TransferCatalogEntry[] = []): TransferCatalogRepository {
+function catalog(entries: PublishedTransferCatalogEntry[] = []): TransferCatalogRepository {
 	return { listPublished: vi.fn(async () => entries) };
 }
 
-function seededCatalog(overrides: Partial<TransferCatalogEntry> = {}): TransferCatalogEntry {
+/** Freshness arrives with the entry — the catalog query decided it, the engine only renders it. */
+function seededCatalog(
+	overrides: Partial<PublishedTransferCatalogEntry> = {},
+): PublishedTransferCatalogEntry {
 	return {
 		...(DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]>),
 		createdAt: "2026-07-27T00:00:00.000Z",
 		updatedAt: "2026-07-27T00:00:00.000Z",
+		freshness: "fresh",
 		...overrides,
 	};
 }
@@ -204,7 +208,6 @@ describe("journey recommendation engine", () => {
 				],
 			}),
 			catalog: catalog([seededCatalog()]),
-			now: () => new Date("2026-08-01T00:00:00.000Z"),
 		});
 		expect(result).toMatchObject({
 			status: "recommendations",
@@ -260,7 +263,6 @@ describe("journey recommendation engine", () => {
 		const decorated = await recommendJourneys(request, {
 			transit: transit({ status: "success", value: [liveRoute] }),
 			catalog: catalog([entry]),
-			now: () => new Date("2026-08-01T00:00:00.000Z"),
 		});
 		expect(decorated).toMatchObject({
 			status: "recommendations",
@@ -276,7 +278,6 @@ describe("journey recommendation engine", () => {
 		const otherArrival = await recommendJourneys(request, {
 			transit: transit({ status: "success", value: [liveRoute] }),
 			catalog: catalog([seededCatalog({ destinationStopName: "Milano Cadorna" })]),
-			now: () => new Date("2026-08-01T00:00:00.000Z"),
 		});
 		expect(otherArrival.status).toBe("recommendations");
 		if (otherArrival.status !== "recommendations") return;
@@ -308,7 +309,7 @@ describe("journey recommendation engine", () => {
 		});
 	});
 
-	it("uses the configurable 30-day default to mark stale manual data distinctly", async () => {
+	it("marks manual data the catalog reported as stale distinctly", async () => {
 		const result = await recommendJourneys(request, {
 			transit: transit({
 				status: "success",
@@ -318,8 +319,7 @@ describe("journey recommendation engine", () => {
 					}),
 				],
 			}),
-			catalog: catalog([seededCatalog()]),
-			now: () => new Date("2026-08-27T00:00:00.001Z"),
+			catalog: catalog([seededCatalog({ freshness: "stale" })]),
 		});
 		expect(result).toMatchObject({
 			status: "recommendations",
@@ -343,13 +343,11 @@ describe("journey recommendation engine", () => {
 		const first = await recommendJourneys(request, {
 			transit: provider,
 			catalog: repository,
-			now: () => new Date("2026-07-27T12:00:00.000Z"),
 		});
 		entries[0] = seededCatalog({ costMinorMin: 2_000, costMinorMax: 2_200 });
 		const second = await recommendJourneys(request, {
 			transit: provider,
 			catalog: repository,
-			now: () => new Date("2026-07-27T12:00:00.000Z"),
 		});
 		expect(first).toMatchObject({
 			status: "recommendations",

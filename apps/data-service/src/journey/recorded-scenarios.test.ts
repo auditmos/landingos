@@ -31,7 +31,6 @@ describe("recorded S0 journey scenarios", () => {
 			const result = await recommendJourneys(request, {
 				transit: adapters.transit,
 				catalog: { listPublished: vi.fn(async () => []) },
-				now: () => new Date("2026-07-27T00:00:00.000Z"),
 			});
 			if (result.status === "recommendations") {
 				usable += 1;

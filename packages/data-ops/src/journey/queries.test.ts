@@ -93,7 +93,15 @@ describe("transfer catalog persistence and seed", () => {
 			});
 			expect(
 				await setTransferCatalogPublicationStatus(db, draft.id, "published", { now }),
-			).toMatchObject({ publicationStatus: "draft", freshness: "incomplete" });
+			).toMatchObject({
+				ok: false,
+				reason: "validation_failed",
+				fieldErrors: { serviceName: "Uzupełnij nazwę usługi." },
+			});
+			expect(await getTransferCatalogRecord(db, draft.id, { now })).toMatchObject({
+				publicationStatus: "draft",
+				freshness: "incomplete",
+			});
 
 			const complete = DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
 				(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
@@ -111,13 +119,13 @@ describe("transfer catalog persistence and seed", () => {
 			});
 			expect(
 				await setTransferCatalogPublicationStatus(db, draft.id, "published", { now }),
-			).toMatchObject({ publicationStatus: "published" });
+			).toMatchObject({ ok: true, record: { publicationStatus: "published" } });
 			expect((await listPublishedTransferCatalog(db, { now })).map((entry) => entry.id)).toEqual([
 				draft.id,
 			]);
 			expect(
 				await setTransferCatalogPublicationStatus(db, draft.id, "draft", { now }),
-			).toMatchObject({ publicationStatus: "draft" });
+			).toMatchObject({ ok: true, record: { publicationStatus: "draft" } });
 			expect(await deleteTransferCatalogRecord(db, draft.id)).toBe(true);
 			expect(await deleteTransferCatalogRecord(db, draft.id)).toBe(false);
 			expect(await getTransferCatalogRecord(db, draft.id, { now })).toBeNull();
@@ -155,9 +163,12 @@ describe("transfer catalog persistence and seed", () => {
 					{ now, freshnessDays: 30 },
 				),
 			).toMatchObject({
-				operatorName: "Aktualny formularz",
-				checkedAt: exactNow,
-				publicationStatus: "published",
+				ok: true,
+				record: {
+					operatorName: "Aktualny formularz",
+					checkedAt: exactNow,
+					publicationStatus: "published",
+				},
 			});
 			expect(
 				await saveAndPublishTransferCatalog(
@@ -167,9 +178,68 @@ describe("transfer catalog persistence and seed", () => {
 					{ now, freshnessDays: 30 },
 				),
 			).toMatchObject({
-				checkedAt: exactThirtyDays,
-				publicationStatus: "published",
+				ok: true,
+				record: { checkedAt: exactThirtyDays, publicationStatus: "published" },
 			});
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("refuses to publish an invalid draft through the raw query and persists nothing", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const complete = DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
+				(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
+			>;
+			const {
+				id: _id,
+				originIata: _origin,
+				publicationStatus: _status,
+				provenance: _provenance,
+				...editable
+			} = complete;
+			const draft = await createTransferCatalogDraft(
+				db,
+				{ operatorName: "Szkic" },
+				{ id: "guarded-entry", now },
+			);
+
+			expect(
+				await saveAndPublishTransferCatalog(
+					db,
+					draft.id,
+					{ ...editable, operatorName: null },
+					{ now, freshnessDays: 30 },
+				),
+			).toMatchObject({
+				ok: false,
+				reason: "validation_failed",
+				fieldErrors: { operatorName: "Uzupełnij nazwę operatora." },
+			});
+			expect(await getTransferCatalogRecord(db, draft.id, { now })).toMatchObject({
+				publicationStatus: "draft",
+				operatorName: "Szkic",
+				serviceName: null,
+			});
+
+			expect(
+				await saveAndPublishTransferCatalog(
+					db,
+					null,
+					{ ...editable, purchaseUrl: "https://evil.example/tickets" },
+					{ now, freshnessDays: 30 },
+				),
+			).toMatchObject({
+				ok: false,
+				reason: "validation_failed",
+				fieldErrors: { purchaseUrl: "Host „evil.example” nie jest zatwierdzony." },
+			});
+			expect(await countTransferCatalogEntries(db)).toBe(1);
+
+			expect(
+				await saveAndPublishTransferCatalog(db, "brak-wpisu", editable, { now, freshnessDays: 30 }),
+			).toEqual({ ok: false, reason: "not_found" });
 		} finally {
 			await client.close();
 		}

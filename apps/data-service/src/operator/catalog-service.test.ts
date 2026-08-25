@@ -1,4 +1,10 @@
-import type { TransferCatalogDraftInput, TransferCatalogRecord } from "@repo/data-ops/journey";
+import {
+	type CatalogClockOptions,
+	type TransferCatalogDraftInput,
+	type TransferCatalogPublishOutcome,
+	type TransferCatalogRecord,
+	validateTransferCatalogPublish,
+} from "@repo/data-ops/journey";
 import { type CatalogRepository, createCatalogService } from "./catalog-service";
 
 const now = new Date("2026-07-27T12:00:00.000Z");
@@ -50,6 +56,20 @@ function record(overrides: Partial<TransferCatalogRecord> = {}): TransferCatalog
 	};
 }
 
+/** The publish guard lives in data-ops now, so the double answers in the same currency. */
+function publishRefusal(
+	draft: TransferCatalogDraftInput,
+	options: CatalogClockOptions,
+): Extract<TransferCatalogPublishOutcome, { reason: "validation_failed" }> | null {
+	const validation = validateTransferCatalogPublish(draft, {
+		now: options.now ?? now,
+		freshnessDays: options.freshnessDays ?? 30,
+	});
+	return validation.ok
+		? null
+		: { ok: false, reason: "validation_failed", fieldErrors: validation.fieldErrors };
+}
+
 function repository(initial = record()): CatalogRepository {
 	let current: TransferCatalogRecord | null = initial;
 	return {
@@ -60,15 +80,20 @@ function repository(initial = record()): CatalogRepository {
 			current = current ? { ...current, ...input } : null;
 			return current;
 		},
-		saveAndPublish: async (_id, input) => {
+		saveAndPublish: async (_id, input, options) => {
+			const refusal = publishRefusal(input, options);
+			if (refusal) return refusal;
 			current = current
 				? { ...current, ...input, publicationStatus: "published", freshness: "fresh" }
 				: null;
-			return current;
+			return current ? { ok: true, record: current } : { ok: false, reason: "not_found" };
 		},
-		setPublicationStatus: async (_id, status) => {
-			current = current ? { ...current, publicationStatus: status } : null;
-			return current;
+		setPublicationStatus: async (_id, status, options) => {
+			if (!current) return { ok: false, reason: "not_found" };
+			const refusal = status === "published" ? publishRefusal(current, options) : null;
+			if (refusal) return refusal;
+			current = { ...current, publicationStatus: status };
+			return { ok: true, record: current };
 		},
 		delete: async () => {
 			const existed = Boolean(current);
@@ -80,8 +105,12 @@ function repository(initial = record()): CatalogRepository {
 
 describe("operator catalog service", () => {
 	it("publishes all current form values through one repository write", async () => {
-		const saveAndPublish = vi.fn(async (_id: string | null, input: TransferCatalogDraftInput) =>
-			record({ ...input, publicationStatus: "published", freshness: "fresh" }),
+		const saveAndPublish = vi.fn(
+			async (_id: string | null, input: TransferCatalogDraftInput) =>
+				({
+					ok: true,
+					record: record({ ...input, publicationStatus: "published", freshness: "fresh" }),
+				}) satisfies TransferCatalogPublishOutcome,
 		);
 		const repo = Object.assign(repository(record({ operatorName: "Stary zapis" })), {
 			saveAndPublish,

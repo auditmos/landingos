@@ -1,4 +1,7 @@
-import { DEFAULT_TRANSFER_CATALOG_SEED, type TransferCatalogEntry } from "@repo/data-ops/journey";
+import {
+	DEFAULT_TRANSFER_CATALOG_SEED,
+	type PublishedTransferCatalogEntry,
+} from "@repo/data-ops/journey";
 import { createDestinationService } from "../destination/service";
 import { resolveFlight } from "../flight/resolver";
 import { createFixtureProviderAdapters } from "../providers";
@@ -37,12 +40,13 @@ describe("anonymous fixture journey flow", () => {
 		expect(selection.status).toBe("destination_selected");
 		if (selection.status !== "destination_selected") return;
 
-		const seededEntry: TransferCatalogEntry = {
+		const seededEntry: PublishedTransferCatalogEntry = {
 			...(DEFAULT_TRANSFER_CATALOG_SEED[0] as NonNullable<
 				(typeof DEFAULT_TRANSFER_CATALOG_SEED)[0]
 			>),
 			createdAt: "2026-07-27T00:00:00.000Z",
 			updatedAt: "2026-07-27T00:00:00.000Z",
+			freshness: "fresh",
 		};
 		const journeys = await recommendJourneys(
 			{
@@ -54,7 +58,6 @@ describe("anonymous fixture journey flow", () => {
 			{
 				transit: adapters.transit,
 				catalog: { listPublished: vi.fn(async () => [seededEntry]) },
-				now: () => new Date("2026-07-27T00:00:00.000Z"),
 			},
 		);
 

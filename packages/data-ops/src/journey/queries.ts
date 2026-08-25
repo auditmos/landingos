@@ -3,12 +3,13 @@ import type { getDb } from "@/database/setup";
 import {
 	getTransferCatalogFreshness,
 	type TransferCatalogDraftInput,
+	type TransferCatalogEditableField,
 	type TransferCatalogRecord,
 	TransferCatalogRecordSchema,
 	validateTransferCatalogPublish,
 } from "./operator-schema";
 import {
-	type TransferCatalogEntry,
+	type PublishedTransferCatalogEntry,
 	TransferCatalogEntrySchema,
 	type TransferCatalogEntryWrite,
 } from "./schema";
@@ -60,6 +61,34 @@ function clockOptions(options: CatalogClockOptions) {
 	};
 }
 
+/**
+ * Every publication write answers with this union, so a refusal can never be mistaken
+ * for a success: the refused shape carries no record at all.
+ */
+export type TransferCatalogPublishOutcome =
+	| { ok: true; record: TransferCatalogRecord }
+	| { ok: false; reason: "not_found" }
+	| {
+			ok: false;
+			reason: "validation_failed";
+			fieldErrors: Partial<Record<TransferCatalogEditableField, string>>;
+	  };
+
+/**
+ * The one publish gate in the module. Both publication paths run through it, so a
+ * published-but-incomplete row is unrepresentable through this boundary — no caller
+ * has to remember to validate first.
+ */
+function publishRefusal(
+	draft: TransferCatalogDraftInput,
+	options: CatalogClockOptions,
+): Extract<TransferCatalogPublishOutcome, { reason: "validation_failed" }> | null {
+	const validation = validateTransferCatalogPublish(draft, clockOptions(options));
+	return validation.ok
+		? null
+		: { ok: false, reason: "validation_failed", fieldErrors: validation.fieldErrors };
+}
+
 function toCatalogRecord(row: CatalogRow, options: CatalogClockOptions): TransferCatalogRecord {
 	const draft = {
 		operatorName: row.operatorName,
@@ -88,9 +117,15 @@ function toCatalogRecord(row: CatalogRow, options: CatalogClockOptions): Transfe
 	});
 }
 
-function toPublishedEntry(record: TransferCatalogRecord): TransferCatalogEntry {
-	const { freshness: _freshness, ...entry } = record;
-	return TransferCatalogEntrySchema.parse(entry);
+type FreshCatalogRecord = TransferCatalogRecord & { freshness: "fresh" };
+
+function isFresh(record: TransferCatalogRecord): record is FreshCatalogRecord {
+	return record.freshness === "fresh";
+}
+
+function toPublishedEntry(record: FreshCatalogRecord): PublishedTransferCatalogEntry {
+	const { freshness, ...entry } = record;
+	return { ...TransferCatalogEntrySchema.parse(entry), freshness };
 }
 
 function draftValues(input: TransferCatalogDraftInput) {
@@ -122,15 +157,17 @@ export async function seedTransferCatalog(
 export async function listPublishedTransferCatalog(
 	db: TransferCatalogDatabase,
 	options: CatalogClockOptions = {},
-): Promise<TransferCatalogEntry[]> {
+): Promise<PublishedTransferCatalogEntry[]> {
 	const rows = await db
 		.select()
 		.from(transferCatalogEntries)
 		.where(eq(transferCatalogEntries.publicationStatus, "published"))
 		.orderBy(asc(transferCatalogEntries.id));
+	// Current policy hides a published entry whose manual check went stale rather than
+	// marking it; the freshness the survivors carry is this module's verdict, not a recount.
 	return rows
 		.map((row) => toCatalogRecord(row, options))
-		.filter((record) => record.freshness === "fresh")
+		.filter(isFresh)
 		.map(toPublishedEntry);
 }
 
@@ -196,7 +233,9 @@ export async function saveAndPublishTransferCatalog(
 	id: string | null,
 	input: TransferCatalogDraftInput,
 	options: CatalogClockOptions = {},
-): Promise<TransferCatalogRecord | null> {
+): Promise<TransferCatalogPublishOutcome> {
+	const refusal = publishRefusal(input, options);
+	if (refusal) return refusal;
 	const now = options.now ?? new Date();
 	const values = {
 		...draftValues(input),
@@ -213,7 +252,9 @@ export async function saveAndPublishTransferCatalog(
 				.insert(transferCatalogEntries)
 				.values({ id: crypto.randomUUID(), ...values, createdAt: now })
 				.returning();
-	return row ? toCatalogRecord(row, options) : null;
+	return row
+		? { ok: true, record: toCatalogRecord(row, options) }
+		: { ok: false, reason: "not_found" };
 }
 
 export async function setTransferCatalogPublicationStatus(
@@ -221,19 +262,21 @@ export async function setTransferCatalogPublicationStatus(
 	id: string,
 	status: "draft" | "published",
 	options: CatalogClockOptions = {},
-): Promise<TransferCatalogRecord | null> {
+): Promise<TransferCatalogPublishOutcome> {
 	const existing = await getTransferCatalogRecord(db, id, options);
-	if (!existing) return null;
+	if (!existing) return { ok: false, reason: "not_found" };
 	if (status === "published") {
-		const validation = validateTransferCatalogPublish(existing, clockOptions(options));
-		if (!validation.ok) return existing;
+		const refusal = publishRefusal(existing, options);
+		if (refusal) return refusal;
 	}
 	const [row] = await db
 		.update(transferCatalogEntries)
 		.set({ publicationStatus: status, updatedAt: options.now ?? new Date() })
 		.where(eq(transferCatalogEntries.id, id))
 		.returning();
-	return row ? toCatalogRecord(row, options) : null;
+	return row
+		? { ok: true, record: toCatalogRecord(row, options) }
+		: { ok: false, reason: "not_found" };
 }
 
 export async function deleteTransferCatalogRecord(

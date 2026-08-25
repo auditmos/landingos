@@ -61,8 +61,6 @@ export function createJourneyService(
 							freshnessDays: options.freshnessDays,
 						}),
 				},
-				now: () => requestNow,
-				freshnessDays: options.freshnessDays,
 				diagnostics: options.diagnostics,
 			});
 		},

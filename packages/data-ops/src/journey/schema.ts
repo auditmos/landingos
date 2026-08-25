@@ -165,4 +165,11 @@ export type JourneyCost = z.infer<typeof JourneyCostSchema>;
 export type JourneyVariant = z.infer<typeof JourneyVariantSchema>;
 export type JourneyRecommendationResult = z.infer<typeof JourneyRecommendationResultSchema>;
 export type TransferCatalogEntry = z.infer<typeof TransferCatalogEntrySchema>;
+/**
+ * A published entry as the traveler-facing modules receive it. The catalog query owns the
+ * freshness verdict, so no consumer recomputes it from `checkedAt` against its own clock.
+ */
+export type PublishedTransferCatalogEntry = TransferCatalogEntry & {
+	freshness: "fresh" | "stale";
+};
 export type TransferCatalogEntryWrite = Omit<TransferCatalogEntry, "createdAt" | "updatedAt">;

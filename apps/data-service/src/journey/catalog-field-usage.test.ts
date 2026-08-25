@@ -1,7 +1,7 @@
 import type {
 	JourneyRecommendationResult,
+	PublishedTransferCatalogEntry,
 	TransferCatalogEditableField,
-	TransferCatalogEntry,
 } from "@repo/data-ops/journey";
 import { describe, expect, it } from "vitest";
 import type { ProviderResult, TransitProvider, TransitRoute } from "../providers";
@@ -13,8 +13,6 @@ import { recommendJourneys, type TransferCatalogRepository } from "./engine";
  * transfer facts must never overwrite a provider-derived end-to-end route.
  */
 
-const NOW = new Date("2026-08-13T00:00:00.000Z");
-
 const request = {
 	flightInstanceId: "flight-1",
 	scheduledArrivalUtc: "2026-08-13T08:20:00.000Z",
@@ -22,7 +20,9 @@ const request = {
 	bufferMinutes: 45,
 };
 
-function entry(overrides: Partial<TransferCatalogEntry> = {}): TransferCatalogEntry {
+function entry(
+	overrides: Partial<PublishedTransferCatalogEntry> = {},
+): PublishedTransferCatalogEntry {
 	return {
 		id: "catalog-1",
 		operatorName: "Terravision",
@@ -41,6 +41,7 @@ function entry(overrides: Partial<TransferCatalogEntry> = {}): TransferCatalogEn
 		purchaseUrl: "https://www.terravision.eu/airport_transfer/",
 		publicationStatus: "published",
 		provenance: "operator_verified",
+		freshness: "fresh",
 		createdAt: "2026-08-01T00:00:00.000Z",
 		updatedAt: "2026-08-01T00:00:00.000Z",
 		...overrides,
@@ -74,20 +75,18 @@ function transit(result: ProviderResult<TransitRoute[], TransitRoute>): TransitP
 	return { route: async () => result };
 }
 
-function catalog(entries: TransferCatalogEntry[]): TransferCatalogRepository {
+function catalog(entries: PublishedTransferCatalogEntry[]): TransferCatalogRepository {
 	return { listPublished: async () => entries };
 }
 
-async function outcomes(entries: TransferCatalogEntry[], stopName?: string) {
+async function outcomes(entries: PublishedTransferCatalogEntry[], stopName?: string) {
 	const success = await recommendJourneys(request, {
 		transit: transit({ status: "success", value: [route(stopName)] }),
 		catalog: catalog(entries),
-		now: () => NOW,
 	});
 	const failure = await recommendJourneys(request, {
 		transit: transit({ status: "timeout", retryable: true }),
 		catalog: catalog(entries),
-		now: () => NOW,
 	});
 	return { success, failure };
 }
@@ -114,7 +113,7 @@ function successVariant(result: JourneyRecommendationResult) {
 /** Every publication-required field, its mutation, and the consumer it must move. */
 const FIELD_CONSUMERS: Record<
 	TransferCatalogEditableField,
-	{ mutate: Partial<TransferCatalogEntry>; read(outcome: Outcomes): unknown }
+	{ mutate: Partial<PublishedTransferCatalogEntry>; read(outcome: Outcomes): unknown }
 > = {
 	operatorName: {
 		mutate: { operatorName: "Autostradale" },
@@ -155,7 +154,7 @@ const FIELD_CONSUMERS: Record<
 		read: ({ success }) => successVariant(success).sourceReferences.map((source) => source.url),
 	},
 	checkedAt: {
-		mutate: { checkedAt: "2026-06-01T00:00:00.000Z" },
+		mutate: { checkedAt: "2026-06-01T00:00:00.000Z", freshness: "stale" },
 		read: ({ success, failure }) => [
 			successVariant(success).manualVerification,
 			firstAlternative(failure).freshness,
@@ -272,7 +271,6 @@ describe("catalog alternatives on provider failure", () => {
 		const noRoute = await recommendJourneys(request, {
 			transit: transit({ status: "zero_result" }),
 			catalog: catalog([entry()]),
-			now: () => NOW,
 		});
 		expect(noRoute.status).toBe("no_trustworthy_route");
 		expect(alternatives(noRoute)).toHaveLength(1);

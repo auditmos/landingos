@@ -8,8 +8,8 @@ import {
 	type JourneySourceReference,
 	type JourneyStep,
 	type JourneyVariant,
+	type PublishedTransferCatalogEntry,
 	sanitizeJourneyExternalUrl,
-	type TransferCatalogEntry,
 } from "@repo/data-ops/journey";
 import {
 	BGY_ROUTE_ORIGIN,
@@ -21,24 +21,21 @@ import {
 	type TransitRoute,
 } from "../providers";
 
-const DEFAULT_FRESHNESS_DAYS = 30;
 const BADGE_ORDER = ["recommended", "fastest", "simplest"] as const;
 
 export interface TransferCatalogRepository {
-	listPublished(): Promise<TransferCatalogEntry[]>;
+	listPublished(): Promise<PublishedTransferCatalogEntry[]>;
 }
 
 interface EngineDependencies {
 	transit: TransitProvider;
 	catalog: TransferCatalogRepository;
-	now?: () => Date;
-	freshnessDays?: number;
 	diagnostics?: DiagnosticContext;
 }
 
+/** `key` is the dedup identity and the final deterministic tie-break; nothing derived is cached. */
 interface Candidate extends Omit<JourneyVariant, "id" | "badges"> {
 	key: string;
-	informationRank: number;
 }
 
 function addMinutes(instant: string, minutes: number): string {
@@ -116,7 +113,7 @@ function normalizeStopIdentity(value: string): string {
  * Google names that stop "Bergamo Airport Bus Station" or "Aeroporto Il Caravaggio",
  * never with the IATA code, so the match is structural rather than by origin name.
  */
-function catalogMatchesRoute(entry: TransferCatalogEntry, route: TransitRoute): boolean {
+function catalogMatchesRoute(entry: PublishedTransferCatalogEntry, route: TransitRoute): boolean {
 	const identities = new Set([
 		normalizeStopIdentity(entry.destinationStopCode),
 		normalizeStopIdentity(entry.destinationStopName),
@@ -129,13 +126,8 @@ function catalogMatchesRoute(entry: TransferCatalogEntry, route: TransitRoute): 
 	);
 }
 
-function catalogSourceLabel(entry: TransferCatalogEntry): string {
+function catalogSourceLabel(entry: PublishedTransferCatalogEntry): string {
 	return `${entry.operatorName} · ${entry.serviceName}`;
-}
-
-function freshness(checkedAt: string, now: Date, freshnessDays: number): "fresh" | "stale" {
-	const ageMs = now.getTime() - new Date(checkedAt).getTime();
-	return ageMs <= freshnessDays * 24 * 60 * 60 * 1_000 ? "fresh" : "stale";
 }
 
 function uniqueSources(sources: JourneySourceReference[]): JourneySourceReference[] {
@@ -166,9 +158,7 @@ function informationRank(candidate: {
 
 function normalizeRoute(
 	route: TransitRoute,
-	catalogEntries: TransferCatalogEntry[],
-	now: Date,
-	freshnessDays: number,
+	catalogEntries: PublishedTransferCatalogEntry[],
 ): Candidate {
 	const matchingEntries = catalogEntries
 		.filter((entry) => catalogMatchesRoute(entry, route))
@@ -200,14 +190,13 @@ function normalizeRoute(
 				url: purchaseUrl,
 			});
 		}
-		const entryFreshness = freshness(entry.checkedAt, now, freshnessDays);
 		if (
 			manualVerification === null ||
 			new Date(entry.checkedAt) > new Date(manualVerification.checkedAt)
 		) {
 			manualVerification = {
 				checkedAt: entry.checkedAt,
-				freshness: entryFreshness,
+				freshness: entry.freshness,
 			};
 		}
 		if (cost.completeness === "unknown") {
@@ -232,11 +221,7 @@ function normalizeRoute(
 		manualVerification,
 		externalLinks: uniqueLinks(externalLinks),
 	};
-	return {
-		...base,
-		key: candidateKey(base),
-		informationRank: informationRank(base),
-	};
+	return { ...base, key: candidateKey(base) };
 }
 
 function mergeDuplicate(left: Candidate, right: Candidate): Candidate {
@@ -250,14 +235,13 @@ function mergeDuplicate(left: Candidate, right: Candidate): Candidate {
 					? left.manualVerification
 					: right.manualVerification;
 	const cost = informationRank(left) <= informationRank(right) ? left.cost : right.cost;
-	const merged = {
+	return {
 		...left,
 		cost,
 		manualVerification,
 		sourceReferences: uniqueSources([...left.sourceReferences, ...right.sourceReferences]),
 		externalLinks: uniqueLinks([...left.externalLinks, ...right.externalLinks]),
 	};
-	return { ...merged, informationRank: informationRank(merged) };
 }
 
 function deduplicate(candidates: Candidate[]): Candidate[] {
@@ -293,7 +277,7 @@ function simplest(left: Candidate, right: Candidate): number {
 
 function recommended(left: Candidate, right: Candidate): number {
 	return (
-		left.informationRank - right.informationRank ||
+		informationRank(left) - informationRank(right) ||
 		left.transferCount - right.transferCount ||
 		left.durationMinutes - right.durationMinutes ||
 		left.walkingMinutes - right.walkingMinutes ||
@@ -301,37 +285,36 @@ function recommended(left: Candidate, right: Candidate): number {
 	);
 }
 
+/**
+ * Candidates are deduplicated before this runs, so each one is its own identity: a badge
+ * belongs to the object that won it, and the card list is filled in `recommended` order.
+ */
 function rank(candidates: Candidate[]): JourneyVariant[] {
-	const badgeMap = new Map<string, Set<(typeof BADGE_ORDER)[number]>>();
-	const winners = [
-		["recommended", [...candidates].sort(recommended)[0]],
-		["fastest", [...candidates].sort(fastest)[0]],
-		["simplest", [...candidates].sort(simplest)[0]],
-	] as const;
-	const selectedKeys: string[] = [];
-	for (const [badge, candidate] of winners) {
-		if (!candidate) continue;
-		if (!selectedKeys.includes(candidate.key)) selectedKeys.push(candidate.key);
-		const badges = badgeMap.get(candidate.key) ?? new Set();
-		badges.add(badge);
-		badgeMap.set(candidate.key, badges);
+	const winners = {
+		recommended: [...candidates].sort(recommended)[0],
+		fastest: [...candidates].sort(fastest)[0],
+		simplest: [...candidates].sort(simplest)[0],
+	};
+	const selected: Candidate[] = [];
+	for (const badge of BADGE_ORDER) {
+		const winner = winners[badge];
+		if (winner && !selected.includes(winner)) selected.push(winner);
 	}
 	for (const candidate of [...candidates].sort(recommended)) {
-		if (selectedKeys.length >= 3) break;
-		if (!selectedKeys.includes(candidate.key)) selectedKeys.push(candidate.key);
+		if (selected.length >= 3) break;
+		if (!selected.includes(candidate)) selected.push(candidate);
 	}
-	return selectedKeys.map((key, index) => {
-		const candidate = candidates.find((item) => item.key === key) as Candidate;
-		const { informationRank: _rank, key: _key, ...variant } = candidate;
+	return selected.map((candidate, index) => {
+		const { key: _key, ...variant } = candidate;
 		return {
 			id: `journey-${index + 1}`,
-			badges: BADGE_ORDER.filter((badge) => badgeMap.get(key)?.has(badge)),
+			badges: BADGE_ORDER.filter((badge) => winners[badge] === candidate),
 			...variant,
 		};
 	});
 }
 
-function purchaseLink(entry: TransferCatalogEntry): JourneyExternalLink | null {
+function purchaseLink(entry: PublishedTransferCatalogEntry): JourneyExternalLink | null {
 	const url = sanitizeJourneyExternalUrl(entry.purchaseUrl);
 	return url ? { kind: "purchase", label: `Sprawdź u ${entry.operatorName}`, url } : null;
 }
@@ -342,9 +325,7 @@ function purchaseLink(entry: TransferCatalogEntry): JourneyExternalLink | null {
  * end-to-end route to the traveler's private destination.
  */
 function catalogAlternatives(
-	entries: TransferCatalogEntry[],
-	now: Date,
-	freshnessDays: number,
+	entries: PublishedTransferCatalogEntry[],
 ): CatalogTransferAlternative[] {
 	return entries.map((entry) => ({
 		id: entry.id,
@@ -369,27 +350,23 @@ function catalogAlternatives(
 			url: sanitizeJourneyExternalUrl(entry.sourceUrl),
 			checkedAt: entry.checkedAt,
 		},
-		freshness: freshness(entry.checkedAt, now, freshnessDays),
+		freshness: entry.freshness,
 		purchaseLink: purchaseLink(entry),
 	}));
 }
 
-function manualAlternatives(entries: TransferCatalogEntry[]): JourneyExternalLink[] {
+function manualAlternatives(entries: PublishedTransferCatalogEntry[]): JourneyExternalLink[] {
 	return uniqueLinks(entries.flatMap((entry) => purchaseLink(entry) ?? []));
 }
 
 /** The failure payload shared by every non-recommendation outcome. */
-function fallbackPayload(
-	entries: TransferCatalogEntry[],
-	now: Date,
-	freshnessDays: number,
-): {
+function fallbackPayload(entries: PublishedTransferCatalogEntry[]): {
 	manualAlternatives: JourneyExternalLink[];
 	catalogAlternatives: CatalogTransferAlternative[];
 } {
 	return {
 		manualAlternatives: manualAlternatives(entries),
-		catalogAlternatives: catalogAlternatives(entries, now, freshnessDays),
+		catalogAlternatives: catalogAlternatives(entries),
 	};
 }
 
@@ -445,9 +422,7 @@ export async function recommendJourneys(
 		}),
 		dependencies.catalog.listPublished(),
 	]);
-	const now = dependencies.now?.() ?? new Date();
-	const freshnessDays = dependencies.freshnessDays ?? DEFAULT_FRESHNESS_DAYS;
-	const fallback = fallbackPayload(catalogEntries, now, freshnessDays);
+	const fallback = fallbackPayload(catalogEntries);
 	if (providerResult.status !== "success") {
 		return providerFailure(providerResult, fallback, dependencies.diagnostics);
 	}
@@ -463,7 +438,7 @@ export async function recommendJourneys(
 		};
 	}
 	const candidates = deduplicate(
-		postArrivalRoutes.map((route) => normalizeRoute(route, catalogEntries, now, freshnessDays)),
+		postArrivalRoutes.map((route) => normalizeRoute(route, catalogEntries)),
 	);
 	if (candidates.length === 0) {
 		return {
