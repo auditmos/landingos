@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from "hono";
+import { UNAUTHORIZED_BODY } from "../utils/api-errors";
+import type { UserSession } from "./session-auth";
 
-export interface OperatorSession {
-	user?: { id?: string | null } | null;
-}
+export type OperatorSession = UserSession;
 
 export interface OperatorOnlyOptions {
 	getSession(request: Request): Promise<OperatorSession | null>;
@@ -25,11 +25,11 @@ export function operatorOnly(
 		try {
 			session = await options.getSession(c.req.raw);
 		} catch {
-			return c.json({ code: "UNAUTHORIZED", error: "Wymagane jest zalogowanie." }, 401);
+			return c.json(UNAUTHORIZED_BODY, 401);
 		}
 		const userId = session?.user?.id;
 		if (!userId) {
-			return c.json({ code: "UNAUTHORIZED", error: "Wymagane jest zalogowanie." }, 401);
+			return c.json(UNAUTHORIZED_BODY, 401);
 		}
 		try {
 			const role = await options.getUserRole(userId);

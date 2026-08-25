@@ -144,6 +144,103 @@ describe("authenticated community safety API", () => {
 		});
 	});
 
+	it("rejects unauthenticated safety calls with the same wire code as the room family", async () => {
+		const { app, service } = buildApp();
+		const routes: Array<[string, RequestInit]> = [
+			["/safety/rules", {}],
+			[
+				"/safety/rules/accept",
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ version: COMMUNITY_RULES_VERSION }),
+				},
+			],
+			[`/safety/rooms/${ROOM_ID}/blocks`, {}],
+			[
+				`/safety/rooms/${ROOM_ID}/blocks`,
+				{
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ targetPseudonym: "Bartek BGY" }),
+				},
+			],
+			[`/safety/rooms/${ROOM_ID}/blocks/${encodeURIComponent("Bartek BGY")}`, { method: "DELETE" }],
+			[
+				`/safety/rooms/${ROOM_ID}/reports`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						targetType: "member",
+						targetPseudonym: "Bartek BGY",
+						reason: "other",
+					}),
+				},
+			],
+		];
+		for (const [path, init] of routes) {
+			const response = await app.request(path, init);
+			expect(response.status, path).toBe(401);
+			expect(await response.json()).toEqual({
+				code: "UNAUTHORIZED",
+				error: "Wymagane jest zalogowanie.",
+			});
+		}
+		for (const call of Object.values(service)) {
+			expect(call).not.toHaveBeenCalled();
+		}
+	});
+
+	it("rejects an unparsable room id on the shared wire code", async () => {
+		const { app, service } = buildApp();
+		const response = await app.request("/safety/rooms/not-a-room/blocks", {
+			headers: cookieHeaders,
+		});
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({
+			code: "ROOM_ID_INVALID",
+			error: "Nieprawidłowy identyfikator pokoju.",
+		});
+		expect(service.listBlocks).not.toHaveBeenCalled();
+	});
+
+	it("rejects an invalid body at the handler boundary, before the service is called", async () => {
+		const { app, service } = buildApp();
+		const cases: Array<[keyof SafetyService, string, RequestInit, string]> = [
+			[
+				"acceptRules",
+				"/safety/rules/accept",
+				{ method: "POST", headers: cookieHeaders, body: JSON.stringify({}) },
+				"Nieprawidłowa wersja zasad społeczności.",
+			],
+			[
+				"block",
+				`/safety/rooms/${ROOM_ID}/blocks`,
+				{ method: "PUT", headers: cookieHeaders, body: JSON.stringify({ targetPseudonym: "ab" }) },
+				"Wskaż prawidłowy pseudonim.",
+			],
+			[
+				"unblock",
+				`/safety/rooms/${ROOM_ID}/blocks/ab`,
+				{ method: "DELETE", headers: cookieHeaders },
+				"Wskaż prawidłowy pseudonim.",
+			],
+			[
+				"report",
+				`/safety/rooms/${ROOM_ID}/reports`,
+				{ method: "POST", headers: cookieHeaders, body: JSON.stringify({ reason: "other" }) },
+				"Sprawdź dane zgłoszenia.",
+			],
+		];
+		for (const [method, path, init, error] of cases) {
+			const response = await app.request(path, init);
+			expect(response.status, path).toBe(400);
+			expect(await response.json()).toEqual({ code: "safety_request_invalid", error });
+			expect(service[method], path).not.toHaveBeenCalled();
+		}
+	});
+
 	it("rate-limits block and report mutations with a controlled Polish error", async () => {
 		const binding = { limit: vi.fn(async () => ({ success: false })) } as unknown as RateLimit;
 		const limiter = rateLimiter({

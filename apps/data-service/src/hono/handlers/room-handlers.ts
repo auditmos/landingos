@@ -7,7 +7,6 @@ import {
 	RoomSelectionUpdateRequestSchema,
 } from "@repo/data-ops/room";
 import { COMMUNITY_RULES_VERSION } from "@repo/data-ops/safety";
-import type { Context } from "hono";
 import { Hono } from "hono";
 import { createDatabaseAnalyticsTracker } from "../../analytics/repository";
 import {
@@ -24,15 +23,19 @@ import {
 } from "../../durable-objects/flight-room";
 import { createDatabaseFlightRoomService } from "../../room/repository";
 import { type FlightRoomService, FlightRoomServiceError } from "../../room/service";
-
-interface RoomSession {
-	user?: { id?: string | null } | null;
-}
+import {
+	type GetUserSession,
+	requireUser,
+	sessionUserId,
+	type UserSession,
+	type UserVariables,
+} from "../middleware/session-auth";
+import { invalidRoomId, serviceErrorResponder, UNAUTHORIZED_BODY } from "../utils/api-errors";
 
 export interface RoomHandlerDependencies {
 	createService(env: Env): FlightRoomService;
 	createAnalyticsTracker(env: Env): AnalyticsTracker;
-	getSession(request: Request): Promise<RoomSession | null>;
+	getSession: GetUserSession;
 	openSocket(
 		access: RoomAccessContext,
 		request: Request,
@@ -45,7 +48,7 @@ const defaultDependencies: RoomHandlerDependencies = {
 	createService: createDatabaseFlightRoomService,
 	createAnalyticsTracker: createDatabaseAnalyticsTracker,
 	getSession: async (request) =>
-		(await getAuth().api.getSession({ headers: request.headers })) as RoomSession | null,
+		(await getAuth().api.getSession({ headers: request.headers })) as UserSession,
 	openSocket: async (access, _request, rulesAccepted, env) => {
 		if (!env) {
 			throw new Error("Brak środowiska Workera dla połączenia pokoju.");
@@ -65,49 +68,23 @@ const defaultDependencies: RoomHandlerDependencies = {
 	},
 };
 
-function unauthorized(c: Context) {
-	return c.json({ code: "UNAUTHORIZED", error: "Wymagane jest zalogowanie." }, 401);
-}
-
-async function currentUserId(
-	request: Request,
-	dependencies: RoomHandlerDependencies,
-): Promise<string | null> {
-	try {
-		return (await dependencies.getSession(request))?.user?.id ?? null;
-	} catch {
-		return null;
-	}
-}
-
-function serviceError(c: Context, error: unknown) {
-	if (!(error instanceof FlightRoomServiceError)) throw error;
-	return c.json({ code: error.code, error: error.message }, error.status);
-}
-
-function invalidRoom(c: Context) {
-	return c.json({ code: "ROOM_ID_INVALID", error: "Nieprawidłowy identyfikator pokoju." }, 400);
-}
+const serviceError = serviceErrorResponder(FlightRoomServiceError);
 
 export function createRoomHandlers(dependencies: RoomHandlerDependencies = defaultDependencies) {
-	const rooms = new Hono<{ Bindings: Env }>();
+	const rooms = new Hono<{ Bindings: Env; Variables: UserVariables }>();
+	const authenticated = requireUser({ getSession: dependencies.getSession });
 
-	rooms.get("/", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
-		return c.json(await dependencies.createService(c.env).list(userId));
+	rooms.get("/", authenticated, async (c) => {
+		return c.json(await dependencies.createService(c.env).list(c.get("userId")));
 	});
 
 	// Registered before "/:roomId" so the static segment wins the route match.
-	rooms.get("/past", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
-		return c.json(await dependencies.createService(c.env).listPast(userId));
+	rooms.get("/past", authenticated, async (c) => {
+		return c.json(await dependencies.createService(c.env).listPast(c.get("userId")));
 	});
 
-	rooms.post("/join", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
+	rooms.post("/join", authenticated, async (c) => {
+		const userId = c.get("userId");
 		const parsed = RoomJoinRequestSchema.safeParse(await c.req.json().catch(() => undefined));
 		if (!parsed.success) {
 			return c.json({ code: "ROOM_JOIN_INVALID", error: "Wybierz rozpoznany lot." }, 400);
@@ -130,23 +107,22 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		}
 	});
 
-	rooms.get("/:roomId", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
+	rooms.get("/:roomId", authenticated, async (c) => {
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
-		if (!roomId.success) return invalidRoom(c);
+		if (!roomId.success) return invalidRoomId(c);
 		try {
-			return c.json(await dependencies.createService(c.env).getSnapshot(roomId.data, userId));
+			return c.json(
+				await dependencies.createService(c.env).getSnapshot(roomId.data, c.get("userId")),
+			);
 		} catch (error) {
 			return serviceError(c, error);
 		}
 	});
 
-	rooms.put("/:roomId/selection", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
+	rooms.put("/:roomId/selection", authenticated, async (c) => {
+		const userId = c.get("userId");
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
-		if (!roomId.success) return invalidRoom(c);
+		if (!roomId.success) return invalidRoomId(c);
 		const parsed = RoomSelectionUpdateRequestSchema.safeParse(
 			await c.req.json().catch(() => undefined),
 		);
@@ -174,11 +150,10 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		}
 	});
 
-	rooms.post("/:roomId/messages", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
+	rooms.post("/:roomId/messages", authenticated, async (c) => {
+		const userId = c.get("userId");
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
-		if (!roomId.success) return invalidRoom(c);
+		if (!roomId.success) return invalidRoomId(c);
 		const parsed = RoomMessageCreateRequestSchema.safeParse(
 			await c.req.json().catch(() => undefined),
 		);
@@ -208,13 +183,14 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 		}
 	});
 
-	rooms.post("/:roomId/tickets", async (c) => {
-		const userId = await currentUserId(c.req.raw, dependencies);
-		if (!userId) return unauthorized(c);
+	rooms.post("/:roomId/tickets", authenticated, async (c) => {
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
-		if (!roomId.success) return invalidRoom(c);
+		if (!roomId.success) return invalidRoomId(c);
 		try {
-			return c.json(await dependencies.createService(c.env).issueTicket(roomId.data, userId), 201);
+			return c.json(
+				await dependencies.createService(c.env).issueTicket(roomId.data, c.get("userId")),
+				201,
+			);
 		} catch (error) {
 			return serviceError(c, error);
 		}
@@ -228,7 +204,7 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 			);
 		}
 		const roomId = RoomIdSchema.safeParse(c.req.param("roomId"));
-		if (!roomId.success) return invalidRoom(c);
+		if (!roomId.success) return invalidRoomId(c);
 		try {
 			const service = dependencies.createService(c.env);
 			const ticket = c.req.query("ticket");
@@ -236,12 +212,14 @@ export function createRoomHandlers(dependencies: RoomHandlerDependencies = defau
 			if (ticket) {
 				access = await service.authenticateTicket(roomId.data, ticket);
 			} else {
-				if (!c.req.header("Authorization")?.startsWith("Bearer ")) return unauthorized(c);
-				const userId = await currentUserId(c.req.raw, dependencies);
-				if (!userId) return unauthorized(c);
+				if (!c.req.header("Authorization")?.startsWith("Bearer ")) {
+					return c.json(UNAUTHORIZED_BODY, 401);
+				}
+				const userId = await sessionUserId(dependencies.getSession, c.req.raw);
+				if (!userId) return c.json(UNAUTHORIZED_BODY, 401);
 				access = await service.authenticateUser(roomId.data, userId);
 			}
-			if (!access) return unauthorized(c);
+			if (!access) return c.json(UNAUTHORIZED_BODY, 401);
 			const rulesAccepted = await service.hasAcceptedCurrentRules(access.userId);
 			return dependencies.openSocket(access, c.req.raw, rulesAccepted, c.env);
 		} catch (error) {

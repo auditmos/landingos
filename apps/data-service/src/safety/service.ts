@@ -1,18 +1,15 @@
 import {
 	COMMUNITY_RULES_TOPICS,
 	type CommunityRulesAcceptanceRequest,
-	CommunityRulesAcceptanceRequestSchema,
 	type CommunityRulesAcceptanceResponse,
 	CommunityRulesAcceptanceResponseSchema,
 	type CommunityRulesStatusResponse,
 	CommunityRulesStatusResponseSchema,
 	type RoomBlockRequest,
-	RoomBlockRequestSchema,
 	type RoomBlockResponse,
 	RoomBlockResponseSchema,
 	SafetyQueryError,
 	type SafetyReportCreateRequest,
-	SafetyReportCreateRequestSchema,
 	type SafetyReportCreateResponse,
 	SafetyReportCreateResponseSchema,
 	type SafetyReportStatus,
@@ -20,11 +17,7 @@ import {
 
 export class SafetyServiceError extends Error {
 	constructor(
-		readonly code:
-			| "room_access_denied"
-			| "rules_version_outdated"
-			| "safety_request_invalid"
-			| "safety_target_invalid",
+		readonly code: "room_access_denied" | "rules_version_outdated" | "safety_target_invalid",
 		readonly status: 400 | 403 | 409,
 		message: string,
 	) {
@@ -90,17 +83,9 @@ export function createSafetyService(dependencies: SafetyServiceDependencies) {
 
 		async acceptRules(
 			userId: string,
-			rawRequest: CommunityRulesAcceptanceRequest,
+			request: CommunityRulesAcceptanceRequest,
 		): Promise<CommunityRulesAcceptanceResponse> {
-			const parsed = CommunityRulesAcceptanceRequestSchema.safeParse(rawRequest);
-			if (!parsed.success) {
-				throw new SafetyServiceError(
-					"safety_request_invalid",
-					400,
-					"Nieprawidłowa wersja zasad społeczności.",
-				);
-			}
-			if (parsed.data.version !== dependencies.rulesVersion) {
+			if (request.version !== dependencies.rulesVersion) {
 				throw new SafetyServiceError(
 					"rules_version_outdated",
 					409,
@@ -132,21 +117,13 @@ export function createSafetyService(dependencies: SafetyServiceDependencies) {
 		async block(
 			userId: string,
 			roomId: string,
-			rawRequest: RoomBlockRequest,
+			request: RoomBlockRequest,
 		): Promise<RoomBlockResponse> {
-			const parsed = RoomBlockRequestSchema.safeParse(rawRequest);
-			if (!parsed.success) {
-				throw new SafetyServiceError(
-					"safety_request_invalid",
-					400,
-					"Wskaż prawidłowy pseudonim do zablokowania.",
-				);
-			}
 			try {
 				const result = await dependencies.blockRoomMember({
 					roomId,
 					blockerId: userId,
-					targetPseudonym: parsed.data.targetPseudonym,
+					targetPseudonym: request.targetPseudonym,
 					now: dependencies.now(),
 				});
 				return RoomBlockResponseSchema.parse({
@@ -176,21 +153,13 @@ export function createSafetyService(dependencies: SafetyServiceDependencies) {
 		async report(
 			userId: string,
 			roomId: string,
-			rawRequest: SafetyReportCreateRequest,
+			request: SafetyReportCreateRequest,
 		): Promise<SafetyReportCreateResponse> {
-			const parsed = SafetyReportCreateRequestSchema.safeParse(rawRequest);
-			if (!parsed.success) {
-				throw new SafetyServiceError(
-					"safety_request_invalid",
-					400,
-					"Sprawdź cel, powód i notatkę zgłoszenia.",
-				);
-			}
 			try {
 				const result = await dependencies.createSafetyReport({
 					roomId,
 					reporterId: userId,
-					request: parsed.data,
+					request,
 					createdAt: dependencies.now(),
 				});
 				return SafetyReportCreateResponseSchema.parse({

@@ -1,6 +1,12 @@
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
-import { type GetSession, sessionAuth } from "./session-auth";
+import { describe, expect, it, vi } from "vitest";
+import {
+	type GetSession,
+	type GetUserSession,
+	requireUser,
+	sessionAuth,
+	type UserVariables,
+} from "./session-auth";
 
 const BEARER = "test-bearer-1234";
 
@@ -73,5 +79,45 @@ describe("sessionAuth middleware", () => {
 		const app = buildApp(throwingSession);
 		const res = await app.fetch(new Request("http://localhost/protected"));
 		expect(res.status).toBe(401);
+	});
+});
+
+function buildUserApp(getSession: GetUserSession) {
+	const app = new Hono<{ Bindings: Env; Variables: UserVariables }>();
+	app.use("/me", requireUser({ getSession }));
+	app.get("/me", (c) => c.json({ userId: c.get("userId") }));
+	return app;
+}
+
+describe("requireUser middleware", () => {
+	it("rejects a request with no session in Polish, on the shared wire code", async () => {
+		const app = buildUserApp(async () => null);
+		const res = await app.fetch(new Request("http://localhost/me"));
+		expect(res.status).toBe(401);
+		expect(await res.json()).toEqual({
+			code: "UNAUTHORIZED",
+			error: "Wymagane jest zalogowanie.",
+		});
+	});
+
+	it("rejects a session without a user id", async () => {
+		const app = buildUserApp(async () => ({ user: { id: null } }));
+		expect((await app.fetch(new Request("http://localhost/me"))).status).toBe(401);
+	});
+
+	it("rejects when the auth subsystem throws", async () => {
+		const app = buildUserApp(async () => {
+			throw new Error("Auth not initialized");
+		});
+		expect((await app.fetch(new Request("http://localhost/me"))).status).toBe(401);
+	});
+
+	it("publishes the caller id to the route so handlers never re-read the session", async () => {
+		const getSession = vi.fn<GetUserSession>(async () => ({ user: { id: "user-1" } }));
+		const app = buildUserApp(getSession);
+		const res = await app.fetch(new Request("http://localhost/me"));
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ userId: "user-1" });
+		expect(getSession).toHaveBeenCalledOnce();
 	});
 });
