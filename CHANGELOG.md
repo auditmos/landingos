@@ -1,3 +1,10 @@
+## [1.36.1](https://github.com/auditmos/landingos/compare/v1.36.0...v1.36.1) (2026-08-25)
+
+
+### Performance Improvements
+
+* **scheduled:** run the housekeeping cron hourly instead of every 5 minutes ([d959f9b](https://github.com/auditmos/landingos/commit/d959f9b6406463f063845ea1b9337bcb9f57226f))
+
 # [1.36.0](https://github.com/auditmos/landingos/compare/v1.35.3...v1.36.0) (2026-08-22)
 
 
