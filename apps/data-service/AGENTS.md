@@ -18,7 +18,7 @@ src/
 │   ├── handlers/         # Route handlers (thin, delegate to services)
 │   ├── services/         # Business logic, calls data-ops queries
 │   ├── middleware/       # request-id, cors, auth, rate-limiter, error-handler
-│   └── utils/            # ApiError class, error helpers
+│   └── utils/            # diagnostics context helpers
 ├── scheduled/            # Cron triggers
 ├── queues/               # Queue consumers
 ├── durable-objects/      # Durable Objects

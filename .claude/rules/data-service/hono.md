@@ -85,25 +85,20 @@ const data = UserCreateSchema.parse(body)
 
 ## Error Handling
 
-- Use custom `ApiError` class
-- Centralize via error middleware
-- Return consistent error shapes
+Services return `Result<T>` carrying a typed `AppError`; handlers unwrap it into a
+response. Never throw `HTTPException` and never introduce a second error class —
+see `.claude/rules/error-handling.md` for the `Result`/`AppError` contract.
+
+`middleware/error-handler.ts` is the last-resort boundary, not a routing table: it
+logs the error server-side and returns one generic Polish 500 with the request id.
+An internal message must never reach a client body — a `DrizzleQueryError.message`
+is `"Failed query: <SQL>\nparams: <values>"`.
 
 ```ts
-class ApiError extends Error {
-  constructor(public statusCode: number, message: string) {
-    super(message)
-  }
-}
-
-// In middleware
-app.onError((err, c) => {
-  if (err instanceof ApiError) {
-    return c.json({ error: err.message }, err.statusCode)
-  }
-  console.error(err)
-  return c.json({ error: 'Internal error' }, 500)
-})
+// handlers/users.ts — unwrap Result, no throwing
+const result = await userService.getById(c.env, id)
+if (!result.ok) return c.json({ code: result.error.code, error: result.error.message }, result.error.status)
+return c.json({ data: result.data })
 ```
 
 ## Response Patterns
