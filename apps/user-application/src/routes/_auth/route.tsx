@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { authClient } from "@/lib/auth-client";
@@ -9,7 +9,6 @@ export const Route = createFileRoute("/_auth")({
 });
 
 function RouteComponent() {
-	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 	const session = authClient.useSession();
 	const navigate = useNavigate();
 
@@ -39,7 +38,7 @@ function RouteComponent() {
 			<Sidebar className="flex-shrink-0" />
 
 			<div className="flex flex-1 flex-col overflow-hidden">
-				<Header onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
+				<Header />
 
 				<main className="flex-1 overflow-y-auto bg-muted/20 p-6">
 					<div className="mx-auto max-w-7xl">

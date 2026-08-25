@@ -55,26 +55,11 @@ export const MarketingConsentUpdateRequestSchema = z
 		}
 	});
 
+// Composed from the two member schemas so the consent invariant (and its Polish
+// message) is defined exactly once, in MarketingConsentUpdateRequestSchema.
 export const ProfilePatchRequestSchema = z.discriminatedUnion("action", [
-	z.strictObject({
-		action: z.literal("pseudonym"),
-		pseudonym: PseudonymSchema,
-	}),
-	z
-		.strictObject({
-			action: z.literal("marketing_consent"),
-			granted: z.boolean(),
-			policyVersion: z.string().trim().min(1).optional(),
-		})
-		.superRefine((value, context) => {
-			if (value.granted && !value.policyVersion) {
-				context.addIssue({
-					code: "custom",
-					path: ["policyVersion"],
-					message: "Wersja zgody jest wymagana przy jej udzieleniu.",
-				});
-			}
-		}),
+	ProfileUpdateRequestSchema.extend({ action: z.literal("pseudonym") }),
+	MarketingConsentUpdateRequestSchema.extend({ action: z.literal("marketing_consent") }),
 ]);
 
 export type ProfileUpdateRequest = z.infer<typeof ProfileUpdateRequestSchema>;

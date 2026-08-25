@@ -14,13 +14,7 @@
 			"entry": ["src/routes/**/*.{ts,tsx}", "e2e/*.{js,ts,tsx}", "vite.config.ts"],
 			"vite": { "config": [] },
 			"ignoreDependencies": ["jsdom", "web-vitals"],
-			"ignore": [
-				"src/core/functions/example-*.ts",
-				"src/core/middleware/example-*.ts",
-				"src/core/middleware/auth.ts",
-				"src/components/ui/**",
-				"src/integrations/**"
-			]
+			"ignore": ["src/components/ui/**", "src/integrations/**"]
 		},
 		"packages/data-ops": {
 			"entry": ["src/*/index.ts", "src/auth/*.ts", "config/auth.ts", "drizzle-*.config.ts"],

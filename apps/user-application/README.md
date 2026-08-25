@@ -50,16 +50,13 @@ Core business logic and server functions.
 ##### [`src/core/functions/`](./src/core/functions/)
 Server functions with middleware support.
 
-- **`example-functions.ts`** - Sample server function
-
 ##### [`src/core/forms/`](./src/core/forms/)
 TanStack Form definitions for form handling with server validation.
 
 ##### [`src/core/middleware/`](./src/core/middleware/)
 Server-side middleware for authentication, validation, and more.
 
-- **`auth.ts`** - Authentication middleware (includes `protectedFunctionMiddleware` and `protectedRequestMiddleware`)
-- **`example-middleware.ts`** - Sample middleware
+- **`auth.ts`** - Authentication middleware (`protectedFunctionMiddleware`)
 
 ### Server Functions & Data Access
 

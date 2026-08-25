@@ -1,6 +1,7 @@
 import {
 	MarketingConsentUpdateRequestSchema,
 	normalizePseudonym,
+	ProfilePatchRequestSchema,
 	ProfileUpdateRequestSchema,
 	PublicProfileSchema,
 } from "./schema";
@@ -89,5 +90,71 @@ describe("MarketingConsentUpdateRequestSchema", () => {
 		expect(MarketingConsentUpdateRequestSchema.parse({ granted: false })).toEqual({
 			granted: false,
 		});
+	});
+});
+
+describe("ProfilePatchRequestSchema", () => {
+	/*
+	 * Characterization boundary: these pin the union's observable contract so the
+	 * consent invariant can be defined exactly once (composed from the member
+	 * schemas) without silently relaxing strictness, the Polish message, or the
+	 * pseudonym preprocessing.
+	 */
+	it("carries the consent invariant into the marketing_consent member", () => {
+		const rejected = ProfilePatchRequestSchema.safeParse({
+			action: "marketing_consent",
+			granted: true,
+		});
+		expect(rejected.success).toBe(false);
+		expect(rejected.error?.issues[0]?.path).toEqual(["policyVersion"]);
+		expect(rejected.error?.issues[0]?.message).toBe(
+			"Wersja zgody jest wymagana przy jej udzieleniu.",
+		);
+
+		expect(
+			ProfilePatchRequestSchema.safeParse({
+				action: "marketing_consent",
+				granted: true,
+				policyVersion: "2026-07",
+			}).success,
+		).toBe(true);
+	});
+
+	it("allows withdrawal without a policy version", () => {
+		expect(
+			ProfilePatchRequestSchema.parse({ action: "marketing_consent", granted: false }),
+		).toEqual({ action: "marketing_consent", granted: false });
+	});
+
+	it("stays strict — an unknown key is rejected on either member", () => {
+		expect(
+			ProfilePatchRequestSchema.safeParse({
+				action: "marketing_consent",
+				granted: false,
+				role: "operator",
+			}).success,
+		).toBe(false);
+		expect(
+			ProfilePatchRequestSchema.safeParse({
+				action: "pseudonym",
+				pseudonym: "Janek",
+				role: "operator",
+			}).success,
+		).toBe(false);
+	});
+
+	it("keeps pseudonym preprocessing on the pseudonym member", () => {
+		expect(
+			ProfilePatchRequestSchema.parse({ action: "pseudonym", pseudonym: "  Żaneta  " }),
+		).toEqual({ action: "pseudonym", pseudonym: "Żaneta" });
+		expect(
+			ProfilePatchRequestSchema.safeParse({ action: "pseudonym", pseudonym: "Ab" }).success,
+		).toBe(false);
+	});
+
+	it("rejects an unknown action", () => {
+		expect(ProfilePatchRequestSchema.safeParse({ action: "role", role: "operator" }).success).toBe(
+			false,
+		);
 	});
 });

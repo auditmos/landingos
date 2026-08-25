@@ -12,10 +12,9 @@ import { visibleNavigationItems } from "./navigation-items";
 
 interface HeaderProps {
 	className?: string;
-	onMobileMenuToggle?: () => void;
 }
 
-export function Header({ className, onMobileMenuToggle }: HeaderProps) {
+export function Header({ className }: HeaderProps) {
 	const { data: session } = authClient.useSession();
 	const { isOperator } = useViewerContext();
 	const openRoomCount = useOpenRoomCount();
@@ -41,10 +40,7 @@ export function Header({ className, onMobileMenuToggle }: HeaderProps) {
 					className="lg:hidden"
 					aria-label={isMobileMenuOpen ? "Zamknij menu" : "Otwórz menu"}
 					aria-expanded={isMobileMenuOpen}
-					onClick={() => {
-						setIsMobileMenuOpen((current) => !current);
-						onMobileMenuToggle?.();
-					}}
+					onClick={() => setIsMobileMenuOpen((current) => !current)}
 				>
 					<Menu className="h-5 w-5 text-foreground" />
 				</Button>

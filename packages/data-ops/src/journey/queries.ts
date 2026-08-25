@@ -49,49 +49,9 @@ export const DEFAULT_TRANSFER_CATALOG_SEED: TransferCatalogEntryWrite[] = [
 	},
 ];
 
-const catalogSelection = {
-	id: transferCatalogEntries.id,
-	operatorName: transferCatalogEntries.operatorName,
-	serviceName: transferCatalogEntries.serviceName,
-	originIata: transferCatalogEntries.originIata,
-	destinationStopCode: transferCatalogEntries.destinationStopCode,
-	destinationStopName: transferCatalogEntries.destinationStopName,
-	durationMinutes: transferCatalogEntries.durationMinutes,
-	transferCount: transferCatalogEntries.transferCount,
-	walkingMinutes: transferCatalogEntries.walkingMinutes,
-	walkingMeters: transferCatalogEntries.walkingMeters,
-	sourceUrl: transferCatalogEntries.sourceUrl,
-	checkedAt: transferCatalogEntries.checkedAt,
-	costMinorMin: transferCatalogEntries.costMinorMin,
-	costMinorMax: transferCatalogEntries.costMinorMax,
-	purchaseUrl: transferCatalogEntries.purchaseUrl,
-	publicationStatus: transferCatalogEntries.publicationStatus,
-	provenance: transferCatalogEntries.provenance,
-	createdAt: transferCatalogEntries.createdAt,
-	updatedAt: transferCatalogEntries.updatedAt,
-};
-
-type CatalogRow = {
-	id: string;
-	operatorName: string | null;
-	serviceName: string | null;
-	originIata: string;
-	destinationStopCode: string | null;
-	destinationStopName: string | null;
-	durationMinutes: number | null;
-	transferCount: number | null;
-	walkingMinutes: number | null;
-	walkingMeters: number | null;
-	sourceUrl: string | null;
-	checkedAt: Date | null;
-	costMinorMin: number | null;
-	costMinorMax: number | null;
-	purchaseUrl: string | null;
-	publicationStatus: string;
-	provenance: string;
-	createdAt: Date;
-	updatedAt: Date;
-};
+// Derived from the table so a column change is a compile error, not a runtime
+// Zod failure. Selection is total, so bare .select()/.returning() match it.
+type CatalogRow = typeof transferCatalogEntries.$inferSelect;
 
 function clockOptions(options: CatalogClockOptions) {
 	return {
@@ -164,11 +124,11 @@ export async function listPublishedTransferCatalog(
 	options: CatalogClockOptions = {},
 ): Promise<TransferCatalogEntry[]> {
 	const rows = await db
-		.select(catalogSelection)
+		.select()
 		.from(transferCatalogEntries)
 		.where(eq(transferCatalogEntries.publicationStatus, "published"))
 		.orderBy(asc(transferCatalogEntries.id));
-	return (rows as CatalogRow[])
+	return rows
 		.map((row) => toCatalogRecord(row, options))
 		.filter((record) => record.freshness === "fresh")
 		.map(toPublishedEntry);
@@ -179,10 +139,10 @@ export async function listTransferCatalogRecords(
 	options: CatalogClockOptions = {},
 ): Promise<TransferCatalogRecord[]> {
 	const rows = await db
-		.select(catalogSelection)
+		.select()
 		.from(transferCatalogEntries)
 		.orderBy(asc(transferCatalogEntries.id));
-	return (rows as CatalogRow[]).map((row) => toCatalogRecord(row, options));
+	return rows.map((row) => toCatalogRecord(row, options));
 }
 
 export async function getTransferCatalogRecord(
@@ -191,11 +151,11 @@ export async function getTransferCatalogRecord(
 	options: CatalogClockOptions = {},
 ): Promise<TransferCatalogRecord | null> {
 	const [row] = await db
-		.select(catalogSelection)
+		.select()
 		.from(transferCatalogEntries)
 		.where(eq(transferCatalogEntries.id, id))
 		.limit(1);
-	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+	return row ? toCatalogRecord(row, options) : null;
 }
 
 export async function createTransferCatalogDraft(
@@ -212,9 +172,9 @@ export async function createTransferCatalogDraft(
 			createdAt: now,
 			updatedAt: now,
 		})
-		.returning(catalogSelection);
+		.returning();
 	if (!row) throw new Error("Nie udało się utworzyć wpisu katalogu.");
-	return toCatalogRecord(row as CatalogRow, options);
+	return toCatalogRecord(row, options);
 }
 
 export async function updateTransferCatalogDraft(
@@ -227,8 +187,8 @@ export async function updateTransferCatalogDraft(
 		.update(transferCatalogEntries)
 		.set({ ...draftValues(input), updatedAt: options.now ?? new Date() })
 		.where(eq(transferCatalogEntries.id, id))
-		.returning(catalogSelection);
-	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+		.returning();
+	return row ? toCatalogRecord(row, options) : null;
 }
 
 export async function saveAndPublishTransferCatalog(
@@ -248,12 +208,12 @@ export async function saveAndPublishTransferCatalog(
 				.update(transferCatalogEntries)
 				.set(values)
 				.where(eq(transferCatalogEntries.id, id))
-				.returning(catalogSelection)
+				.returning()
 		: await db
 				.insert(transferCatalogEntries)
 				.values({ id: crypto.randomUUID(), ...values, createdAt: now })
-				.returning(catalogSelection);
-	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+				.returning();
+	return row ? toCatalogRecord(row, options) : null;
 }
 
 export async function setTransferCatalogPublicationStatus(
@@ -272,8 +232,8 @@ export async function setTransferCatalogPublicationStatus(
 		.update(transferCatalogEntries)
 		.set({ publicationStatus: status, updatedAt: options.now ?? new Date() })
 		.where(eq(transferCatalogEntries.id, id))
-		.returning(catalogSelection);
-	return row ? toCatalogRecord(row as CatalogRow, options) : null;
+		.returning();
+	return row ? toCatalogRecord(row, options) : null;
 }
 
 export async function deleteTransferCatalogRecord(
