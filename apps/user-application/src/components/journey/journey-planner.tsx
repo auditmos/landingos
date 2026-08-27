@@ -54,6 +54,21 @@ function variantShortLabel(variant: JourneyVariant, index: number): string {
 	return badge ? journeyBadgeCopy[badge] : `Wariant ${index + 1}`;
 }
 
+/**
+ * The trailing "· dane nieaktualne, sprawdzono <data>" clause. `checkedAt` is genuinely
+ * nullable, so the whole clause — not just the date — disappears for a source that was
+ * never checked; otherwise the Polish copy trails off into the literal "Invalid Date".
+ */
+function sourceFreshnessCopy(checkedAt: string | null, freshness?: "fresh" | "stale"): string {
+	const clause = [
+		freshness === "stale" ? "dane nieaktualne" : "",
+		checkedAt ? `sprawdzono ${new Date(checkedAt).toLocaleDateString("pl-PL")}` : "",
+	]
+		.filter(Boolean)
+		.join(", ");
+	return clause ? ` · ${clause}` : "";
+}
+
 function transferCountLabel(count: number): string {
 	if (count === 1) return "1 przesiadka";
 	const mod10 = count % 10;
@@ -197,9 +212,7 @@ export function JourneyVariantCard({
 								{variant.sourceReferences.map((source) => (
 									<li key={`${source.kind}:${source.label}`}>
 										{source.label}
-										{source.checkedAt
-											? ` · sprawdzono ${new Date(source.checkedAt).toLocaleDateString("pl-PL")}`
-											: ""}
+										{sourceFreshnessCopy(source.checkedAt)}
 									</li>
 								))}
 							</ul>
@@ -311,9 +324,8 @@ function CatalogTransferAlternativeCard({
 					</div>
 				</dl>
 				<p className="text-pretty text-sm tabular-nums">
-					Cena: {formatJourneyCost(alternative.cost)} · {alternative.source.label} ·{" "}
-					{alternative.freshness === "stale" ? "dane nieaktualne, sprawdzono" : "sprawdzono"}{" "}
-					{new Date(alternative.source.checkedAt ?? "").toLocaleDateString("pl-PL")}
+					Cena: {formatJourneyCost(alternative.cost)} · {alternative.source.label}
+					{sourceFreshnessCopy(alternative.source.checkedAt, alternative.freshness)}
 				</p>
 				<div className="flex flex-wrap gap-2">
 					{alternative.source.url ? (
