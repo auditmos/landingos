@@ -2,6 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RoomApiError } from "@/lib/room-api";
 import { useRoomSocket } from "./room-connection";
 
 /*
@@ -176,5 +177,51 @@ describe("room reconnect backoff", () => {
 		expect(handlers.closeRoomView).toHaveBeenCalledTimes(1);
 		expect(mocks.ticket).toHaveBeenCalledTimes(1);
 		expect(connectionStates()).not.toContain("Przywracanie połączenia…");
+	});
+});
+
+describe("room reconnect error classification", () => {
+	it("surfaces a refused ticket at once instead of walking the ladder", async () => {
+		mocks.ticket.mockRejectedValue(
+			new RoomApiError("Nie należysz do tego pokoju.", "ROOM_ACCESS_DENIED", 403),
+		);
+		await mount();
+		expect(mocks.ticket).toHaveBeenCalledTimes(1);
+		expect(handlers.setError).toHaveBeenCalledWith("Nie należysz do tego pokoju.");
+		expect(connectionStates().at(-1)).toBe("Połączenie przerwane");
+		expect(connectionStates()).not.toContain("Przywracanie połączenia…");
+
+		await advance(300_000);
+		expect(mocks.ticket).toHaveBeenCalledTimes(1);
+	});
+
+	it("retries a server-side failure that may pass on the next attempt", async () => {
+		mocks.ticket.mockRejectedValueOnce(
+			new RoomApiError("Usługa chwilowo niedostępna.", "ROOM_API_ERROR", 503),
+		);
+		await mount();
+		expect(connectionStates().at(-1)).toBe("Przywracanie połączenia…");
+
+		await advance(1_000);
+		expect(mocks.ticket).toHaveBeenCalledTimes(2);
+		expect(connectionStates().at(-1)).toBe("Połączono");
+	});
+
+	it("retries a rate-limited ticket rather than treating it as terminal", async () => {
+		mocks.ticket.mockRejectedValueOnce(new RoomApiError("Zbyt wiele prób.", "ROOM_API_ERROR", 429));
+		await mount();
+		expect(connectionStates().at(-1)).toBe("Przywracanie połączenia…");
+
+		await advance(1_000);
+		expect(mocks.ticket).toHaveBeenCalledTimes(2);
+		expect(connectionStates().at(-1)).toBe("Połączono");
+	});
+
+	it("retries a network failure that carries no HTTP status at all", async () => {
+		mocks.ticket.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+		await mount();
+		await advance(1_000);
+		expect(mocks.ticket).toHaveBeenCalledTimes(2);
+		expect(connectionStates().at(-1)).toBe("Połączono");
 	});
 });

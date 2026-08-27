@@ -38,6 +38,22 @@ export async function fetchPastFlights(
 	return PastFlightListSchema.parse(await roomRequest("/rooms/past", { method: "GET" }, fetchImpl));
 }
 
+/**
+ * A failed room API call. `name` stays the server's error code — callers already
+ * switch on it (`caught.name === "room_closed"`) — while `status` lets a caller
+ * separate a transient failure from one that no retry will fix.
+ */
+export class RoomApiError extends Error {
+	constructor(
+		message: string,
+		readonly code: string,
+		readonly status: number,
+	) {
+		super(message);
+		this.name = code;
+	}
+}
+
 const DEFAULT_API_URL = import.meta.env.VITE_DATA_SERVICE_URL || "http://localhost:8788";
 const JSON_HEADERS: HeadersInit = { "content-type": "application/json" };
 
@@ -62,12 +78,11 @@ async function roomRequest(
 			typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
 				? body.error
 				: "Nie udało się połączyć z pokojem lotu.";
-		const error = new Error(message);
-		error.name =
+		const code =
 			typeof body === "object" && body !== null && "code" in body && typeof body.code === "string"
 				? body.code
 				: "ROOM_API_ERROR";
-		throw error;
+		throw new RoomApiError(message, code, response.status);
 	}
 	return body;
 }

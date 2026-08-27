@@ -5,7 +5,7 @@ import {
 	type RoomSnapshot,
 } from "@repo/data-ops/room";
 import { type Dispatch, type SetStateAction, useEffect } from "react";
-import { fetchRoomSnapshot, issueRoomTicket, roomWebSocketUrl } from "@/lib/room-api";
+import { fetchRoomSnapshot, issueRoomTicket, RoomApiError, roomWebSocketUrl } from "@/lib/room-api";
 import { upsertMember, upsertMessage } from "./room-entry";
 
 type SnapshotSetter = Dispatch<SetStateAction<RoomSnapshot | null>>;
@@ -16,6 +16,19 @@ type SnapshotSetter = Dispatch<SetStateAction<RoomSnapshot | null>>;
  * outage stops hammering the single-use ticket endpoint instead of retrying forever.
  */
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000] as const;
+
+/**
+ * Whether another attempt could plausibly succeed. A refused ticket — revoked
+ * membership, a room that no longer exists, an expired session — will be refused
+ * again a second later, and walking the whole ladder only delays the message the
+ * traveler needs by a minute. Everything else, including a failure that carries no
+ * status at all (a dropped connection is exactly that), is worth retrying.
+ */
+function isRetryableConnectionError(error: unknown): boolean {
+	if (!(error instanceof RoomApiError)) return true;
+	if (error.status === 408 || error.status === 429) return true;
+	return error.status < 400 || error.status >= 500;
+}
 
 type RoomSocketHandlers = {
 	open: () => void;
@@ -175,6 +188,11 @@ export function useRoomSocket(
 			}
 		}
 
+		/** The one place the settled-sounding copy is written, once it is true. */
+		function stopReconnecting() {
+			setConnection("Połączenie przerwane");
+		}
+
 		/**
 		 * Arms the next attempt. Reconnecting is the normal case on airport roaming —
 		 * a failed retry is likelier than a clean one — so "Połączenie przerwane" is
@@ -183,7 +201,7 @@ export function useRoomSocket(
 		function scheduleReconnect() {
 			const delay = RECONNECT_DELAYS_MS[reconnectAttempt];
 			if (delay === undefined) {
-				setConnection("Połączenie przerwane");
+				stopReconnecting();
 				return;
 			}
 			reconnectAttempt += 1;
@@ -217,7 +235,8 @@ export function useRoomSocket(
 				.catch((caught: unknown) => {
 					if (!active) return;
 					setError(caught instanceof Error ? caught.message : "Nie udało się połączyć z pokojem.");
-					scheduleReconnect();
+					if (isRetryableConnectionError(caught)) scheduleReconnect();
+					else stopReconnecting();
 				});
 		}
 
