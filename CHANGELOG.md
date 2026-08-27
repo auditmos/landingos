@@ -1,3 +1,10 @@
+## [1.36.22](https://github.com/auditmos/landingos/compare/v1.36.21...v1.36.22) (2026-08-27)
+
+
+### Bug Fixes
+
+* **room:** surface a refused ticket at once instead of walking the retry ladder ([e9f313b](https://github.com/auditmos/landingos/commit/e9f313bab5f858e650c65538389c373325627c69)), closes [#52](https://github.com/auditmos/landingos/issues/52)
+
 ## [1.36.21](https://github.com/auditmos/landingos/compare/v1.36.20...v1.36.21) (2026-08-27)
 
 
