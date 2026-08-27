@@ -10,6 +10,13 @@ import { upsertMember, upsertMessage } from "./room-entry";
 
 type SnapshotSetter = Dispatch<SetStateAction<RoomSnapshot | null>>;
 
+/**
+ * Delay before each successive reconnect attempt. The ladder is the whole retry
+ * budget: once it runs out the traveler is told the connection is gone, so a long
+ * outage stops hammering the single-use ticket endpoint instead of retrying forever.
+ */
+const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000] as const;
+
 type RoomSocketHandlers = {
 	open: () => void;
 	message: (event: MessageEvent) => void;
@@ -106,7 +113,9 @@ export function useRoomExpiry(closesAt: string | undefined, closeRoomView: () =>
  * Keeps one live, self-reconnecting room WebSocket for the given room id and
  * feeds its realtime events into the snapshot state. A server close with code
  * 4001 (room expired) triggers `closeRoomView`; any other disconnect recovers
- * history and reconnects with a fresh single-use ticket.
+ * history and reconnects with a fresh single-use ticket, backing off across
+ * `RECONNECT_DELAYS_MS` when an attempt fails and only reporting a broken
+ * connection once that ladder is exhausted.
  */
 export function useRoomSocket(
 	roomId: string | undefined,
@@ -124,9 +133,13 @@ export function useRoomSocket(
 		let active = true;
 		let socket: WebSocket | undefined;
 		let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+		let reconnectAttempt = 0;
 
 		function handleOpen() {
-			if (active) setConnection("Połączono");
+			if (!active) return;
+			// A live socket earns back the full retry budget for the next drop.
+			reconnectAttempt = 0;
+			setConnection("Połączono");
 		}
 
 		// A redaction removes content the client already holds, so the whole
@@ -162,14 +175,29 @@ export function useRoomSocket(
 			}
 		}
 
+		/**
+		 * Arms the next attempt. Reconnecting is the normal case on airport roaming —
+		 * a failed retry is likelier than a clean one — so "Połączenie przerwane" is
+		 * written only at the cap, where that settled-sounding copy is finally true.
+		 */
+		function scheduleReconnect() {
+			const delay = RECONNECT_DELAYS_MS[reconnectAttempt];
+			if (delay === undefined) {
+				setConnection("Połączenie przerwane");
+				return;
+			}
+			reconnectAttempt += 1;
+			setConnection("Przywracanie połączenia…");
+			reconnectTimer = setTimeout(() => void connect(true), delay);
+		}
+
 		function handleClose(event: CloseEvent) {
 			if (!active) return;
 			if (event.code === 4001) {
 				closeRoomView();
 				return;
 			}
-			setConnection("Przywracanie połączenia…");
-			reconnectTimer = setTimeout(() => void connect(true), 1_000);
+			scheduleReconnect();
 		}
 
 		function connect(recoverHistory: boolean) {
@@ -188,8 +216,8 @@ export function useRoomSocket(
 				})
 				.catch((caught: unknown) => {
 					if (!active) return;
-					setConnection("Połączenie przerwane");
 					setError(caught instanceof Error ? caught.message : "Nie udało się połączyć z pokojem.");
+					scheduleReconnect();
 				});
 		}
 
