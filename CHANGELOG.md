@@ -1,3 +1,10 @@
+## [1.36.19](https://github.com/auditmos/landingos/compare/v1.36.18...v1.36.19) (2026-08-27)
+
+
+### Bug Fixes
+
+* **journey:** drop the sprawdzono clause when a source was never checked ([cf4ae7e](https://github.com/auditmos/landingos/commit/cf4ae7efa7e06480f47935e8b435f43d9b813ab5)), closes [#51](https://github.com/auditmos/landingos/issues/51)
+
 ## [1.36.18](https://github.com/auditmos/landingos/compare/v1.36.17...v1.36.18) (2026-08-27)
 
 ## [1.36.17](https://github.com/auditmos/landingos/compare/v1.36.16...v1.36.17) (2026-08-25)
