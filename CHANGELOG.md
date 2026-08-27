@@ -1,3 +1,10 @@
+## [1.36.21](https://github.com/auditmos/landingos/compare/v1.36.20...v1.36.21) (2026-08-27)
+
+
+### Bug Fixes
+
+* **operator:** scope report status changes to their own card and slow the queue poll ([6f15180](https://github.com/auditmos/landingos/commit/6f1518068db4be7186b215761a388148e625e74f)), closes [#53](https://github.com/auditmos/landingos/issues/53)
+
 ## [1.36.20](https://github.com/auditmos/landingos/compare/v1.36.19...v1.36.20) (2026-08-27)
 
 
