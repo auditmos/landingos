@@ -30,6 +30,13 @@ import {
 } from "@/lib/operator-reports-api";
 
 const reportsQueryKey = ["operator", "safety-reports"] as const;
+/**
+ * Safety reports are not a live-collaboration surface: the queue moves a few times
+ * a day and a status change invalidates it immediately, so second-level freshness
+ * buys nothing. The poll also stays out of hidden tabs — a console left open
+ * overnight used to issue tens of thousands of authenticated queue requests.
+ */
+const OPEN_QUEUE_REFETCH_MS = 30_000;
 const ANONYMOUS_LABEL = "konto usunięte";
 
 function formatMoment(iso: string): string {
@@ -109,15 +116,20 @@ function ReportEvidence({ report }: { report: SafetyReportQueueItem }) {
 	);
 }
 
-function ReportCard({
-	report,
-	onStatusChange,
-	pending,
-}: {
-	report: SafetyReportQueueItem;
-	onStatusChange(status: SafetyReportStatus): void;
-	pending: boolean;
-}) {
+function ReportCard({ report }: { report: SafetyReportQueueItem }) {
+	const queryClient = useQueryClient();
+	// One mutation per card: an operator working through a queue can decide on a
+	// second report while the first is still settling, and a failure names its own
+	// report instead of raising one anonymous console-level alert.
+	//
+	// Closing a report moves it out of the open view, so both filtered lists are
+	// stale afterwards — invalidate the whole prefix rather than one key.
+	const statusMutation = useMutation({
+		mutationFn: (next: SafetyReportStatus) => setSafetyReportStatus(report.id, next),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: reportsQueryKey }),
+	});
+	const pending = statusMutation.isPending;
+	const onStatusChange = (next: SafetyReportStatus) => statusMutation.mutate(next);
 	const resolved = report.status === "resolved";
 	return (
 		<Card className={resolved ? "opacity-70" : undefined}>
@@ -193,6 +205,11 @@ function ReportCard({
 						</span>
 					) : null}
 				</div>
+				{statusMutation.isError ? (
+					<Alert variant="destructive">
+						<AlertDescription>{queueError(statusMutation.error).description}</AlertDescription>
+					</Alert>
+				) : null}
 			</CardContent>
 		</Card>
 	);
@@ -201,7 +218,6 @@ function ReportCard({
 export function OperatorReportsConsole() {
 	const [reason, setReason] = useState<SafetyReportReason | "">("");
 	const [status, setStatus] = useState<SafetyReportStatus | "">("open");
-	const queryClient = useQueryClient();
 	const query = useInfiniteQuery({
 		queryKey: [...reportsQueryKey, status, reason] as const,
 		queryFn: ({ pageParam }) =>
@@ -214,16 +230,7 @@ export function OperatorReportsConsole() {
 		initialPageParam: 0,
 		getNextPageParam: (lastPage, pages) =>
 			lastPage.hasMore ? pages.length * SAFETY_REPORT_QUEUE_PAGE_SIZE : undefined,
-		refetchInterval: status === "open" ? 1_000 : false,
-		refetchIntervalInBackground: true,
-	});
-
-	// Closing a report moves it out of the open view, so both filtered lists are
-	// stale afterwards — invalidate the whole prefix rather than one key.
-	const statusMutation = useMutation({
-		mutationFn: (input: { reportId: string; next: SafetyReportStatus }) =>
-			setSafetyReportStatus(input.reportId, input.next),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: reportsQueryKey }),
+		refetchInterval: status === "open" ? OPEN_QUEUE_REFETCH_MS : false,
 	});
 
 	// Offset paging over a queue that keeps growing can hand back the same report
@@ -325,20 +332,9 @@ export function OperatorReportsConsole() {
 				</Card>
 			) : null}
 
-			{statusMutation.isError ? (
-				<Alert variant="destructive">
-					<AlertDescription>{queueError(statusMutation.error).description}</AlertDescription>
-				</Alert>
-			) : null}
-
 			<div className="space-y-4">
 				{reports.map((report) => (
-					<ReportCard
-						key={report.id}
-						report={report}
-						pending={statusMutation.isPending}
-						onStatusChange={(next) => statusMutation.mutate({ reportId: report.id, next })}
-					/>
+					<ReportCard key={report.id} report={report} />
 				))}
 			</div>
 

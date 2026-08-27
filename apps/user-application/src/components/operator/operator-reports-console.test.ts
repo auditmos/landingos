@@ -91,6 +91,17 @@ describe("operator report queue panel", () => {
 			else closed.delete(reportId);
 			return { ...messageReport, id: reportId, status };
 		});
+		await renderConsole();
+		await settle();
+	});
+
+	afterEach(async () => {
+		await act(async () => root.unmount());
+		container.remove();
+		vi.useRealTimers();
+	});
+
+	async function renderConsole() {
 		container = document.createElement("div");
 		document.body.appendChild(container);
 		root = createRoot(container);
@@ -106,13 +117,17 @@ describe("operator report queue panel", () => {
 				),
 			);
 		});
-		await settle();
-	});
+	}
 
-	afterEach(async () => {
-		await act(async () => root.unmount());
-		container.remove();
-	});
+	function cards(): HTMLElement[] {
+		return [...container.querySelectorAll<HTMLElement>("[data-slot='card']")];
+	}
+
+	function cardPair(): [HTMLElement, HTMLElement] {
+		const [first, second] = cards();
+		if (!first || !second) throw new Error("Oczekiwano dwóch kart zgłoszeń");
+		return [first, second];
+	}
 
 	it("renders pseudonyms, frozen evidence, and erased-account fallbacks in Polish", async () => {
 		expect(container.textContent).toContain("Spam komercyjny");
@@ -127,12 +142,75 @@ describe("operator report queue panel", () => {
 		);
 	});
 
-	it("refreshes the open queue so a traveler report arrives without a page reload", async () => {
-		const callsBeforePoll = mocks.list.mock.calls.length;
+	it("does not poll the open queue every second", async () => {
+		const callsBeforeWait = mocks.list.mock.calls.length;
 		await act(async () => {
-			await new Promise((resolve) => setTimeout(resolve, 1_100));
+			await new Promise((resolve) => setTimeout(resolve, 1_500));
 		});
-		expect(mocks.list.mock.calls.length).toBeGreaterThan(callsBeforePoll);
+		expect(mocks.list.mock.calls.length).toBe(callsBeforeWait);
+	});
+
+	it("refreshes the open queue on a slow interval and stops while the tab is hidden", async () => {
+		await act(async () => root.unmount());
+		container.remove();
+		vi.useFakeTimers();
+		await renderConsole();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+
+		const afterMount = mocks.list.mock.calls.length;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(5_000);
+		});
+		expect(mocks.list.mock.calls.length).toBe(afterMount);
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(30_000);
+		});
+		expect(mocks.list.mock.calls.length).toBeGreaterThan(afterMount);
+
+		// A console left open overnight on a hidden tab must go quiet, not keep
+		// issuing authenticated queue requests for hours.
+		const afterPoll = mocks.list.mock.calls.length;
+		Object.defineProperty(document, "visibilityState", {
+			value: "hidden",
+			configurable: true,
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(180_000);
+		});
+		expect(mocks.list.mock.calls.length).toBe(afterPoll);
+
+		Object.defineProperty(document, "visibilityState", {
+			value: "visible",
+			configurable: true,
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+
+	it("keeps the other reports interactive while one status change is in flight", async () => {
+		mocks.setStatus.mockImplementation(() => new Promise(() => {}));
+		const [first, second] = cardPair();
+		await act(async () => {
+			button(first, "Zamknij zgłoszenie").click();
+		});
+		await settle();
+		expect(button(first, "Zamknij zgłoszenie").disabled).toBe(true);
+		expect(button(second, "Zamknij zgłoszenie").disabled).toBe(false);
+	});
+
+	it("attaches a failed status change to the card that produced it", async () => {
+		mocks.setStatus.mockRejectedValue(new Error("Kolejka jest chwilowo niedostępna."));
+		const [first, second] = cardPair();
+		await act(async () => {
+			button(first, "Zamknij zgłoszenie").click();
+		});
+		await settle();
+		expect(first.textContent).toContain("Kolejka jest chwilowo niedostępna.");
+		expect(second.textContent).not.toContain("Kolejka jest chwilowo niedostępna.");
+		expect(button(second, "Zamknij zgłoszenie").disabled).toBe(false);
 	});
 
 	it("closes a report, drops it from the open queue, and reopens it from the closed view", async () => {
