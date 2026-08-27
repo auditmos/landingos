@@ -1,3 +1,10 @@
+## [1.36.20](https://github.com/auditmos/landingos/compare/v1.36.19...v1.36.20) (2026-08-27)
+
+
+### Bug Fixes
+
+* **room:** retry a failed reconnect attempt with capped backoff ([9c7b5d2](https://github.com/auditmos/landingos/commit/9c7b5d2d1a2fcd1f93961f9accaabb0f6159a511)), closes [#52](https://github.com/auditmos/landingos/issues/52)
+
 ## [1.36.19](https://github.com/auditmos/landingos/compare/v1.36.18...v1.36.19) (2026-08-27)
 
 
