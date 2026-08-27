@@ -40,6 +40,7 @@ export const roomMemberships = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => auth_user.id, { onDelete: "cascade" }),
+		pseudonym: text("pseudonym").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
 	},
 	(table) => [

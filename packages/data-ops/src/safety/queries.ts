@@ -44,12 +44,11 @@ async function roomTargetByPseudonym(
 	pseudonym: string,
 ): Promise<RoomTarget | null> {
 	const [target] = await db
-		.select({ userId: roomMemberships.userId, pseudonym: auth_user.pseudonym })
+		.select({ userId: roomMemberships.userId, pseudonym: roomMemberships.pseudonym })
 		.from(roomMemberships)
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
-		.where(and(eq(roomMemberships.roomId, roomId), eq(auth_user.pseudonym, pseudonym)))
+		.where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.pseudonym, pseudonym)))
 		.limit(1);
-	return target?.pseudonym ? { userId: target.userId, pseudonym: target.pseudonym } : null;
+	return target ?? null;
 }
 
 async function authorizedTarget(
@@ -200,16 +199,15 @@ export async function listBlockedMemberPseudonyms(
 		throw new SafetyQueryError("ROOM_ACCESS_DENIED");
 	}
 	const rows = await db
-		.select({ pseudonym: auth_user.pseudonym })
+		.select({ pseudonym: roomMemberships.pseudonym })
 		.from(userBlocks)
-		.innerJoin(auth_user, eq(userBlocks.blockedId, auth_user.id))
 		.innerJoin(
 			roomMemberships,
 			and(eq(roomMemberships.userId, userBlocks.blockedId), eq(roomMemberships.roomId, roomId)),
 		)
 		.where(and(eq(userBlocks.blockerId, blockerId), isNull(userBlocks.unblockedAt)))
-		.orderBy(asc(auth_user.pseudonym));
-	return rows.flatMap((row) => (row.pseudonym ? [row.pseudonym] : []));
+		.orderBy(asc(roomMemberships.pseudonym));
+	return rows.map((row) => row.pseudonym);
 }
 
 export async function listBlockedRecipientIds(
@@ -237,19 +235,20 @@ async function messageTarget(
 		.select({
 			messageId: roomMessages.id,
 			userId: roomMemberships.userId,
-			pseudonym: auth_user.pseudonym,
+			// The evidence snapshot must carry the name the reporter actually saw, so it
+			// comes from the message's own frozen author, never from the account.
+			pseudonym: roomMessages.authorPseudonym,
 			content: roomMessages.content,
 			createdAt: roomMessages.createdAt,
 		})
 		.from(roomMessages)
 		.innerJoin(roomMemberships, eq(roomMessages.membershipId, roomMemberships.id))
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.where(and(eq(roomMessages.roomId, roomId), eq(roomMessages.id, messageId)))
 		.limit(1);
-	if (!message?.pseudonym || message.content === null) {
+	if (!message || message.content === null) {
 		throw new SafetyQueryError("SAFETY_TARGET_INVALID");
 	}
-	return { ...message, pseudonym: message.pseudonym, content: message.content };
+	return { ...message, content: message.content };
 }
 
 function reportFromRow(row: {

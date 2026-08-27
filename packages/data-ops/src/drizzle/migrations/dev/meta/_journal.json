@@ -92,6 +92,13 @@
       "when": 1787900000000,
       "tag": "0012_single_block_state",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788300000000,
+      "tag": "0013_frozen_room_pseudonym",
+      "breakpoints": true
     }
   ]
 }

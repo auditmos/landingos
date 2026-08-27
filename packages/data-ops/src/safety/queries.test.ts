@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
+import { updatePseudonym } from "@/identity/queries";
 import { createRoomMessage, getRoomSnapshot, joinFlightRoom, type RoomDatabase } from "@/room";
 import {
 	acceptCommunityRules,
@@ -630,6 +631,74 @@ describe("operator report queue", () => {
 				expect(report.evidenceSnapshot).toBeNull();
 				expect(report.flightDesignator).toBe("FR1234");
 			}
+		} finally {
+			await client.close();
+		}
+	});
+});
+
+describe("safety targeting after a mid-room rename", () => {
+	it("keeps the name seen in chat blockable, reportable, and correct in report evidence", async () => {
+		const { client, db, roomA } = await createTestDatabase();
+		try {
+			const reportedMessage = await createRoomMessage(
+				db,
+				roomA.id,
+				USER_B,
+				{ clientMessageId: MESSAGE_B, content: "Niewłaściwa wiadomość" },
+				new Date("2026-09-14T07:00:00.000Z"),
+			);
+			await updatePseudonym(
+				db as unknown as Parameters<typeof updatePseudonym>[0],
+				USER_B,
+				"Bartosz BGY",
+			);
+
+			const seenInChat = (await getRoomSnapshot(db, roomA.id, USER_A)).messages.map(
+				(message) => message.pseudonym,
+			);
+			expect(seenInChat).toEqual(["Bartek BGY"]);
+
+			const messageReport = await createSafetyReport(db, {
+				roomId: roomA.id,
+				reporterId: USER_A,
+				request: {
+					targetType: "message",
+					messageId: reportedMessage.message.id,
+					reason: "money_or_private_information",
+				},
+			});
+			expect(messageReport.report.evidenceSnapshot).toMatchObject({
+				authorPseudonym: "Bartek BGY",
+			});
+
+			const memberReport = await createSafetyReport(db, {
+				roomId: roomA.id,
+				reporterId: USER_A,
+				request: {
+					targetType: "member",
+					targetPseudonym: "Bartek BGY",
+					reason: "harassment_or_discrimination",
+				},
+			});
+			expect(memberReport.report.targetUserId).toBe(USER_B);
+
+			expect(
+				await blockRoomMember(db, {
+					roomId: roomA.id,
+					blockerId: USER_A,
+					targetPseudonym: "Bartek BGY",
+				}),
+			).toMatchObject({ blockedPseudonym: "Bartek BGY", created: true });
+			expect(await listBlockedMemberPseudonyms(db, roomA.id, USER_A)).toEqual(["Bartek BGY"]);
+
+			await expect(
+				blockRoomMember(db, {
+					roomId: roomA.id,
+					blockerId: USER_A,
+					targetPseudonym: "Bartosz BGY",
+				}),
+			).rejects.toBeInstanceOf(SafetyQueryError);
 		} finally {
 			await client.close();
 		}

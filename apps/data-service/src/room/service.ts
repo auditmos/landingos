@@ -119,9 +119,15 @@ async function joinOrTranslate(
 		});
 	} catch (error) {
 		if (!(error instanceof RoomQueryError)) throw error;
-		throw error.code === "ROOM_CLOSED"
-			? new FlightRoomServiceError("room_closed", 410, error.message)
-			: new FlightRoomServiceError("flight_not_found", 404, error.message);
+		if (error.code === "ROOM_CLOSED") {
+			throw new FlightRoomServiceError("room_closed", 410, error.message);
+		}
+		// Unreachable behind the isRoomReady gate above, but a pseudonym the DB layer
+		// refuses to freeze must not be reported as an unknown flight.
+		if (error.code === "PSEUDONYM_REQUIRED") {
+			throw new FlightRoomServiceError("PSEUDONYM_REQUIRED", 409, error.message);
+		}
+		throw new FlightRoomServiceError("flight_not_found", 404, error.message);
 	}
 }
 

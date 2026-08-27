@@ -193,6 +193,21 @@ describe("flight room service ordering and idempotency", () => {
 		expect(deps.joinFlightRoom).not.toHaveBeenCalled();
 	});
 
+	it("reports a missing pseudonym raised by the DB layer as such, not as an unknown flight", async () => {
+		const deps = dependencies({
+			joinFlightRoom: vi.fn(async () => {
+				throw new RoomQueryError("PSEUDONYM_REQUIRED");
+			}),
+		});
+
+		await expect(createFlightRoomService(deps).join("flight-1", "user-1")).rejects.toEqual(
+			expect.objectContaining<Partial<FlightRoomServiceError>>({
+				code: "PSEUDONYM_REQUIRED",
+				status: 409,
+			}),
+		);
+	});
+
 	it("broadcasts a join only after a newly persisted membership", async () => {
 		const order: string[] = [];
 		const deps = dependencies({

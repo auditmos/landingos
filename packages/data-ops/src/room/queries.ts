@@ -52,11 +52,13 @@ export interface RoomAccessContext {
 }
 
 export class RoomQueryError extends Error {
-	constructor(readonly code: "FLIGHT_NOT_FOUND" | "ROOM_CLOSED") {
+	constructor(readonly code: "FLIGHT_NOT_FOUND" | "ROOM_CLOSED" | "PSEUDONYM_REQUIRED") {
 		super(
 			code === "ROOM_CLOSED"
 				? "Pokój tego lotu jest już zamknięty."
-				: "Nie znaleziono rozpoznanego lotu.",
+				: code === "PSEUDONYM_REQUIRED"
+					? "Ustaw prawidłowy pseudonim przed wejściem do pokoju."
+					: "Nie znaleziono rozpoznanego lotu.",
 		);
 		this.name = "RoomQueryError";
 	}
@@ -74,10 +76,7 @@ function roomFromRow(row: { id: string; flightInstanceId: string; closesAt: Date
 	return PublicRoomSchema.parse({ ...row, closesAt: row.closesAt.toISOString() });
 }
 
-function memberFromRow(row: { pseudonym: string | null; selection: unknown }): PublicRoomMember {
-	if (!row.pseudonym) {
-		throw new Error("Członek pokoju nie ma prawidłowego pseudonimu.");
-	}
+function memberFromRow(row: { pseudonym: string; selection: unknown }): PublicRoomMember {
 	return PublicRoomMemberSchema.parse({
 		pseudonym: row.pseudonym,
 		selection: row.selection === null ? null : RoomSelectionSchema.parse(row.selection),
@@ -134,15 +133,14 @@ async function getMembership(
 	db: RoomDatabase,
 	roomId: string,
 	userId: string,
-): Promise<{ id: string; userId: string; pseudonym: string | null } | null> {
+): Promise<{ id: string; userId: string; pseudonym: string } | null> {
 	const [row] = await db
 		.select({
 			id: roomMemberships.id,
 			userId: roomMemberships.userId,
-			pseudonym: auth_user.pseudonym,
+			pseudonym: roomMemberships.pseudonym,
 		})
 		.from(roomMemberships)
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
 		.limit(1);
 	return row ?? null;
@@ -184,12 +182,24 @@ export async function joinFlightRoom(
 		throw new Error("Nie udało się utworzyć pokoju dla tego lotu.");
 	}
 
+	// Room identity is frozen here and nowhere else: the pseudonym is copied out of
+	// the account at join time, exactly like roomMessages.authorPseudonym is copied
+	// at write time. A later rename never reaches a room already joined.
+	const [account] = await db
+		.select({ pseudonym: auth_user.pseudonym })
+		.from(auth_user)
+		.where(eq(auth_user.id, input.userId))
+		.limit(1);
+	if (!account?.pseudonym) {
+		throw new RoomQueryError("PSEUDONYM_REQUIRED");
+	}
 	const [insertedMembership] = await db
 		.insert(roomMemberships)
 		.values({
 			id: crypto.randomUUID(),
 			roomId: room.id,
 			userId: input.userId,
+			pseudonym: account.pseudonym,
 		})
 		.onConflictDoNothing({
 			target: [roomMemberships.roomId, roomMemberships.userId],
@@ -242,11 +252,10 @@ export async function listPublicRoomMembers(
 ): Promise<PublicRoomMember[]> {
 	const rows = await db
 		.select({
-			pseudonym: auth_user.pseudonym,
+			pseudonym: roomMemberships.pseudonym,
 			selection: roomSelections.selection,
 		})
 		.from(roomMemberships)
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.leftJoin(roomSelections, eq(roomMemberships.id, roomSelections.membershipId))
 		.where(eq(roomMemberships.roomId, roomId))
 		.orderBy(asc(roomMemberships.createdAt), asc(roomMemberships.id));
@@ -260,11 +269,10 @@ export async function getPublicRoomMember(
 ): Promise<PublicRoomMember | null> {
 	const [row] = await db
 		.select({
-			pseudonym: auth_user.pseudonym,
+			pseudonym: roomMemberships.pseudonym,
 			selection: roomSelections.selection,
 		})
 		.from(roomMemberships)
-		.innerJoin(auth_user, eq(roomMemberships.userId, auth_user.id))
 		.leftJoin(roomSelections, eq(roomMemberships.id, roomSelections.membershipId))
 		.where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
 		.limit(1);
@@ -366,9 +374,6 @@ export async function createRoomMessage(
 	const membership = await getMembership(db, roomId, userId);
 	if (!membership) {
 		throw new Error("Nie należysz do tego pokoju.");
-	}
-	if (!membership.pseudonym) {
-		throw new Error("Autor wiadomości nie ma prawidłowego pseudonimu.");
 	}
 	const [inserted] = await db
 		.insert(roomMessages)

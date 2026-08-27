@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { upsertFlightInstance } from "@/flight/queries";
+import { updatePseudonym } from "@/identity/queries";
 import {
 	consumeConnectionTicket,
 	countRoomMemberships,
@@ -22,6 +23,8 @@ const FLIGHT_A = "018f4c8e-5697-7df4-8f6e-c7644b137e5b";
 const FLIGHT_B = "018f51b4-c697-74ab-820f-d9e72852a52c";
 const USER_A = "user-a";
 const USER_B = "user-b";
+const ROOM_WITHOUT_PSEUDONYM = "018f4c8e-5697-7df4-8f6e-c7644b137e71";
+const MEMBERSHIP_WITHOUT_PSEUDONYM = "018f4c8e-5697-7df4-8f6e-c7644b137e72";
 
 async function createTestDatabase() {
 	const client = new PGlite();
@@ -338,6 +341,135 @@ describe("flight room persistence", () => {
 					now: new Date("2026-09-14T07:01:00.000Z"),
 				}),
 			).toBeNull();
+		} finally {
+			await client.close();
+		}
+	});
+});
+
+describe("room identity frozen at join", () => {
+	it("keeps the join-time pseudonym in the member list after a profile rename", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const joined = await joinFlightRoom(db, {
+				flightInstanceId: FLIGHT_A,
+				userId: USER_A,
+			});
+			await updatePseudonym(
+				db as unknown as Parameters<typeof updatePseudonym>[0],
+				USER_A,
+				"Kasia BGY",
+			);
+
+			const snapshot = await getRoomSnapshot(db, joined.room.id, USER_A);
+			expect(snapshot.member.pseudonym).toBe("Alicja BGY");
+			expect(snapshot.members.map((member) => member.pseudonym)).toEqual(["Alicja BGY"]);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("carries a rename into the next room joined while the earlier room keeps the old name", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const earlier = await joinFlightRoom(db, {
+				flightInstanceId: FLIGHT_A,
+				userId: USER_A,
+			});
+			await updatePseudonym(
+				db as unknown as Parameters<typeof updatePseudonym>[0],
+				USER_A,
+				"Kasia BGY",
+			);
+			const later = await joinFlightRoom(db, {
+				flightInstanceId: FLIGHT_B,
+				userId: USER_A,
+			});
+
+			expect((await getRoomSnapshot(db, later.room.id, USER_A)).member.pseudonym).toBe("Kasia BGY");
+			expect((await getRoomSnapshot(db, earlier.room.id, USER_A)).member.pseudonym).toBe(
+				"Alicja BGY",
+			);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("does not refresh the frozen pseudonym when an existing member re-joins", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			const joined = await joinFlightRoom(db, {
+				flightInstanceId: FLIGHT_A,
+				userId: USER_A,
+			});
+			await updatePseudonym(
+				db as unknown as Parameters<typeof updatePseudonym>[0],
+				USER_A,
+				"Kasia BGY",
+			);
+			const rejoined = await joinFlightRoom(db, {
+				flightInstanceId: FLIGHT_A,
+				userId: USER_A,
+			});
+
+			expect(rejoined.membershipCreated).toBe(false);
+			expect(rejoined.membershipId).toBe(joined.membershipId);
+			expect((await getRoomSnapshot(db, joined.room.id, USER_A)).member.pseudonym).toBe(
+				"Alicja BGY",
+			);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it("refuses to seat an account that has no pseudonym instead of writing a placeholder", async () => {
+		const { client, db } = await createTestDatabase();
+		try {
+			await client.exec(`UPDATE auth_user SET pseudonym = NULL WHERE id = '${USER_A}';`);
+
+			await expect(
+				joinFlightRoom(db, { flightInstanceId: FLIGHT_A, userId: USER_A }),
+			).rejects.toMatchObject({ code: "PSEUDONYM_REQUIRED" });
+			expect(await countRooms(db)).toBe(1);
+		} finally {
+			await client.close();
+		}
+	});
+});
+
+describe("frozen pseudonym backfill", () => {
+	it("refuses to migrate a membership whose account has no pseudonym", async () => {
+		const client = new PGlite();
+		try {
+			const migrationDirectory = resolve(import.meta.dirname, "../drizzle/migrations/dev");
+			const migrations = readdirSync(migrationDirectory)
+				.filter((name) => name.endsWith(".sql"))
+				.sort();
+			const freezeMigration = migrations.at(-1);
+			expect(freezeMigration).toBe("0013_frozen_room_pseudonym.sql");
+			for (const migrationName of migrations.slice(0, -1)) {
+				await client.exec(readFileSync(resolve(migrationDirectory, migrationName), "utf8"));
+			}
+			await client.exec(`
+				INSERT INTO auth_user (id, name, email, email_verified, pseudonym, created_at, updated_at)
+				VALUES ('${USER_A}', 'User A', 'a@example.com', true, NULL, now(), now());
+				INSERT INTO flight_instances
+					(id, canonical_key, marketing_carrier_code, marketing_carrier_name,
+					 marketing_flight_number, departure_local_date, origin_iata, destination_iata,
+					 scheduled_arrival_utc, display_timezone, source)
+				VALUES
+					('${FLIGHT_A}', 'fr1234:2026-09-14', 'FR', 'Ryanair', '1234', '2026-09-14',
+					 'WAW', 'BGY', '2026-09-14T08:20:00Z', 'Europe/Rome', 'provider');
+				INSERT INTO flight_rooms (id, flight_instance_id, closes_at, message_purge_at)
+				VALUES ('${ROOM_WITHOUT_PSEUDONYM}', '${FLIGHT_A}',
+					'2026-09-15T08:20:00Z', '2026-10-15T08:20:00Z');
+				INSERT INTO room_memberships (id, room_id, user_id)
+				VALUES ('${MEMBERSHIP_WITHOUT_PSEUDONYM}', '${ROOM_WITHOUT_PSEUDONYM}', '${USER_A}');
+			`);
+
+			await expect(
+				client.exec(readFileSync(resolve(migrationDirectory, `${freezeMigration}`), "utf8")),
+			).rejects.toThrow(/pseudonim/i);
 		} finally {
 			await client.close();
 		}
