@@ -136,6 +136,12 @@ Do not remove or alter the `staging.landingos.app` Custom Domain during that cut
 Secrets sync: `bash apps/{app}/sync-secrets.sh {env}`. Fixture provider data must never render
 in `staging`/`production`. See [`.claude/rules/cloudflare-deployment.md`](./.claude/rules/cloudflare-deployment.md) for hostname/SSL/redirect rules.
 
+Secret values live in the Bitwarden Organisation `LandingOS`, collection `infra` — the
+local `.{env}.vars` / `.env.{env}` files are working copies of vault items, not the source
+of truth. The paid data-provider accounts (Neon, Google Maps Platform, AviationStack) are
+owned and paid for by the product owner; who owns what, roles, and rotation steps are in
+[`docs/ops/ownership-and-access.md`](./docs/ops/ownership-and-access.md).
+
 ### Cloudflare account override
 
 To deploy to a different CF account, copy `.env.example` to `.env` and fill in `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`.
