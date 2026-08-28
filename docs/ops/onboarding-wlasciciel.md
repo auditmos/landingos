@@ -1,8 +1,9 @@
 # Zakładanie kont właścicielki LandingOS (checklista)
 
-Ten dokument jest dla Pauliny. Przechodzimy go razem podczas jednej rozmowy
-z udostępnionym ekranem (ok. 60 minut): Ty klikasz, ja podpowiadam. Po rozmowie możesz
-tu wrócić i sprawdzić każdy krok samodzielnie.
+Paulino, ten dokument jest dla Ciebie. Cztery konta zakładasz samodzielnie, krok po
+kroku, w kolejności jak niżej — całość zajmuje ok. godziny. Jeśli cokolwiek po drodze
+sprawi problem, po prostu napisz do mnie na Telegramie. Adresy e-mail do zaproszeń
+(Bitwarden, Neon, Google) też wyślę Ci tam.
 
 **Zasada numer jeden:** każde hasło i każdy klucz zapisujemy od razu w Bitwardenie,
 w kolekcji `infra`. Nigdy nie wysyłamy ich SMS-em, mailem ani na Messengerze.
@@ -16,8 +17,8 @@ w kolekcji `infra`. Nigdy nie wysyłamy ich SMS-em, mailem ani na Messengerze.
 | Google Maps Platform | adresy i trasy dojazdu po Mediolanie | 0 zł (limit darmowy) | zależnie od użycia (pilnuje tego alert budżetowy) |
 | AviationStack | dane o lotach | 0 zł (plan Free, 100 zapytań/mies.) | 49,99 USD/mies. (plan Basic, licencja komercyjna) |
 
-Do płatności podpinasz swoją kartę, bo te konta są Twoje. Tomek ma do nich dostęp
-roboczy: wystarcza mu do pracy, ale nie pozwala niczego usunąć ani przenieść i nie
+Do płatności podpinasz swoją kartę, bo te konta są Twoje. Ja mam do nich dostęp
+roboczy: wystarcza mi do pracy, ale nie pozwala niczego usunąć ani przenieść i nie
 obejmuje płatności.
 
 ## Krok 0: Bitwarden (ok. 10 min)
@@ -26,37 +27,37 @@ obejmuje płatności.
 - [ ] Włącz weryfikację dwuetapową (aplikacja typu Google Authenticator) i zapisz kody
       zapasowe w swoim prywatnym sejfie.
 - [ ] Utwórz **Organizację** o nazwie `LandingOS` (darmowy plan wystarcza dla dwóch osób).
-- [ ] W organizacji utwórz kolekcję `infra` i zaproś Tomka na jego adres Gmail
-      (ma już konto Bitwarden, poda Ci adres na rozmowie).
+- [ ] W organizacji utwórz kolekcję `infra` i zaproś mnie na mój adres Gmail
+      (mam już konto Bitwarden; adres dostaniesz na Telegramie).
 - [ ] Umawiamy się: wszystko, co tajne, ląduje w `infra`. Zawsze.
 
 ## Krok 1: Neon, baza danych (ok. 15 min)
 
 - [ ] Wejdź na <https://neon.com> i zaloguj się przez swoje konto Google.
 - [ ] Utwórz **Organizację** `LandingOS`.
-- [ ] W zakładce **People** zaproś Tomka z rolą **Editor** (może pracować z bazą,
-      nie może jej usunąć ani przenieść, nie widzi płatności).
+- [ ] W zakładce **People** zaproś mnie z rolą **Editor** (mogę pracować z bazą,
+      nie mogę jej usunąć ani przenieść, nie widzę płatności).
 - [ ] Zostajemy na planie Free. Przed startem produkcji podniesiemy plan na **Launch**
       i wtedy podepniesz kartę.
-- [ ] Po rozmowie Tomek przekaże istniejącą bazę do Twojej organizacji specjalnym
-      linkiem (tzw. claim link). Dostaniesz go i klikniesz „przejmij". Aplikacja
-      w trakcie przenosin działa bez przerwy.
+- [ ] Gdy skończysz, przekażę istniejącą bazę do Twojej organizacji specjalnym
+      linkiem (tzw. claim link). Wyślę Ci go na Telegramie, a Ty klikniesz „przejmij".
+      Aplikacja w trakcie przenosin działa bez przerwy.
 
 ## Krok 2: Google Cloud i Mapy (ok. 25 min, najbardziej „klikany" krok)
 
 - [ ] Wejdź na <https://console.cloud.google.com> i zaloguj się swoim kontem Google.
 - [ ] Załóż **konto rozliczeniowe** (Billing) i podepnij kartę.
 - [ ] Utwórz **projekt** o nazwie `landingos-prod`.
-- [ ] W ustawieniach dostępu (**IAM**) dodaj Tomka do projektu z rolą **Editor**,
-      a na koncie rozliczeniowym z rolą **Billing Account Viewer** (widzi wydatki,
-      nie może ruszyć płatności).
+- [ ] W ustawieniach dostępu (**IAM**) dodaj mnie do projektu z rolą **Editor**,
+      a na koncie rozliczeniowym z rolą **Billing Account Viewer** (widzę wydatki,
+      nie mogę ruszyć płatności).
 - [ ] Ustaw **alert budżetowy**: np. 200 zł/miesiąc, powiadomienia przy 50%, 90%
-      i 100%. Powiadomienia mają przychodzić na Twój i Tomka adres e-mail.
+      i 100%. Powiadomienia mają przychodzić na Twój i mój adres e-mail.
 - [ ] Zaakceptuj warunki **Google Maps Platform**. Robisz to Ty jako właścicielka.
       Datę akceptacji zapisujemy w dokumentacji projektu (to formalny warunek startu
       produkcji).
-- [ ] Klucze do map utworzy później Tomek (z ograniczeniami, żeby nikt obcy nie mógł
-      ich użyć) i zapisze je w Bitwardenie.
+- [ ] Klucze do map utworzę później ja (z ograniczeniami, żeby nikt obcy nie mógł
+      ich użyć) i zapiszę je w Bitwardenie.
 
 ## Krok 3: AviationStack, dane o lotach (ok. 10 min)
 
@@ -66,15 +67,15 @@ obejmuje płatności.
 - [ ] Zapisz w tej samej notatce klucz dostępu (**API Access Key**) z panelu.
 - [ ] Zostajemy na planie Free. Przed startem produkcji przejdziesz na plan **Basic**
       (49,99 USD/mies.). To on daje licencję komercyjną.
-- [ ] W Gmailu ustaw filtr: maile z `aviationstack.com` przekazuj do Tomka
+- [ ] W Gmailu ustaw filtr: maile z `aviationstack.com` przekazuj do mnie
       (będą tam ostrzeżenia o zużyciu limitu zapytań).
 
-## Co masz po tej rozmowie
+## Co masz po wykonaniu wszystkich kroków
 
 - Trzy konta usług z danymi są **Twoje**: baza danych, mapy Google, dane o lotach.
   Ty za nie płacisz i Ty akceptujesz ich regulaminy.
-- Tomek ma dostęp roboczy: wystarcza do pracy, nie pozwala niczego bezpowrotnie
+- Ja mam dostęp roboczy: wystarcza do pracy, nie pozwala niczego bezpowrotnie
   zepsuć ani przenieść.
 - Wszystkie hasła i klucze są w jednym wspólnym sejfie, do którego oboje macie dostęp.
-- Domena, serwery (Cloudflare) i kod (GitHub) zostają na razie u Tomka — ich
+- Domena, serwery (Cloudflare) i kod (GitHub) zostają na razie u mnie — ich
   ewentualne przeniesienie to osobny, opisany już plan na później.
