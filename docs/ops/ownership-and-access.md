@@ -22,6 +22,20 @@ Update it in the same commit as any ownership, role, or key change.
 - **Least privilege for the developer.** On owner-held accounts the developer holds a
   role that can operate but not delete, bill, or transfer (see the register).
 
+## How the developer uses the vault
+
+The developer never logs into the owner's Bitwarden account. Her Organisation shares
+the `infra` collection with his own Bitwarden account, so its items appear in his own
+vault (web, browser extension, or the `bw` CLI) once he accepts the org invite.
+
+Deploy-time flow: open the shared secure note (e.g. `landingos .staging.vars`) → paste
+into the matching gitignored local file (`apps/data-service/.staging.vars` or
+`apps/user-application/.env.staging`) → `bash apps/{app}/sync-secrets.sh staging`,
+which uploads the values as Cloudflare Worker secrets. `pnpm run deploy:{env}:*` itself
+never reads provider keys — Workers get them from Cloudflare. The vault is the durable
+copy; local files are a cache any machine can rebuild from the vault. Scriptable
+variant when wanted: `bw get notes "landingos .staging.vars" > apps/data-service/.staging.vars`.
+
 ## Register
 
 | Asset | Owner / payer | Developer access | Dashboard |
