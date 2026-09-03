@@ -69,8 +69,9 @@ interface PolishPickerProps {
 /**
  * The native `<input>` is the tap target: a full-size transparent overlay on top of a
  * presentational box. Mobile browsers anchor their date sheet to the input's rendered
- * box, so it must never be clipped (`sr-only`) or opened indirectly via `showPicker()`.
- * It stays in the tab order with its own accessible name; the box is decoration only.
+ * box, so it must never be clipped (`sr-only`). A direct click also requests `showPicker()`
+ * where supported, while native click behavior remains the fallback. The input stays in
+ * the tab order with its own accessible name; the box is decoration only.
  */
 export function PolishPicker({
 	id,
@@ -99,32 +100,41 @@ export function PolishPicker({
 	}
 
 	return (
-		<div className={cn("relative", className)}>
-			<input
-				id={`${id}-native`}
-				name={name}
-				type={type}
-				value={value}
-				disabled={disabled}
-				className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-				aria-label={`${label}: ${displayValue || placeholder}`}
-				aria-invalid={invalid}
-				aria-describedby={describedBy}
-				onChange={(event) => onChange(event.target.value)}
-			/>
-			<div
-				id={id}
-				aria-hidden="true"
-				className={cn(
-					"pointer-events-none flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-4 text-base tabular-nums shadow-xs transition-[color,box-shadow]",
-					"peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50",
-					"peer-disabled:opacity-50",
-					invalid && "border-destructive ring-[3px] ring-destructive/20",
-					!displayValue && "text-muted-foreground",
-				)}
-			>
-				<span>{displayValue || placeholder}</span>
-				<Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+		<div className={className}>
+			<div className="relative">
+				<input
+					id={`${id}-native`}
+					name={name}
+					type={type}
+					value={value}
+					disabled={disabled}
+					className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+					aria-label={`${label}: ${displayValue || placeholder}`}
+					aria-invalid={invalid}
+					aria-describedby={describedBy}
+					onClick={(event) => {
+						try {
+							event.currentTarget.showPicker?.();
+						} catch {
+							// Keep the browser's default click behaviour when its picker API rejects.
+						}
+					}}
+					onChange={(event) => onChange(event.target.value)}
+				/>
+				<div
+					id={id}
+					aria-hidden="true"
+					className={cn(
+						"pointer-events-none flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-4 text-base tabular-nums shadow-xs transition-[color,box-shadow]",
+						"peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50",
+						"peer-disabled:opacity-50",
+						invalid && "border-destructive ring-[3px] ring-destructive/20",
+						!displayValue && "text-muted-foreground",
+					)}
+				>
+					<span>{displayValue || placeholder}</span>
+					<Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+				</div>
 			</div>
 			{allowTyping ? (
 				<div className="mt-2">

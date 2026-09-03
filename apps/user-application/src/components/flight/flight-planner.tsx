@@ -402,6 +402,7 @@ export function FlightPlanner({ initialFlightNumber = "" }: { initialFlightNumbe
 											label="Data wylotu"
 											type="date"
 											value={departureDateInput}
+											allowTyping
 											onChange={(value) => {
 												setDepartureDateInput(value);
 												setFieldErrors((current) => ({

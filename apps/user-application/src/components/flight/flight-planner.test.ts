@@ -45,6 +45,26 @@ describe("FlightPlanner manual fallback", () => {
 		vi.unstubAllGlobals();
 	});
 
+	/*
+	 * Date fallback assumptions:
+	 * - input: an exact Polish calendar date in DD.MM.RRRR format;
+	 * - output: the lookup's canonical YYYY-MM-DD value changes immediately;
+	 * - boundary: incomplete or impossible dates do not replace the current value;
+	 * - excluded: the browser-owned native calendar surface.
+	 */
+	it("lets the traveler type a Polish departure date when the native picker is unavailable", async () => {
+		await act(async () => root.render(createElement(FlightPlanner)));
+		const typedDate = container.querySelector<HTMLInputElement>("#departure-date-typed");
+		const nativeDate = container.querySelector<HTMLInputElement>("#departure-date-native");
+
+		expect(typedDate?.placeholder).toBe("DD.MM.RRRR");
+		await act(async () => setInputValue(typedDate as HTMLInputElement, "04.09.2026"));
+		expect(nativeDate?.value).toBe("2026-09-04");
+
+		await act(async () => setInputValue(typedDate as HTMLInputElement, "31.02.2026"));
+		expect(nativeDate?.value).toBe("2026-09-04");
+	});
+
 	it("requires the traveler to enter an arrival after provider fallback", async () => {
 		const fetchSpy = vi.fn(async () =>
 			Response.json({
