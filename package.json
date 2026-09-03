@@ -56,20 +56,20 @@
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
-	"packageManager": "pnpm@11.22.0",
+	"packageManager": "pnpm@11.25.0",
 	"devDependencies": {
 		"@biomejs/biome": "2.4.4",
 		"@semantic-release/changelog": "^6.0.3",
 		"@semantic-release/git": "^10.0.1",
 		"@types/node": "^22.20.1",
-		"@vitest/coverage-v8": "^4.1.10",
-		"knip": "^6.32.2",
+		"@vitest/coverage-v8": "^4.1.11",
+		"knip": "^6.34.0",
 		"semantic-release": "^25.0.9",
-		"simple-git-hooks": "^2.13.1",
+		"simple-git-hooks": "^2.14.0",
 		"taze": "^19.17.2",
-		"tsx": "^4.23.12",
+		"tsx": "^4.23.13",
 		"typescript": "^5.9.3",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.11"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "pnpm run lint:ci",
