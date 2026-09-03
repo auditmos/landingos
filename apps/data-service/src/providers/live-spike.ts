@@ -71,7 +71,7 @@ export interface LiveSpikeEvidence {
 	status: "complete";
 	generatedAt: string;
 	providers: {
-		flight: "aviationstack";
+		flight: "aviationstack" | "aerodatabox";
 		places: "google_places_new";
 		transit: "google_routes_transit";
 	};
@@ -90,7 +90,8 @@ export interface LiveSpikeEvidence {
 		status: "passing" | "failing";
 		requiredDecision:
 			| null
-			| "reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider";
+			| "reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider"
+			| "reconfigure_aerodatabox_for_scheduled_flight_coverage_or_replace_provider";
 	};
 	airportDeparture: AirportDepartureMeasurement;
 	callCount: number;
@@ -102,6 +103,8 @@ export interface LiveSpikeEvidence {
 	billing: {
 		units: {
 			aviationstackCalls: number;
+			aerodataboxCalls?: number;
+			aerodataboxApiUnits?: number;
 			googlePlacesAutocompleteCalls: number;
 			googleRoutesComputeCalls: number;
 		};
@@ -126,7 +129,9 @@ const PLACE_QUERIES = [
 ] as const;
 
 const AVIATIONSTACK_FUTURE_INTERVAL_MS = 60_000;
+const AERODATABOX_INTERVAL_MS = 1_000;
 const FLIGHT_WAIT_HEARTBEAT_MS = 30_000;
+type LiveFlightProvider = LiveSpikeEvidence["providers"]["flight"];
 
 function sleep(milliseconds: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -204,8 +209,56 @@ function flightMatchesReference(
 	);
 }
 
+function flightRequestInterval(provider: LiveFlightProvider): number {
+	return provider === "aerodatabox" ? AERODATABOX_INTERVAL_MS : AVIATIONSTACK_FUTURE_INTERVAL_MS;
+}
+
+async function waitForNextFlightRequest(
+	caseNumber: number,
+	total: number,
+	intervalMs: number,
+	options: Pick<LiveSpikeOptions, "onProgress" | "sleep">,
+): Promise<void> {
+	for (let waitedMs = 0; waitedMs < intervalMs; ) {
+		const waitMs = Math.min(FLIGHT_WAIT_HEARTBEAT_MS, intervalMs - waitedMs);
+		waitedMs += waitMs;
+		options.onProgress(
+			`[s0] flight provider wait ${caseNumber}/${total} ${waitedMs / 1_000}/${intervalMs / 1_000}s`,
+		);
+		await (options.sleep ?? sleep)(waitMs);
+	}
+}
+
+function failedFlightDecision(provider: LiveFlightProvider) {
+	return provider === "aerodatabox"
+		? ("reconfigure_aerodatabox_for_scheduled_flight_coverage_or_replace_provider" as const)
+		: ("reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider" as const);
+}
+
+function flightBillingUnits(provider: LiveFlightProvider, calls: number) {
+	return provider === "aerodatabox"
+		? { aviationstackCalls: 0, aerodataboxCalls: calls, aerodataboxApiUnits: calls * 2 }
+		: { aviationstackCalls: calls };
+}
+
+function flightSourceUrl(provider: LiveFlightProvider): string {
+	return provider === "aerodatabox"
+		? "https://doc.aerodatabox.com/"
+		: "https://aviationstack.com/documentation";
+}
+
+function flightTermsUrl(provider: LiveFlightProvider): string {
+	return provider === "aerodatabox"
+		? "https://rapidapi.com/aedbx-aedbx/api/aerodatabox/pricing"
+		: "https://aviationstack.com/terms";
+}
+
 export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpikeEvidence> {
-	const adapters = createLiveProviderAdapters(options.credentials, options.fetchImpl);
+	const adapters = createLiveProviderAdapters(options.credentials, options.fetchImpl, {
+		today: () => options.generatedAt.slice(0, 10),
+	});
+	const flightProvider = options.credentials.flightProvider ?? "aviationstack";
+	const flightRequestIntervalMs = flightRequestInterval(flightProvider);
 	const scenarioResults: MeasuredScenarioResult[] = [];
 	const airportDeparture: AirportDepartureMeasurement = {
 		origin: BGY_ROUTE_ORIGIN,
@@ -243,17 +296,12 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 	const flightScenarios = LIVE_FLIGHT_SAMPLE_V1.cases;
 	for (const [index, scenario] of flightScenarios.entries()) {
 		if (index > 0) {
-			for (
-				let waitedMs = 0;
-				waitedMs < AVIATIONSTACK_FUTURE_INTERVAL_MS;
-				waitedMs += FLIGHT_WAIT_HEARTBEAT_MS
-			) {
-				const nextWaitedSeconds = (waitedMs + FLIGHT_WAIT_HEARTBEAT_MS) / 1_000;
-				options.onProgress(
-					`[s0] flight provider wait ${index + 1}/${flightScenarios.length} ${nextWaitedSeconds}/60s`,
-				);
-				await (options.sleep ?? sleep)(FLIGHT_WAIT_HEARTBEAT_MS);
-			}
+			await waitForNextFlightRequest(
+				index + 1,
+				flightScenarios.length,
+				flightRequestIntervalMs,
+				options,
+			);
 		}
 		const startedAt = options.nowMs();
 		const result = await adapters.flight.lookup(scenario.input);
@@ -302,7 +350,7 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 		status: "complete",
 		generatedAt: options.generatedAt,
 		providers: {
-			flight: "aviationstack",
+			flight: flightProvider,
 			places: "google_places_new",
 			transit: "google_routes_transit",
 		},
@@ -319,9 +367,7 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 			correct: correctFlights,
 			requiredCorrect,
 			status: flightRecognitionPassing ? "passing" : "failing",
-			requiredDecision: flightRecognitionPassing
-				? null
-				: "reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider",
+			requiredDecision: flightRecognitionPassing ? null : failedFlightDecision(flightProvider),
 		},
 		airportDeparture,
 		callCount: scenarioResults.length,
@@ -332,7 +378,7 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 		},
 		billing: {
 			units: {
-				aviationstackCalls: flightScenarios.length,
+				...flightBillingUnits(flightProvider, flightScenarios.length),
 				googlePlacesAutocompleteCalls: PLACE_QUERIES.length,
 				googleRoutesComputeCalls: routeScenarios.length,
 			},
@@ -345,8 +391,8 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 		viewport: MILAN_MUNICIPALITY_VIEWPORT,
 		sources: [
 			{
-				provider: "aviationstack",
-				url: "https://aviationstack.com/documentation",
+				provider: flightProvider,
+				url: flightSourceUrl(flightProvider),
 				accessedOn,
 			},
 			{
@@ -367,8 +413,8 @@ export async function runLiveSpike(options: LiveSpikeOptions): Promise<LiveSpike
 		],
 		providerTerms: [
 			{
-				provider: "aviationstack",
-				url: "https://aviationstack.com/terms",
+				provider: flightProvider,
+				url: flightTermsUrl(flightProvider),
 				accessedOn,
 			},
 			{

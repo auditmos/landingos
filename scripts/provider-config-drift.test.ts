@@ -7,6 +7,7 @@ const SERVER_PROVIDER_VARIABLES = [
 	"LANDINGOS_PLACES_PROVIDER",
 	"LANDINGOS_TRANSIT_PROVIDER",
 	"AVIATIONSTACK_ACCESS_KEY",
+	"AERODATABOX_RAPIDAPI_KEY",
 	"GOOGLE_MAPS_API_KEY",
 ] as const;
 
@@ -20,6 +21,7 @@ describe("provider environment examples", () => {
 			}
 			expect(contents).toContain("fixture is local/dev only");
 			expect(contents).toContain("staging/production require explicit live mode");
+			expect(contents).toContain("aviationstack or aerodatabox");
 		}
 	});
 

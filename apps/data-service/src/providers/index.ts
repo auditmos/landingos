@@ -29,9 +29,14 @@ export {
 	runFixtureSpike,
 } from "./fixture-spike";
 export {
+	type FlightProviderComparisonEvidence,
+	runFlightProviderComparison,
+} from "./flight-provider-comparison";
+export {
 	createLiveProviderAdapters,
 	type LiveProviderCredentials,
 } from "./live-adapters";
+export { createAerodataboxFlightProvider } from "./live-flight-aerodatabox";
 export {
 	type LiveSpikeEvidence,
 	runLiveSpike,

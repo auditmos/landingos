@@ -49,6 +49,7 @@
 		"smoke:native-api": "pnpm run build:data-ops && node --import tsx scripts/native-api-smoke.ts",
 		"spike:data:fixtures": "node --import tsx scripts/provider-spike.ts fixture",
 		"spike:data": "node --import tsx scripts/provider-spike.ts live",
+		"spike:flights:compare": "node --env-file-if-exists=apps/data-service/.dev.vars --import tsx scripts/flight-provider-comparison.ts",
 		"release": "semantic-release",
 		"release:dry": "semantic-release --dry-run"
 	},

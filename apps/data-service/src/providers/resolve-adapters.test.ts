@@ -54,6 +54,26 @@ describe("provider adapter resolution", () => {
 		expect(fetchImpl.mock.calls[0]?.[0]).toContain("api.aviationstack.com");
 	});
 
+	it("selects AeroDataBox only when it is explicitly configured with its own credential", async () => {
+		const fetchImpl = vi.fn<ProviderFetch>(async () => Response.json([]));
+		const adapters = resolveProviderAdapters(
+			{
+				...LIVE_ENV,
+				LANDINGOS_FLIGHT_PROVIDER: "aerodatabox",
+				AVIATIONSTACK_ACCESS_KEY: undefined,
+				AERODATABOX_RAPIDAPI_KEY: "test-aero-key",
+			},
+			fetchImpl,
+		);
+
+		expect(adapters.mode).toBe("live");
+		await adapters.flight.lookup({ flightNumber: "FR889", date: "2026-09-01" });
+		expect(fetchImpl).toHaveBeenCalledOnce();
+		const [url, init] = fetchImpl.mock.calls[0] ?? [];
+		expect(url).toContain("aerodatabox.p.rapidapi.com");
+		expect(new Headers(init?.headers).get("X-RapidAPI-Key")).toBe("test-aero-key");
+	});
+
 	it("never falls back to live: staging without an explicit mode degrades every contract", async () => {
 		const fetchImpl = vi.fn<ProviderFetch>(async () => Response.json({}));
 		const adapters = resolveProviderAdapters({ CLOUDFLARE_ENV: "staging" }, fetchImpl);

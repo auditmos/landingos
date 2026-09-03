@@ -11,7 +11,7 @@ describe("provider security boundaries", () => {
 		expect(
 			matching(
 				browserFiles,
-				/LANDINGOS_|AVIATIONSTACK_ACCESS_KEY|GOOGLE_MAPS_API_KEY|aviationstack\.com|places\.googleapis\.com|routes\.googleapis\.com/,
+				/LANDINGOS_|AVIATIONSTACK_ACCESS_KEY|AERODATABOX_RAPIDAPI_KEY|GOOGLE_MAPS_API_KEY|aviationstack\.com|aerodatabox\.p\.rapidapi\.com|places\.googleapis\.com|routes\.googleapis\.com/,
 			),
 		).toEqual([]);
 	});
@@ -19,6 +19,7 @@ describe("provider security boundaries", () => {
 	it("keeps raw provider payload markers out of fixtures and evidence", () => {
 		const fixtureAndEvidenceFiles = scanFiles([
 			"apps/data-service/src/providers/fixture-data.ts",
+			"apps/data-service/src/providers/flight-provider-comparison.ts",
 			"apps/data-service/src/providers/live-flight-sample.ts",
 			"apps/data-service/src/providers/live-spike.ts",
 			"docs/evidence",
@@ -26,7 +27,10 @@ describe("provider security boundaries", () => {
 
 		expect(fixtureAndEvidenceFiles.length).toBeGreaterThan(3);
 		expect(
-			matching(fixtureAndEvidenceFiles, /"access_key"|X-Goog-Api-Key|rawPayload|raw_payload/),
+			matching(
+				fixtureAndEvidenceFiles,
+				/"access_key"|X-Goog-Api-Key|X-RapidAPI-Key|rawPayload|raw_payload/,
+			),
 		).toEqual([]);
 	});
 

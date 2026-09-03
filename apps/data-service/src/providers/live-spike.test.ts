@@ -31,56 +31,96 @@ function routeResponse(): Response {
 	});
 }
 
+function aviationstackResponse(url: string, failingCases: Set<string>): Response {
+	const parsed = new URL(url);
+	const flightNumber = `${parsed.searchParams.get("airline_iata") ?? "FR"}${parsed.searchParams.get("flight_number") ?? "1234"}`;
+	const date = parsed.searchParams.get("date") ?? "2026-09-14";
+	const sampleCase = LIVE_FLIGHT_SAMPLE_V1.cases.find(
+		(item) => item.input.flightNumber === flightNumber && item.input.date === date,
+	);
+	if (sampleCase && failingCases.has(sampleCase.caseId)) return Response.json({ data: [] });
+	return Response.json({
+		data: [
+			{
+				flight: { number: flightNumber.slice(2), iataNumber: flightNumber },
+				airline: { name: "Fixture Live Candidate", iataCode: flightNumber.slice(0, 2) },
+				departure: {
+					iataCode: sampleCase?.expected.originIata ?? "WAW",
+					scheduledTime: "06:00",
+				},
+				arrival: {
+					iataCode: "BGY",
+					scheduledTime: sampleCase?.expected.scheduledArrival.slice(11, 16) ?? "10:20",
+				},
+				codeshared: null,
+			},
+		],
+	});
+}
+
+function aerodataboxResponse(url: string, failingCases: Set<string>): Response {
+	const path = new URL(url).pathname.split("/");
+	const flightNumber = path[3] ?? "";
+	const date = path[4] ?? "";
+	const sampleCase = LIVE_FLIGHT_SAMPLE_V1.cases.find(
+		(item) => item.input.flightNumber === flightNumber && item.input.date === date,
+	);
+	if (!sampleCase || failingCases.has(sampleCase.caseId)) return Response.json([]);
+	return Response.json([
+		{
+			number: `${flightNumber.slice(0, 2)} ${flightNumber.slice(2)}`,
+			codeshareStatus: "IsOperator",
+			airline: { name: "Fixture Live Candidate", iata: flightNumber.slice(0, 2) },
+			departure: {
+				airport: {
+					iata: sampleCase.expected.originIata,
+					name: sampleCase.expected.originIata,
+					countryCode: "PL",
+					timeZone: "Europe/Warsaw",
+				},
+				scheduledTime: { local: `${date} 06:00+02:00`, utc: `${date} 04:00Z` },
+			},
+			arrival: {
+				airport: {
+					iata: "BGY",
+					name: "Milan Bergamo",
+					countryCode: "IT",
+					timeZone: "Europe/Rome",
+				},
+				scheduledTime: {
+					local: sampleCase.expected.scheduledArrival.replace("T", " "),
+					utc: new Date(sampleCase.expected.scheduledArrival).toISOString(),
+				},
+			},
+		},
+	]);
+}
+
+function placesResponse(): Response {
+	return Response.json({
+		suggestions: [
+			{
+				placePrediction: {
+					placeId: "google:measured-place",
+					structuredFormat: {
+						mainText: { text: "Measured Milan place" },
+						secondaryText: { text: "Milano, Włochy" },
+					},
+				},
+			},
+		],
+	});
+}
+
 function liveProviderFetch(failingCases = new Set<string>()) {
 	return async (url: string) => {
 		if (url.startsWith("https://api.aviationstack.com")) {
-			const parsed = new URL(url);
-			const flightNumber = `${parsed.searchParams.get("airline_iata") ?? "FR"}${parsed.searchParams.get("flight_number") ?? "1234"}`;
-			const date = parsed.searchParams.get("date") ?? "2026-09-14";
-			const sampleCase = LIVE_FLIGHT_SAMPLE_V1.cases.find(
-				(item) => item.input.flightNumber === flightNumber && item.input.date === date,
-			);
-			if (sampleCase && failingCases.has(sampleCase.caseId)) return Response.json({ data: [] });
-			return Response.json({
-				data: [
-					{
-						flight: {
-							number: flightNumber.slice(2),
-							iataNumber: flightNumber,
-						},
-						airline: {
-							name: "Fixture Live Candidate",
-							iataCode: flightNumber.slice(0, 2),
-						},
-						departure: {
-							iataCode: sampleCase?.expected.originIata ?? "WAW",
-							scheduledTime: "06:00",
-						},
-						arrival: {
-							iataCode: "BGY",
-							scheduledTime: sampleCase?.expected.scheduledArrival.slice(11, 16) ?? "10:20",
-						},
-						codeshared: null,
-					},
-				],
-			});
+			return aviationstackResponse(url, failingCases);
 		}
-		if (url.endsWith("places:autocomplete")) {
-			return Response.json({
-				suggestions: [
-					{
-						placePrediction: {
-							placeId: "google:measured-place",
-							structuredFormat: {
-								mainText: { text: "Measured Milan place" },
-								secondaryText: { text: "Milano, Włochy" },
-							},
-						},
-					},
-				],
-			});
+		if (url.startsWith("https://aerodatabox.p.rapidapi.com")) {
+			return aerodataboxResponse(url, failingCases);
 		}
-		return routeResponse();
+		return url.endsWith("places:autocomplete") ? placesResponse() : routeResponse();
 	};
 }
 
@@ -208,5 +248,37 @@ describe("live provider spike", () => {
 			requiredDecision:
 				"reconfigure_aviationstack_for_scheduled_flight_coverage_or_replace_provider",
 		});
+	});
+
+	it("measures the selected AeroDataBox provider with its own pacing and units", async () => {
+		const sleep = vi.fn(async (_milliseconds: number) => undefined);
+		const evidence = await runLiveSpike({
+			credentials: {
+				flightProvider: "aerodatabox",
+				aerodataboxRapidApiKey: "test-aero-key",
+				googleMapsApiKey: "test-google-key",
+			},
+			fetchImpl: liveProviderFetch(),
+			nowMs: () => 0,
+			generatedAt: "2026-08-12T17:00:00.000Z",
+			onProgress: () => undefined,
+			sleep,
+		});
+
+		expect(evidence.providers.flight).toBe("aerodatabox");
+		expect(evidence.flightRecognition).toEqual({
+			total: 10,
+			correct: 10,
+			requiredCorrect: 9,
+			status: "passing",
+			requiredDecision: null,
+		});
+		expect(evidence.billing.units).toMatchObject({
+			aviationstackCalls: 0,
+			aerodataboxCalls: 10,
+			aerodataboxApiUnits: 20,
+		});
+		expect(sleep).toHaveBeenCalledTimes(9);
+		expect(sleep.mock.calls.every(([milliseconds]) => milliseconds === 1_000)).toBe(true);
 	});
 });

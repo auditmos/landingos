@@ -1,4 +1,5 @@
 import type { RuntimeVars } from "../runtime-vars";
+import type { LiveProviderCredentials } from "./live-adapters";
 
 type RuntimeEnvironment = "local" | "dev" | "test" | "staging" | "production";
 
@@ -13,14 +14,11 @@ interface LiveProviderConfig {
 	mode: "live";
 	environment: RuntimeEnvironment;
 	providers: {
-		flight: "aviationstack";
+		flight: "aviationstack" | "aerodatabox";
 		places: "google_places_new";
 		transit: "google_routes_transit";
 	};
-	credentials: {
-		aviationstackAccessKey: string;
-		googleMapsApiKey: string;
-	};
+	credentials: LiveProviderCredentials;
 }
 
 interface FixtureForbidden {
@@ -92,7 +90,18 @@ function resolveLiveProviderConfig(
 	env: ProviderEnvironment,
 	environment: RuntimeEnvironment,
 ): ProviderConfigResult {
-	const missingVariables = REQUIRED_LIVE_VARIABLES.filter((variable) => !env[variable]?.trim());
+	const flightCredentialVariable =
+		env.LANDINGOS_FLIGHT_PROVIDER === "aerodatabox"
+			? "AERODATABOX_RAPIDAPI_KEY"
+			: "AVIATIONSTACK_ACCESS_KEY";
+	const requiredVariables = [
+		"LANDINGOS_FLIGHT_PROVIDER",
+		"LANDINGOS_PLACES_PROVIDER",
+		"LANDINGOS_TRANSIT_PROVIDER",
+		flightCredentialVariable,
+		"GOOGLE_MAPS_API_KEY",
+	] as const;
+	const missingVariables = requiredVariables.filter((variable) => !env[variable]?.trim());
 	if (missingVariables.length > 0) {
 		return {
 			ok: false,
@@ -103,7 +112,6 @@ function resolveLiveProviderConfig(
 		};
 	}
 	const selections = [
-		["LANDINGOS_FLIGHT_PROVIDER", env.LANDINGOS_FLIGHT_PROVIDER, "aviationstack"],
 		["LANDINGOS_PLACES_PROVIDER", env.LANDINGOS_PLACES_PROVIDER, "google_places_new"],
 		["LANDINGOS_TRANSIT_PROVIDER", env.LANDINGOS_TRANSIT_PROVIDER, "google_routes_transit"],
 	] as const;
@@ -119,20 +127,44 @@ function resolveLiveProviderConfig(
 			};
 		}
 	}
+	if (
+		env.LANDINGOS_FLIGHT_PROVIDER !== "aviationstack" &&
+		env.LANDINGOS_FLIGHT_PROVIDER !== "aerodatabox"
+	) {
+		return {
+			ok: false,
+			error: {
+				status: "invalid_provider_selection",
+				variable: "LANDINGOS_FLIGHT_PROVIDER",
+				received: env.LANDINGOS_FLIGHT_PROVIDER ?? "",
+			},
+		};
+	}
+	const flightProvider = env.LANDINGOS_FLIGHT_PROVIDER;
+	const googleMapsApiKey = env.GOOGLE_MAPS_API_KEY as string;
+	const credentials: LiveProviderCredentials =
+		flightProvider === "aerodatabox"
+			? {
+					flightProvider,
+					aerodataboxRapidApiKey: env.AERODATABOX_RAPIDAPI_KEY as string,
+					googleMapsApiKey,
+				}
+			: {
+					flightProvider,
+					aviationstackAccessKey: env.AVIATIONSTACK_ACCESS_KEY as string,
+					googleMapsApiKey,
+				};
 	return {
 		ok: true,
 		config: {
 			mode: "live",
 			environment,
 			providers: {
-				flight: "aviationstack",
+				flight: flightProvider,
 				places: "google_places_new",
 				transit: "google_routes_transit",
 			},
-			credentials: {
-				aviationstackAccessKey: env.AVIATIONSTACK_ACCESS_KEY as string,
-				googleMapsApiKey: env.GOOGLE_MAPS_API_KEY as string,
-			},
+			credentials,
 		},
 	};
 }

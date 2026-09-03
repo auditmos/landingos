@@ -78,6 +78,51 @@ describe("provider runtime configuration", () => {
 		}
 	});
 
+	it("selects AeroDataBox live without requiring an AviationStack credential", () => {
+		const configured = resolveProviderConfig({
+			CLOUDFLARE_ENV: "staging",
+			LANDINGOS_PROVIDER_MODE: "live",
+			LANDINGOS_FLIGHT_PROVIDER: "aerodatabox",
+			LANDINGOS_PLACES_PROVIDER: "google_places_new",
+			LANDINGOS_TRANSIT_PROVIDER: "google_routes_transit",
+			AERODATABOX_RAPIDAPI_KEY: "test-aero-key",
+			GOOGLE_MAPS_API_KEY: "test-google-key",
+		});
+
+		expect(configured).toEqual({
+			ok: true,
+			config: {
+				mode: "live",
+				environment: "staging",
+				providers: {
+					flight: "aerodatabox",
+					places: "google_places_new",
+					transit: "google_routes_transit",
+				},
+				credentials: {
+					flightProvider: "aerodatabox",
+					aerodataboxRapidApiKey: "test-aero-key",
+					googleMapsApiKey: "test-google-key",
+				},
+			},
+		});
+		expect(
+			resolveProviderConfig({
+				LANDINGOS_PROVIDER_MODE: "live",
+				LANDINGOS_FLIGHT_PROVIDER: "aerodatabox",
+				LANDINGOS_PLACES_PROVIDER: "google_places_new",
+				LANDINGOS_TRANSIT_PROVIDER: "google_routes_transit",
+				GOOGLE_MAPS_API_KEY: "test-google-key",
+			}),
+		).toEqual({
+			ok: false,
+			error: {
+				status: "external_prerequisite_missing",
+				missingVariables: ["AERODATABOX_RAPIDAPI_KEY"],
+			},
+		});
+	});
+
 	it("fails production readiness closed until live evidence and a GO decision are recorded", () => {
 		const productionEnv = {
 			CLOUDFLARE_ENV: "production",
