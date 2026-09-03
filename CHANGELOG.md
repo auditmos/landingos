@@ -1,3 +1,15 @@
+# [1.37.0](https://github.com/auditmos/landingos/compare/v1.36.22...v1.37.0) (2026-09-03)
+
+
+### Bug Fixes
+
+* **flights:** make departure date picker interactive ([128cc7e](https://github.com/auditmos/landingos/commit/128cc7ea0783fa27b70d36b8e5d578defd0c425f))
+
+
+### Features
+
+* **flights:** add AeroDataBox live provider ([c019698](https://github.com/auditmos/landingos/commit/c019698f24fa15332f9e19457a42ebd97c4780a3))
+
 ## [1.36.22](https://github.com/auditmos/landingos/compare/v1.36.21...v1.36.22) (2026-08-27)
 
 
